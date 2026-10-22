@@ -4,8 +4,9 @@ import { useParams } from 'next/navigation'
 import { Icon } from '@/components/icons'
 import { FlowTip } from '@/components/feedback/FlowTip'
 import { MediaCard } from '@/components/media/MediaCard'
-import { collectionGridItems, collectionItems, getCollection, getMedia, routeParam } from '@/lib/library'
+import { routeParam } from '@/lib/library'
 import { useApp } from '@/state/AppState'
+import { useLibrary } from '@/state/Catalog'
 import type { MediaItem } from '@/data/types'
 
 function UsageCard({ item, kind, channel, copy }: { item: MediaItem; kind: string; channel: string; copy: string }) {
@@ -25,9 +26,10 @@ function UsageCard({ item, kind, channel, copy }: { item: MediaItem; kind: strin
 export function CollectionDetailScreen() {
   const params = useParams()
   const { navigate, openGuide, toast } = useApp()
-  const collection = getCollection(routeParam(params.slug))
-  const items = collectionItems(collection)
-  const covers = collection.cover.map((id) => getMedia(id))
+  const library = useLibrary()
+  const collection = library.getCollection(routeParam(params.slug))
+  const items = library.collectionItems(collection)
+  const covers = collection.cover.map((id) => library.getMedia(id))
   const first = covers[0]
   const second = covers[1]
   const third = covers[2]
@@ -112,7 +114,7 @@ export function CollectionDetailScreen() {
           </div>
         </div>
         <div className="media-grid collection-assets">
-          {collectionGridItems(collection).map((item, index) => (
+          {library.collectionGridItems(collection).map((item, index) => (
             <MediaCard key={`${item.id}-${index}`} item={item} />
           ))}
         </div>

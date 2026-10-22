@@ -15,6 +15,7 @@ export type MediaItem = {
   collection: string
   position: string
   description: string
+  driveFileId?: string | null
 }
 
 export type Collection = {
@@ -25,6 +26,7 @@ export type Collection = {
   description: string
   ids: string[]
   cover: string[]
+  published?: boolean
 }
 
 export type Guide = {

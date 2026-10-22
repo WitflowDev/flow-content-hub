@@ -5,22 +5,23 @@ import { CollectionFeature } from '@/components/collections/CollectionFeature'
 import { FlowTip } from '@/components/feedback/FlowTip'
 import { GuideCard } from '@/components/guides/GuideCard'
 import { MediaCard } from '@/components/media/MediaCard'
-import { collections } from '@/data/collections'
 import { guides } from '@/data/guides'
-import { media } from '@/data/media'
 import { useApp } from '@/state/AppState'
+import { useLibrary } from '@/state/Catalog'
+import { useSession } from '@/state/Session'
 
 export function HomeScreen() {
   const { navigate, openDrawer } = useApp()
+  const { media, collections } = useLibrary()
+  const profile = useSession()
   const latest = collections[0]
-  if (!latest) return null
 
   return (
     <div className="page home-page">
       <header className="page-head home-head">
         <div className="page-title">
           <div className="eyebrow">Flow Content Hub</div>
-          <h1>Good morning, Ricardo.</h1>
+          <h1>Good morning, {profile.name}.</h1>
           <p>Everything your brand has created with Flow, ready to use.</p>
         </div>
         <div className="head-actions">
@@ -45,9 +46,11 @@ export function HomeScreen() {
           ))}
         </div>
       </section>
-      <section className="section latest-collection">
-        <CollectionFeature collection={latest} />
-      </section>
+      {latest ? (
+        <section className="section latest-collection">
+          <CollectionFeature collection={latest} />
+        </section>
+      ) : null}
       <section className="section">
         <div className="section-head">
           <div>

@@ -1,8 +1,10 @@
 'use client'
 
 import { useState } from 'react'
-import { ONBOARDING_KEY } from '@/lib/auth'
+import { useRouter } from 'next/navigation'
+import { createClient } from '@/lib/supabase/client'
 import { useApp } from '@/state/AppState'
+import { useSession } from '@/state/Session'
 
 function ToggleRow({ label, initiallyOn }: { label: string; initiallyOn: boolean }) {
   const [on, setOn] = useState(initiallyOn)
@@ -19,9 +21,33 @@ function ToggleRow({ label, initiallyOn }: { label: string; initiallyOn: boolean
 
 export function SettingsScreen() {
   const { navigate, toast, logout } = useApp()
+  const router = useRouter()
+  const profile = useSession()
+  const [name, setName] = useState(profile.name)
 
-  function replayOnboarding() {
-    localStorage.removeItem(ONBOARDING_KEY)
+  async function saveProfile() {
+    const nextName = name.trim()
+    if (!nextName) {
+      toast('Add a name before saving')
+      return
+    }
+    const supabase = createClient()
+    const { error } = await supabase.from('profiles').update({ name: nextName }).eq('id', profile.id)
+    if (error) {
+      toast('Could not save the profile')
+      return
+    }
+    toast('Profile saved', 'success')
+    router.refresh()
+  }
+
+  async function replayOnboarding() {
+    const supabase = createClient()
+    const { error } = await supabase.from('profiles').update({ onboarding_done: false }).eq('id', profile.id)
+    if (error) {
+      toast('Could not open onboarding')
+      return
+    }
     navigate('/onboarding')
   }
 
@@ -39,17 +65,17 @@ export function SettingsScreen() {
           <h3>Profile</h3>
           <div className="field">
             <label htmlFor="profile-name">Name</label>
-            <input id="profile-name" defaultValue="Ricardo Fernandes" />
+            <input id="profile-name" value={name} onChange={(event) => setName(event.target.value)} />
           </div>
           <div className="field">
             <label htmlFor="profile-email">Email</label>
-            <input id="profile-email" defaultValue="ricardo@demo.flow" />
+            <input id="profile-email" value={profile.email} readOnly />
           </div>
           <div className="field">
             <label htmlFor="profile-company">Company</label>
-            <input id="profile-company" defaultValue="Flow Demo Client" />
+            <input id="profile-company" defaultValue="" />
           </div>
-          <button type="button" className="btn primary" onClick={() => toast('Profile saved', 'success')}>
+          <button type="button" className="btn primary" onClick={() => void saveProfile()}>
             Save changes
           </button>
         </section>
@@ -60,12 +86,14 @@ export function SettingsScreen() {
           <ToggleRow label="Flow tips" initiallyOn={false} />
           <hr />
           <h3>Demo controls</h3>
-          <button type="button" className="btn ghost wide" onClick={replayOnboarding}>
+          <button type="button" className="btn ghost wide" onClick={() => void replayOnboarding()}>
             Replay onboarding
           </button>
-          <button type="button" className="btn ghost wide" onClick={() => navigate('/admin', true)}>
-            Open Flow Admin demo
-          </button>
+          {profile.role === 'admin' ? (
+            <button type="button" className="btn ghost wide" onClick={() => navigate('/admin', true)}>
+              Open Flow Admin demo
+            </button>
+          ) : null}
           <button type="button" className="btn danger wide" onClick={logout}>
             Log out
           </button>

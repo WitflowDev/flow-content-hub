@@ -1,15 +1,10 @@
-'use client'
+import { redirect } from 'next/navigation'
+import { createClient } from '@/lib/supabase/server'
 
-import { useEffect } from 'react'
-import { useRouter } from 'next/navigation'
-import { isAuthed } from '@/lib/auth'
-
-export default function NotFound() {
-  const router = useRouter()
-
-  useEffect(() => {
-    router.replace(isAuthed() ? '/home' : '/login')
-  }, [router])
-
-  return null
+export default async function NotFound() {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  redirect(user ? '/home' : '/login')
 }

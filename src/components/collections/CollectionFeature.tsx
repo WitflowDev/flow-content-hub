@@ -1,12 +1,13 @@
 'use client'
 
 import { Icon } from '@/components/icons'
-import { getMedia } from '@/lib/library'
 import { useApp } from '@/state/AppState'
+import { useLibrary } from '@/state/Catalog'
 import type { Collection } from '@/data/types'
 
 export function CollectionFeature({ collection }: { collection: Collection }) {
   const { navigate } = useApp()
+  const { getMedia } = useLibrary()
   const covers = collection.cover.map((id) => getMedia(id))
 
   return (

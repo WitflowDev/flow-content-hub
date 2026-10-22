@@ -1,8 +1,6 @@
-import { collections } from '@/data/collections'
-import { media } from '@/data/media'
 import type { ChannelFilter, Collection, ContentTypeFilter, MediaItem, SortMode } from '@/data/types'
 
-export function getMedia(id: string): MediaItem {
+export function findMedia(media: MediaItem[], id: string): MediaItem {
   const found = media.find((item) => item.id === id)
   if (found) return found
   const fallback = media[0]
@@ -10,7 +8,7 @@ export function getMedia(id: string): MediaItem {
   return fallback
 }
 
-export function getCollection(slug: string): Collection {
+export function findCollection(collections: Collection[], slug: string): Collection {
   const found = collections.find((item) => item.slug === slug)
   if (found) return found
   const fallback = collections[0]
@@ -31,12 +29,15 @@ export function tagClass(channel: string): string {
   }
 }
 
-export function filteredMedia(options: {
-  search: string
-  contentType: ContentTypeFilter
-  channel: ChannelFilter
-  sort: SortMode
-}): MediaItem[] {
+export function filteredMedia(
+  media: MediaItem[],
+  options: {
+    search: string
+    contentType: ContentTypeFilter
+    channel: ChannelFilter
+    sort: SortMode
+  },
+): MediaItem[] {
   const query = options.search.toLowerCase().trim()
   let results = [...media]
   if (query) {
@@ -56,12 +57,12 @@ export function filteredMedia(options: {
   return results
 }
 
-export function collectionItems(collection: Collection): MediaItem[] {
-  return collection.ids.map((id) => getMedia(id))
+export function collectionItems(media: MediaItem[], collection: Collection): MediaItem[] {
+  return collection.ids.map((id) => findMedia(media, id))
 }
 
-export function collectionGridItems(collection: Collection): MediaItem[] {
-  const items = collectionItems(collection)
+export function collectionGridItems(media: MediaItem[], collection: Collection): MediaItem[] {
+  const items = collectionItems(media, collection)
   const extras = media.filter((item) => !items.includes(item)).slice(0, Math.max(0, 8 - items.length))
   return items.concat(extras)
 }

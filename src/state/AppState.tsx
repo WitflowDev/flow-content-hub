@@ -3,7 +3,8 @@
 import { useRouter } from 'next/navigation'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { AUTH_KEY, TIP_KEY } from '@/lib/auth'
+import { TIP_KEY } from '@/lib/auth'
+import { createClient } from '@/lib/supabase/client'
 import type { ChannelFilter, ContentTypeFilter, SortMode, ViewMode } from '@/data/types'
 
 type ToastType = '' | 'success'
@@ -149,10 +150,14 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   )
 
   const logout = useCallback(() => {
-    localStorage.removeItem(AUTH_KEY)
     setDrawer(false)
     setNotifications(false)
-    router.push('/login')
+    void createClient()
+      .auth.signOut()
+      .finally(() => {
+        router.push('/login')
+        router.refresh()
+      })
   }, [router])
 
   const value = useMemo<AppContextValue>(

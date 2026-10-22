@@ -9,8 +9,8 @@ import { MediaCard } from '@/components/media/MediaCard'
 import { MediaListRow } from '@/components/media/MediaListRow'
 import { CHANNEL_FILTERS, CONTENT_TYPE_FILTERS, SORT_MODES } from '@/data/types'
 import type { SortMode } from '@/data/types'
-import { filteredMedia } from '@/lib/library'
 import { useApp } from '@/state/AppState'
+import { useLibrary } from '@/state/Catalog'
 
 function isSortMode(value: string): value is SortMode {
   return (SORT_MODES as readonly string[]).includes(value)
@@ -34,6 +34,7 @@ export function ContentScreen() {
     mounted,
     dismissTip,
   } = useApp()
+  const { filteredMedia } = useLibrary()
 
   const results = filteredMedia({ search, contentType, channel, sort })
   const filtering = Boolean(search) || contentType !== 'All' || channel !== 'All'

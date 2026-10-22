@@ -1,9 +1,8 @@
 'use client'
 
 import { Icon } from '@/components/icons'
-import { collections } from '@/data/collections'
-import { getMedia } from '@/lib/library'
 import { useApp } from '@/state/AppState'
+import { useLibrary } from '@/state/Catalog'
 
 const requests = [
   { title: 'Website refresh', person: 'RF', meta: 'Ricardo · 14 min ago', status: 'Open', statusClass: 'open' },
@@ -21,8 +20,17 @@ function StatCard({ label, value, sub }: { label: string; value: string; sub: st
   )
 }
 
-export function AdminScreen() {
+export function AdminScreen({
+  clientCount,
+  publishedAssets,
+  draftCollections,
+}: {
+  clientCount: number
+  publishedAssets: number
+  draftCollections: number
+}) {
   const { toast } = useApp()
+  const { collections, getMedia } = useLibrary()
 
   return (
     <div className="page admin-page">
@@ -37,10 +45,10 @@ export function AdminScreen() {
         </button>
       </header>
       <div className="admin-stats">
-        <StatCard label="Active clients" value="12" sub="+2 this month" />
-        <StatCard label="Published assets" value="486" sub="74 this month" />
+        <StatCard label="Active clients" value={String(clientCount)} sub="Profiles" />
+        <StatCard label="Published assets" value={String(publishedAssets)} sub="Live in the library" />
         <StatCard label="Open requests" value="4" sub="Talk to Flow" />
-        <StatCard label="Draft collections" value="3" sub="Awaiting publish" />
+        <StatCard label="Draft collections" value={String(draftCollections)} sub="Awaiting publish" />
       </div>
       <div className="admin-layout">
         <section className="card admin-panel">
@@ -66,7 +74,9 @@ export function AdminScreen() {
                   <b>{collection.title}</b>
                   <small>Demo Client · {collection.count} assets</small>
                 </div>
-                <span className="status published">Published</span>
+                <span className={collection.published === false ? 'status' : 'status published'}>
+                  {collection.published === false ? 'Draft' : 'Published'}
+                </span>
                 <button type="button" className="kebab">
                   •••
                 </button>

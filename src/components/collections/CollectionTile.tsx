@@ -1,11 +1,12 @@
 'use client'
 
-import { getMedia } from '@/lib/library'
 import { useApp } from '@/state/AppState'
+import { useLibrary } from '@/state/Catalog'
 import type { Collection } from '@/data/types'
 
 export function CollectionTile({ collection }: { collection: Collection }) {
   const { navigate } = useApp()
+  const { getMedia } = useLibrary()
   const covers = collection.cover.map((id) => getMedia(id))
   const primary = covers[0]
   const secondary = covers[1]

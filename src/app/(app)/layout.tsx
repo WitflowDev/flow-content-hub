@@ -1,23 +1,39 @@
-'use client'
-
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
 import type { ReactNode } from 'react'
-import { Shell } from '@/components/shell/Shell'
-import { isAuthed } from '@/lib/auth'
+import { redirect } from 'next/navigation'
+import { AppFrame } from '@/components/shell/AppFrame'
+import { roleFromAppMetadata } from '@/lib/auth'
+import { loadCatalog } from '@/lib/catalog'
+import { createClient } from '@/lib/supabase/server'
 
-export default function AppLayout({ children }: { children: ReactNode }) {
-  const router = useRouter()
-  const [allowed, setAllowed] = useState(false)
+export default async function AppLayout({ children }: { children: ReactNode }) {
+  const supabase = await createClient()
+  const {
+    data: { user },
+  } = await supabase.auth.getUser()
+  if (!user) redirect('/login')
 
-  useEffect(() => {
-    if (!isAuthed()) {
-      router.replace('/login')
-      return
-    }
-    setAllowed(true)
-  }, [router])
+  const { data: profile, error } = await supabase
+    .from('profiles')
+    .select('name, onboarding_done')
+    .eq('id', user.id)
+    .maybeSingle()
+  if (error) throw new Error(error.message)
 
-  if (!allowed) return null
-  return <Shell>{children}</Shell>
+  const catalog = await loadCatalog()
+
+  return (
+    <AppFrame
+      profile={{
+        id: user.id,
+        name: profile?.name || 'there',
+        email: user.email ?? '',
+        role: roleFromAppMetadata(user.app_metadata),
+        onboardingDone: profile?.onboarding_done ?? false,
+      }}
+      media={catalog.media}
+      collections={catalog.collections}
+    >
+      {children}
+    </AppFrame>
+  )
 }

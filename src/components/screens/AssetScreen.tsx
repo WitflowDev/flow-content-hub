@@ -4,9 +4,9 @@ import { useParams } from 'next/navigation'
 import { Icon } from '@/components/icons'
 import { TutorialImage } from '@/components/guides/TutorialImage'
 import { MediaCard } from '@/components/media/MediaCard'
-import { media } from '@/data/media'
-import { assetFormat, getMedia, routeParam } from '@/lib/library'
+import { assetFormat, routeParam } from '@/lib/library'
 import { useApp } from '@/state/AppState'
+import { useLibrary } from '@/state/Catalog'
 
 function DetailRow({ label, value }: { label: string; value: string }) {
   return (
@@ -20,6 +20,7 @@ function DetailRow({ label, value }: { label: string; value: string }) {
 export function AssetScreen() {
   const params = useParams()
   const { navigate, openDrawer, openGuide, toast } = useApp()
+  const { media, getMedia } = useLibrary()
   const item = getMedia(routeParam(params.id))
   const related = media.filter((entry) => entry.id !== item.id).slice(0, 4)
   const previous = related[0]

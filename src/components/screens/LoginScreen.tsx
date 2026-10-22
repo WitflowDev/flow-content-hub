@@ -1,18 +1,37 @@
 'use client'
 
+import { useState } from 'react'
 import type { FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { Icon } from '@/components/icons'
 import { Logo } from '@/components/shell/Logo'
-import { AUTH_KEY, ONBOARDING_KEY } from '@/lib/auth'
+import { createClient } from '@/lib/supabase/client'
 
 export function LoginScreen() {
   const router = useRouter()
+  const [error, setError] = useState('')
+  const [pending, setPending] = useState(false)
 
-  function onSubmit(event: FormEvent<HTMLFormElement>) {
+  async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    localStorage.setItem(AUTH_KEY, '1')
-    router.push(localStorage.getItem(ONBOARDING_KEY) ? '/home' : '/onboarding')
+    if (pending) return
+    const form = new FormData(event.currentTarget)
+    const email = String(form.get('email') ?? '')
+    const password = String(form.get('password') ?? '')
+    setPending(true)
+    setError('')
+
+    const supabase = createClient()
+    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
+    if (signInError) {
+      setPending(false)
+      setError('Those details didn’t match. Check the email and password and try again.')
+      return
+    }
+
+    const { data: profile } = await supabase.from('profiles').select('onboarding_done').maybeSingle()
+    router.push(profile?.onboarding_done ? '/home' : '/onboarding')
+    router.refresh()
   }
 
   return (
@@ -50,16 +69,16 @@ export function LoginScreen() {
           <p>Sign in to access your content library.</p>
           <div className="field">
             <label htmlFor="login-email">Email</label>
-            <input id="login-email" type="email" defaultValue="ricardo@demo.flow" required />
+            <input id="login-email" name="email" type="email" autoComplete="username" required />
           </div>
           <div className="field">
             <label htmlFor="login-password">Password</label>
-            <input id="login-password" type="password" defaultValue="flowdemo" required />
+            <input id="login-password" name="password" type="password" autoComplete="current-password" required />
           </div>
           <button className="btn primary wide" type="submit">
             Log in <Icon name="arrow" />
           </button>
-          <div className="demo-note">Demo prototype — any email and password will open the platform.</div>
+          {error ? <div className="demo-note">{error}</div> : null}
         </form>
       </section>
     </div>

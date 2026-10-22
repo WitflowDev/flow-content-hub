@@ -3,9 +3,10 @@
 import { Icon } from '@/components/icons'
 import { CollectionTile } from '@/components/collections/CollectionTile'
 import { FlowTip } from '@/components/feedback/FlowTip'
-import { collections } from '@/data/collections'
+import { useLibrary } from '@/state/Catalog'
 
 export function CollectionsScreen() {
+  const { collections } = useLibrary()
   return (
     <div className="page collections-page">
       <header className="page-head">
