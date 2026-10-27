@@ -34,14 +34,6 @@ Then open `http://localhost:8080`.
 
 You can also open `index.html` directly, but a small local server is recommended for the most consistent browser behaviour.
 
-## Demo login
-
-Any email/password works.
-
-Suggested values:
-- Email: `ricardo@demo.flow`
-- Password: `flowdemo`
-
 ## Main screens
 
 - Login

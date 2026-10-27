@@ -63,7 +63,9 @@ export function collectionItems(media: MediaItem[], collection: Collection): Med
 
 export function collectionGridItems(media: MediaItem[], collection: Collection): MediaItem[] {
   const items = collectionItems(media, collection)
-  const extras = media.filter((item) => !items.includes(item)).slice(0, Math.max(0, 8 - items.length))
+  const extras = media
+    .filter((item) => !item.driveFileId && !items.includes(item))
+    .slice(0, Math.max(0, 8 - items.length))
   return items.concat(extras)
 }
 

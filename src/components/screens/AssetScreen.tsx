@@ -49,7 +49,7 @@ export function AssetScreen() {
       <div className="asset-layout">
         <section className={item.type === 'Video' ? 'asset-preview card video' : 'asset-preview card'}>
           <img src={item.src} alt={item.title} style={{ objectPosition: item.position }} />
-          {item.type === 'Video' ? (
+          {item.type === 'Video' && !item.driveFileId ? (
             <>
               <button type="button" className="big-play" onClick={() => toast('Video preview — prototype', 'success')}>
                 <Icon name="play" />
@@ -86,7 +86,11 @@ export function AssetScreen() {
             <h3>Suggested use</h3>
             <p>{item.description}</p>
           </div>
-          <a className="btn primary wide" href={item.src} download={`${item.id}.jpg`}>
+          <a
+            className="btn primary wide"
+            href={item.driveFileId ? `/api/drive/files/${item.driveFileId}` : item.src}
+            download={item.driveFileId ? item.file : `${item.id}.jpg`}
+          >
             <Icon name="download" /> Download
           </a>
           <button type="button" className="btn soft wide" onClick={openDrawer}>

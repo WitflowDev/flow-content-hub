@@ -1,8 +1,15 @@
 'use client'
 
+import { useState, type FormEvent } from 'react'
 import { Icon } from '@/components/icons'
+import { sendPromotion } from '@/lib/notifications/actions'
 import { useApp } from '@/state/AppState'
 import { useLibrary } from '@/state/Catalog'
+
+export type PromotionAccount = {
+  id: string
+  label: string
+}
 
 const requests = [
   { title: 'Website refresh', person: 'RF', meta: 'Ricardo · 14 min ago', status: 'Open', statusClass: 'open' },
@@ -24,13 +31,34 @@ export function AdminScreen({
   clientCount,
   publishedAssets,
   draftCollections,
+  accounts,
 }: {
   clientCount: number
   publishedAssets: number
   draftCollections: number
+  accounts: PromotionAccount[]
 }) {
   const { toast } = useApp()
   const { collections, getMedia } = useLibrary()
+  const [title, setTitle] = useState('')
+  const [message, setMessage] = useState('')
+  const [audience, setAudience] = useState('all')
+  const [sending, setSending] = useState(false)
+
+  async function onSendPromotion(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setSending(true)
+    const result = await sendPromotion({ title, message, audience })
+    setSending(false)
+    if (!result.ok) {
+      toast(result.message)
+      return
+    }
+    setTitle('')
+    setMessage('')
+    setAudience('all')
+    toast('Promotion sent', 'success')
+  }
 
   return (
     <div className="page admin-page">
@@ -50,6 +78,38 @@ export function AdminScreen({
         <StatCard label="Open requests" value="4" sub="Talk to Flow" />
         <StatCard label="Draft collections" value={String(draftCollections)} sub="Awaiting publish" />
       </div>
+      <section className="card admin-panel promotion-panel">
+        <div className="panel-head">
+          <div>
+            <div className="eyebrow">Promotion</div>
+            <h2>Send a notice</h2>
+          </div>
+        </div>
+        <form className="promotion-form" onSubmit={(event) => void onSendPromotion(event)}>
+          <div className="field">
+            <label htmlFor="promotion-title">Title</label>
+            <input id="promotion-title" value={title} onChange={(event) => setTitle(event.target.value)} maxLength={120} />
+          </div>
+          <div className="field">
+            <label htmlFor="promotion-message">Message</label>
+            <textarea id="promotion-message" value={message} onChange={(event) => setMessage(event.target.value)} maxLength={500} />
+          </div>
+          <div className="field">
+            <label htmlFor="promotion-audience">Account</label>
+            <select id="promotion-audience" value={audience} onChange={(event) => setAudience(event.target.value)}>
+              <option value="all">All accounts</option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button type="submit" className="btn primary" disabled={sending}>
+            Send
+          </button>
+        </form>
+      </section>
       <div className="admin-layout">
         <section className="card admin-panel">
           <div className="panel-head">

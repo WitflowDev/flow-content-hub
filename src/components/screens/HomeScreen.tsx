@@ -21,7 +21,7 @@ export function HomeScreen() {
       <header className="page-head home-head">
         <div className="page-title">
           <div className="eyebrow">Flow Content Hub</div>
-          <h1>Good morning, {profile.name}.</h1>
+          <h1>Good morning, {profile.name || 'there'}.</h1>
           <p>Everything your brand has created with Flow, ready to use.</p>
         </div>
         <div className="head-actions">
