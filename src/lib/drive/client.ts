@@ -287,16 +287,32 @@ function driveClient(): JWT {
 }
 
 function readCredentials(): ServiceAccount {
+  const inline = process.env.GOOGLE_SERVICE_ACCOUNT_JSON?.trim()
+  if (inline) {
+    const parsed = parseServiceAccount(inline)
+    if (!parsed) throw new Error('Google Drive credentials are not configured.')
+    return parsed
+  }
   const keyFile = process.env.GOOGLE_SERVICE_ACCOUNT_KEY_PATH
   if (!keyFile) throw new Error('Google Drive credentials are not configured.')
-  let parsed: unknown
+  let raw: string
   try {
-    parsed = JSON.parse(readFileSync(keyFile, 'utf8'))
+    raw = readFileSync(keyFile, 'utf8')
   } catch {
     throw new Error('Google Drive credentials are not configured.')
   }
-  if (!isServiceAccount(parsed)) throw new Error('Google Drive credentials are not configured.')
+  const parsed = parseServiceAccount(raw)
+  if (!parsed) throw new Error('Google Drive credentials are not configured.')
   return parsed
+}
+
+function parseServiceAccount(raw: string): ServiceAccount | null {
+  try {
+    const parsed: unknown = JSON.parse(raw)
+    return isServiceAccount(parsed) ? parsed : null
+  } catch {
+    return null
+  }
 }
 
 function isServiceAccount(value: unknown): value is ServiceAccount {
