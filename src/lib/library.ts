@@ -41,12 +41,16 @@ export function filteredMedia(
     results = results.filter((item) => item.type === options.contentType)
   }
   if (options.channel !== 'All') {
-    results = results.filter((item) => item.channel === options.channel)
+    results = results.filter((item) => hasDriveFile(item) || item.channel === options.channel)
   }
   if (options.sort === 'A\u2013Z') {
     results.sort((left, right) => left.title.localeCompare(right.title))
   }
   return results
+}
+
+function hasDriveFile(item: MediaItem): boolean {
+  return typeof item.driveFileId === 'string' && item.driveFileId.length > 0
 }
 
 export function collectionItems(media: MediaItem[], collection: Collection): MediaItem[] {

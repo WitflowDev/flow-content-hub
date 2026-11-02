@@ -4,6 +4,7 @@ import { useParams } from 'next/navigation'
 import { Icon } from '@/components/icons'
 import { FlowTip } from '@/components/feedback/FlowTip'
 import { MediaCard } from '@/components/media/MediaCard'
+import { downloadDriveFiles } from '@/lib/downloadDriveFiles'
 import { routeParam } from '@/lib/library'
 import { useApp } from '@/state/AppState'
 import { useLibrary } from '@/state/Catalog'
@@ -89,9 +90,9 @@ export function CollectionDetailScreen() {
           <button type="button" className="btn ghost" onClick={() => void share()}>
             <Icon name="share" /> Share collection
           </button>
-          <a className="btn primary" href="/downloads/Summer_Content_Day_Sample.zip" download="">
+          <button type="button" className="btn primary" onClick={() => downloadDriveFiles(items)}>
             <Icon name="download" /> Download collection
-          </a>
+          </button>
         </div>
       </div>
       {lead && support && hero ? (
