@@ -1,23 +1,53 @@
 import 'server-only'
-import type { MediaItem, Orientation } from '@/data/types'
-import { listFolderMedia, type DriveListedFile } from './client'
+import type { Collection, MediaItem, Orientation } from '@/data/types'
+import { listClientFolder, type DriveCollectionFolder, type DrivePlacedFile } from './client'
 import { driveFolderForUser } from './resolve'
 
 export async function loadDriveLibrary(
   userId: string,
   email: string | null | undefined,
-): Promise<{ items: MediaItem[]; folderName: string | null; hasFolder: boolean }> {
+): Promise<{ items: MediaItem[]; collections: Collection[]; folderName: string | null; hasFolder: boolean }> {
   const folder = await driveFolderForUser(userId, email)
-  if (!folder) return { items: [], folderName: null, hasFolder: false }
-  const files = await listFolderMedia(folder.id)
+  if (!folder) return { items: [], collections: [], folderName: null, hasFolder: false }
+  const listed = await listClientFolder(folder.id)
   return {
-    items: files.map((file) => toMediaItem(file, folder.name)),
+    items: listed.files.map((file) => toMediaItem(file, file.collectionName ?? folder.name)),
+    collections: listed.collections.map((entry) => toCollection(entry, listed.files)),
     folderName: folder.name,
     hasFolder: true,
   }
 }
 
-function toMediaItem(file: DriveListedFile, collection: string): MediaItem {
+function toCollection(folder: DriveCollectionFolder, files: DrivePlacedFile[]): Collection {
+  const members = files
+    .filter((file) => file.collectionId === folder.id)
+    .sort((left, right) => (right.modifiedTime ?? '').localeCompare(left.modifiedTime ?? ''))
+  const ids = members.map((file) => `drive-${file.id}`)
+  return {
+    slug: folder.id,
+    title: folder.name,
+    count: ids.length,
+    date: formatCollectionDate(folder.modifiedTime ?? members[0]?.modifiedTime),
+    description: `Delivered in the ${folder.name} folder.`,
+    ids,
+    cover: ids.slice(0, 3),
+    published: true,
+  }
+}
+
+function formatCollectionDate(value: string | undefined): string {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  return new Intl.DateTimeFormat('en-GB', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+    timeZone: 'UTC',
+  }).format(date)
+}
+
+function toMediaItem(file: DrivePlacedFile, collection: string): MediaItem {
   const type = file.mimeType.startsWith('video/') ? 'Video' : 'Photography'
   const duration = type === 'Video' ? formatDuration(file.durationMillis) : undefined
   return {

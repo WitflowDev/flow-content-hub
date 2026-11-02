@@ -4,6 +4,8 @@ import { JWT } from 'google-auth-library'
 import type { ClientFolder } from './access'
 
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive'
+const GRID_THUMBNAIL_SIZE = 1000
+const WIDE_IMAGE_SIZE = 2000
 const CONTENT_HUB_NAME = 'Content Hub'
 const FOLDER_MIME = 'application/vnd.google-apps.folder'
 const FILE_FIELDS = 'id,name,mimeType,size,modifiedTime,parents,thumbnailLink,imageMediaMetadata(width,height),videoMediaMetadata(width,height,durationMillis)'
@@ -48,12 +50,46 @@ let jwtClient: JWT | undefined
 type DriveRequest = {
   method?: 'GET' | 'POST'
   body?: string
+  headers?: Headers
+}
+
+export type DriveCollectionFolder = {
+  id: string
+  name: string
+  modifiedTime?: string
+}
+
+export type DrivePlacedFile = DriveListedFile & {
+  collectionId: string | null
+  collectionName: string | null
 }
 
 export async function listFolderMedia(folderId: string): Promise<DriveListedFile[]> {
-  const files = await listMedia(folderId, 2)
+  const listed = await listClientFolder(folderId)
+  return listed.files
+}
+
+export async function listClientFolder(folderId: string): Promise<{
+  files: DrivePlacedFile[]
+  collections: DriveCollectionFolder[]
+}> {
+  const children = await listChildren(folderId)
+  const files: DrivePlacedFile[] = []
+  const collections: DriveCollectionFolder[] = []
+  for (const child of children) {
+    if (!child.id || !child.name || !child.mimeType) continue
+    if (isMediaMime(child.mimeType)) {
+      files.push(placeFile(child, null, null))
+      continue
+    }
+    if (child.mimeType !== FOLDER_MIME) continue
+    collections.push({ id: child.id, name: child.name, modifiedTime: child.modifiedTime })
+    const inside = await listCollectionFiles(child.id)
+    for (const file of inside) files.push(placeFile(file, child.id, child.name))
+  }
   files.sort((left, right) => (right.modifiedTime ?? '').localeCompare(left.modifiedTime ?? ''))
-  return files
+  collections.sort((left, right) => (right.modifiedTime ?? '').localeCompare(left.modifiedTime ?? ''))
+  return { files, collections }
 }
 
 export async function readFolderName(folderId: string): Promise<string> {
@@ -75,9 +111,48 @@ export async function downloadClientFile(folderId: string, fileId: string): Prom
   body: ReadableStream<Uint8Array>
 }> {
   const meta = await requireMediaFile(folderId, fileId)
-  const response = await driveFetch(`files/${fileId}?alt=media&supportsAllDrives=true`)
+  const media = await originalMedia(fileId)
+  return { name: meta.name ?? 'download', mimeType: meta.mimeType ?? media.mimeType, body: media.body }
+}
+
+export async function openClientVideo(
+  folderId: string,
+  fileId: string,
+  range: string | null,
+): Promise<{
+  name: string
+  mimeType: string
+  status: number
+  body: ReadableStream<Uint8Array>
+  contentLength: string | null
+  contentRange: string | null
+}> {
+  const meta = await requireMediaFile(folderId, fileId)
+  if (!meta.mimeType?.startsWith('video/')) throw new Error('That file is not available.')
+  const headers = new Headers()
+  if (range) headers.set('Range', range)
+  const response = await driveFetch(`files/${fileId}?alt=media&supportsAllDrives=true`, { headers })
   if (!response.ok || !response.body) throw new Error(`Google Drive request failed (${response.status}).`)
-  return { name: meta.name ?? 'download', mimeType: meta.mimeType ?? 'application/octet-stream', body: response.body }
+  return {
+    name: meta.name ?? 'video',
+    mimeType: meta.mimeType,
+    status: response.status,
+    body: response.body,
+    contentLength: response.headers.get('content-length'),
+    contentRange: response.headers.get('content-range'),
+  }
+}
+
+export async function wideClientImage(folderId: string, fileId: string): Promise<{
+  mimeType: string
+  body: ReadableStream<Uint8Array>
+}> {
+  const meta = await requireMediaFile(folderId, fileId)
+  if (!meta.mimeType?.startsWith('image/')) throw new Error('That file is not available.')
+  const wide = await loadThumbnail(meta, WIDE_IMAGE_SIZE, false)
+  if (wide) return wide
+  const image = await originalMedia(fileId)
+  return { mimeType: meta.mimeType, body: image.body }
 }
 
 export async function thumbnailClientFile(folderId: string, fileId: string): Promise<{
@@ -85,18 +160,58 @@ export async function thumbnailClientFile(folderId: string, fileId: string): Pro
   body: ReadableStream<Uint8Array>
 } | null> {
   const meta = await requireMediaFile(folderId, fileId)
-  if (meta.thumbnailLink) {
+  const thumbnail = await loadThumbnail(meta, GRID_THUMBNAIL_SIZE, true)
+  if (thumbnail) return thumbnail
+  if (!meta.mimeType?.startsWith('image/')) return null
+  try {
+    const image = await originalMedia(fileId)
+    return { mimeType: meta.mimeType, body: image.body }
+  } catch {
+    return null
+  }
+}
+
+async function loadThumbnail(
+  meta: DriveFileResource,
+  size: number,
+  allowSmaller: boolean,
+): Promise<{ mimeType: string; body: ReadableStream<Uint8Array> } | null> {
+  if (!meta.thumbnailLink) return null
+  const sized = sizedThumbnailUrl(meta.thumbnailLink, size)
+  if (sized) {
+    const image = await fetchThumbnail(sized)
+    if (image) return image
+    if (!allowSmaller || sized === meta.thumbnailLink) return null
+  }
+  if (!allowSmaller) return null
+  return fetchThumbnail(meta.thumbnailLink)
+}
+
+async function fetchThumbnail(url: string): Promise<{ mimeType: string; body: ReadableStream<Uint8Array> } | null> {
+  try {
     const token = await accessToken()
-    const thumbnail = await fetch(meta.thumbnailLink, { headers: { Authorization: `Bearer ${token}` } })
-    if (thumbnail.ok && thumbnail.body) {
-      return { mimeType: thumbnail.headers.get('content-type') || 'image/jpeg', body: thumbnail.body }
-    }
+    const thumbnail = await fetch(url, { headers: { Authorization: `Bearer ${token}` } })
+    if (!thumbnail.ok || !thumbnail.body) return null
+    const mimeType = thumbnail.headers.get('content-type') || 'image/jpeg'
+    if (!mimeType.startsWith('image/')) return null
+    return { mimeType, body: thumbnail.body }
+  } catch {
+    return null
   }
-  if (meta.mimeType?.startsWith('image/')) {
-    const image = await driveFetch(`files/${fileId}?alt=media&supportsAllDrives=true`)
-    if (image.ok && image.body) return { mimeType: meta.mimeType, body: image.body }
-  }
-  return null
+}
+
+async function originalMedia(fileId: string): Promise<{ mimeType: string; body: ReadableStream<Uint8Array> }> {
+  const response = await driveFetch(`files/${fileId}?alt=media&supportsAllDrives=true`)
+  if (!response.ok || !response.body) throw new Error(`Google Drive request failed (${response.status}).`)
+  return { mimeType: response.headers.get('content-type') || 'application/octet-stream', body: response.body }
+}
+
+function sizedThumbnailUrl(link: string, size: number): string | null {
+  if (/=s\d+/.test(link)) return link.replace(/=s\d+/, `=s${size}`)
+  if (/[?&]sz=w?\d+/.test(link)) return link.replace(/([?&]sz=)w?\d+/, `$1w${size}`)
+  if (/=w\d+(?:-h\d+)?/.test(link)) return link.replace(/=w\d+(?:-h\d+)?/, `=s${size}`)
+  if (link.includes('?')) return null
+  return `${link}=s${size}`
 }
 
 async function requireMediaFile(folderId: string, fileId: string): Promise<DriveFileResource> {
@@ -127,20 +242,31 @@ async function fileIsInside(file: DriveFileResource, rootId: string): Promise<bo
   return false
 }
 
-async function listMedia(folderId: string, depth: number): Promise<DriveListedFile[]> {
-  const children = await listQuery(`${quote(folderId)} in parents and trashed = false`, `nextPageToken,files(${FILE_FIELDS})`)
-  const media: DriveListedFile[] = []
+async function listCollectionFiles(folderId: string): Promise<DriveFileResource[]> {
+  const children = await listChildren(folderId)
+  const files: DriveFileResource[] = []
   for (const child of children) {
     if (!child.id || !child.name || !child.mimeType) continue
     if (isMediaMime(child.mimeType)) {
-      media.push(toListedFile(child))
+      files.push(child)
       continue
     }
-    if (child.mimeType === FOLDER_MIME && depth > 0) {
-      media.push(...(await listMedia(child.id, depth - 1)))
+    if (child.mimeType !== FOLDER_MIME) continue
+    const nested = await listChildren(child.id)
+    for (const file of nested) {
+      if (!file.id || !file.name || !file.mimeType || !isMediaMime(file.mimeType)) continue
+      files.push(file)
     }
   }
-  return media
+  return files
+}
+
+async function listChildren(folderId: string): Promise<DriveFileResource[]> {
+  return listQuery(`${quote(folderId)} in parents and trashed = false`, `nextPageToken,files(${FILE_FIELDS})`)
+}
+
+function placeFile(file: DriveFileResource, collectionId: string | null, collectionName: string | null): DrivePlacedFile {
+  return { ...toListedFile(file), collectionId, collectionName }
 }
 
 function toListedFile(file: DriveFileResource): DriveListedFile {
@@ -260,6 +386,10 @@ async function driveJson<T>(path: string, request?: DriveRequest): Promise<T> {
 async function driveFetch(path: string, request?: DriveRequest): Promise<Response> {
   const token = await accessToken()
   const headers = new Headers({ Authorization: `Bearer ${token}` })
+  request?.headers?.forEach((value, key) => {
+    if (key.toLowerCase() === 'authorization') return
+    headers.set(key, value)
+  })
   if (request?.body) headers.set('Content-Type', 'application/json')
   return fetch(`https://www.googleapis.com/drive/v3/${path}`, {
     method: request?.method ?? 'GET',

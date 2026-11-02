@@ -1,19 +1,11 @@
 import type { ChannelFilter, Collection, ContentTypeFilter, MediaItem, SortMode } from '@/data/types'
 
-export function findMedia(media: MediaItem[], id: string): MediaItem {
-  const found = media.find((item) => item.id === id)
-  if (found) return found
-  const fallback = media[0]
-  if (!fallback) throw new Error('Media library is empty')
-  return fallback
+export function findMedia(media: MediaItem[], id: string): MediaItem | null {
+  return media.find((item) => item.id === id) ?? null
 }
 
-export function findCollection(collections: Collection[], slug: string): Collection {
-  const found = collections.find((item) => item.slug === slug)
-  if (found) return found
-  const fallback = collections[0]
-  if (!fallback) throw new Error('No collections are available')
-  return fallback
+export function findCollection(collections: Collection[], slug: string): Collection | null {
+  return collections.find((item) => item.slug === slug) ?? null
 }
 
 export function tagClass(channel: string): string {
@@ -58,15 +50,14 @@ export function filteredMedia(
 }
 
 export function collectionItems(media: MediaItem[], collection: Collection): MediaItem[] {
-  return collection.ids.map((id) => findMedia(media, id))
+  return collection.ids.flatMap((id) => {
+    const item = findMedia(media, id)
+    return item ? [item] : []
+  })
 }
 
 export function collectionGridItems(media: MediaItem[], collection: Collection): MediaItem[] {
-  const items = collectionItems(media, collection)
-  const extras = media
-    .filter((item) => !item.driveFileId && !items.includes(item))
-    .slice(0, Math.max(0, 8 - items.length))
-  return items.concat(extras)
+  return collectionItems(media, collection)
 }
 
 export function assetFormat(orientation: MediaItem['orientation']): string {

@@ -2,6 +2,8 @@
 
 import type { MouseEvent } from 'react'
 import { Icon } from '@/components/icons'
+import { DriveVideoFrame } from '@/components/media/DriveVideoFrame'
+import { MediaActions } from '@/components/media/MediaActions'
 import { tagClass } from '@/lib/library'
 import { useApp } from '@/state/AppState'
 import type { MediaItem } from '@/data/types'
@@ -13,7 +15,7 @@ export function MediaListRow({ item }: { item: MediaItem }) {
 
   function openAsset(event: MouseEvent<HTMLElement>) {
     const target = event.target
-    if (target instanceof Element && target.closest('[data-select], .kebab')) return
+    if (target instanceof Element && target.closest('[data-select], .kebab-wrap')) return
     navigate(`/asset/${item.id}`)
   }
 
@@ -30,7 +32,13 @@ export function MediaListRow({ item }: { item: MediaItem }) {
       >
         {isSelected ? <Icon name="check" /> : null}
       </button>
-      <img src={item.src} alt="" style={{ objectPosition: item.position }} />
+      {item.type === 'Video' && item.driveFileId ? (
+        <span className="row-still">
+          <DriveVideoFrame fileId={item.driveFileId} fallbackSrc={item.src} position={item.position} alt="" />
+        </span>
+      ) : (
+        <img src={item.src} alt="" style={{ objectPosition: item.position }} />
+      )}
       <div className="row-copy">
         <b>{item.title}</b>
         <small>{item.collection}</small>
@@ -39,9 +47,7 @@ export function MediaListRow({ item }: { item: MediaItem }) {
       <span className="row-meta">
         {item.file} · {item.size}
       </span>
-      <button type="button" className="kebab" onClick={(event) => event.stopPropagation()}>
-        •••
-      </button>
+      <MediaActions item={item} />
     </article>
   )
 }

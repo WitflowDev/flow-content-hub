@@ -2,6 +2,8 @@
 
 import type { MouseEvent } from 'react'
 import { Icon } from '@/components/icons'
+import { DriveVideoFrame } from '@/components/media/DriveVideoFrame'
+import { MediaActions } from '@/components/media/MediaActions'
 import { tagClass } from '@/lib/library'
 import { useApp } from '@/state/AppState'
 import type { MediaItem } from '@/data/types'
@@ -12,14 +14,23 @@ export function MediaCard({ item, selectable = false }: { item: MediaItem; selec
 
   function openAsset(event: MouseEvent<HTMLElement>) {
     const target = event.target
-    if (target instanceof Element && target.closest('[data-select], .kebab')) return
+    if (target instanceof Element && target.closest('[data-select], .kebab-wrap')) return
     navigate(`/asset/${item.id}`)
   }
 
   return (
     <article className={isSelected ? 'media-card selected' : 'media-card'} onClick={openAsset}>
       <div className="thumb">
-        <img src={item.src} alt={item.title} style={{ objectPosition: item.position || '50% 50%' }} />
+        {item.type === 'Video' && item.driveFileId ? (
+          <DriveVideoFrame
+            fileId={item.driveFileId}
+            fallbackSrc={item.src}
+            position={item.position || '50% 50%'}
+            alt={item.title}
+          />
+        ) : (
+          <img src={item.src} alt={item.title} style={{ objectPosition: item.position || '50% 50%' }} />
+        )}
         {item.duration ? (
           <span className="duration">
             <Icon name="play" />
@@ -50,9 +61,7 @@ export function MediaCard({ item, selectable = false }: { item: MediaItem; selec
           </div>
           <span className={tagClass(item.channel) ? `tag ${tagClass(item.channel)}` : 'tag'}>{item.channel}</span>
         </div>
-        <button type="button" className="kebab" aria-label="More options" onClick={(event) => event.stopPropagation()}>
-          •••
-        </button>
+        <MediaActions item={item} />
       </div>
     </article>
   )

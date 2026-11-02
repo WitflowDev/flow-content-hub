@@ -1,6 +1,7 @@
 import { redirect } from 'next/navigation'
 import { AdminScreen } from '@/components/screens/AdminScreen'
 import { roleFromAppMetadata } from '@/lib/auth'
+import { loadClientCollections } from '@/lib/catalog'
 import { createClient } from '@/lib/supabase/server'
 
 export default async function AdminPage() {
@@ -11,10 +12,11 @@ export default async function AdminPage() {
   if (!user) redirect('/login')
   if (roleFromAppMetadata(user.app_metadata) !== 'admin') redirect('/home')
 
-  const [clients, assets, drafts] = await Promise.all([
+  const [clients, assets, drafts, clientCollections] = await Promise.all([
     supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'client'),
     supabase.from('assets').select('id', { count: 'exact', head: true }).eq('published', true),
     supabase.from('collections').select('slug', { count: 'exact', head: true }).eq('published', false),
+    loadClientCollections(),
   ])
 
   const accounts = await supabase.from('profiles').select('id, email, name, company_name').order('email')
@@ -33,6 +35,7 @@ export default async function AdminPage() {
         id: account.id,
         label: account.company_name?.trim() || account.name?.trim() || account.email || account.id,
       }))}
+      clientCollections={clientCollections}
     />
   )
 }

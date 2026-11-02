@@ -2,7 +2,6 @@ import type { ReactNode } from 'react'
 import { redirect } from 'next/navigation'
 import { AppFrame } from '@/components/shell/AppFrame'
 import { roleFromAppMetadata } from '@/lib/auth'
-import { loadCatalog } from '@/lib/catalog'
 import { loadDriveLibrary } from '@/lib/drive/library'
 import { loadAccountNotices, syncAccountNotices } from '@/lib/notifications/sync'
 import { createClient } from '@/lib/supabase/server'
@@ -21,7 +20,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
     .maybeSingle()
   if (error) throw new Error(error.message)
 
-  const [catalog, driveLibrary] = await Promise.all([loadCatalog(), loadDriveLibrary(user.id, user.email)])
+  const driveLibrary = await loadDriveLibrary(user.id, user.email)
   const driveFileIds = driveLibrary.items.flatMap((item) => (item.driveFileId ? [item.driveFileId] : []))
   await syncAccountNotices({
     fileIds: driveFileIds,
@@ -40,8 +39,8 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         onboardingDone: profile?.onboarding_done ?? false,
       }}
       notices={notices}
-      media={[...driveLibrary.items, ...catalog.media]}
-      collections={catalog.collections}
+      media={driveLibrary.items}
+      collections={driveLibrary.collections}
     >
       {children}
     </AppFrame>

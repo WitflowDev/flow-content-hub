@@ -2,6 +2,7 @@
 
 import { useState, type FormEvent } from 'react'
 import { Icon } from '@/components/icons'
+import type { Collection } from '@/data/types'
 import { sendPromotion } from '@/lib/notifications/actions'
 import { useApp } from '@/state/AppState'
 import { useLibrary } from '@/state/Catalog'
@@ -32,14 +33,16 @@ export function AdminScreen({
   publishedAssets,
   draftCollections,
   accounts,
+  clientCollections,
 }: {
   clientCount: number
   publishedAssets: number
   draftCollections: number
   accounts: PromotionAccount[]
+  clientCollections: Collection[]
 }) {
   const { toast } = useApp()
-  const { collections, getMedia } = useLibrary()
+  const { getMedia } = useLibrary()
   const [title, setTitle] = useState('')
   const [message, setMessage] = useState('')
   const [audience, setAudience] = useState('all')
@@ -121,14 +124,13 @@ export function AdminScreen({
               View all
             </button>
           </div>
-          {collections.slice(0, 4).map((collection) => {
+          {clientCollections.slice(0, 4).map((collection) => {
             const coverId = collection.cover[0]
-            if (!coverId) return null
-            const cover = getMedia(coverId)
+            const cover = coverId ? getMedia(coverId) : null
             return (
               <div className="admin-row" key={collection.slug}>
                 <div className="admin-thumb">
-                  <img src={cover.src} alt="" />
+                  {cover ? <img src={cover.src} alt="" /> : null}
                 </div>
                 <div>
                   <b>{collection.title}</b>

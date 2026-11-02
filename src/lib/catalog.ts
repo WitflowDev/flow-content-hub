@@ -1,21 +1,5 @@
-import type { Collection, MediaChannel, MediaItem, MediaType, Orientation } from '@/data/types'
+import type { Collection } from '@/data/types'
 import { createClient } from '@/lib/supabase/server'
-
-type AssetRow = {
-  id: string
-  title: string
-  type: string
-  file: string
-  size: string
-  duration: string | null
-  src: string
-  channel: string
-  orientation: string
-  collection: string
-  position: string
-  description: string
-  drive_file_id: string | null
-}
 
 type CollectionRow = {
   slug: string
@@ -28,38 +12,18 @@ type CollectionRow = {
   published: boolean
 }
 
-export async function loadCatalog(): Promise<{ media: MediaItem[]; collections: Collection[] }> {
+export async function loadAccountCollections(userId: string): Promise<Collection[]> {
   const supabase = await createClient()
-  const [assets, collections] = await Promise.all([
-    supabase.from('assets').select('*').order('sort_order'),
-    supabase.from('collections').select('*').order('sort_order'),
-  ])
-
-  if (assets.error) throw new Error(assets.error.message)
+  const collections = await supabase.from('collections').select('*').eq('profile_id', userId).order('sort_order')
   if (collections.error) throw new Error(collections.error.message)
-
-  return {
-    media: (assets.data as AssetRow[]).map(mapAsset),
-    collections: (collections.data as CollectionRow[]).map(mapCollection),
-  }
+  return (collections.data as CollectionRow[]).map(mapCollection)
 }
 
-function mapAsset(row: AssetRow): MediaItem {
-  return {
-    id: row.id,
-    title: row.title,
-    type: mediaType(row.type),
-    file: row.file,
-    size: row.size,
-    duration: row.duration ?? undefined,
-    src: row.src,
-    channel: mediaChannel(row.channel),
-    orientation: orientation(row.orientation),
-    collection: row.collection,
-    position: row.position,
-    description: row.description,
-    driveFileId: row.drive_file_id,
-  }
+export async function loadClientCollections(): Promise<Collection[]> {
+  const supabase = await createClient()
+  const collections = await supabase.from('collections').select('*').not('profile_id', 'is', null).order('sort_order')
+  if (collections.error) throw new Error(collections.error.message)
+  return (collections.data as CollectionRow[]).map(mapCollection)
 }
 
 function mapCollection(row: CollectionRow): Collection {
@@ -73,19 +37,4 @@ function mapCollection(row: CollectionRow): Collection {
     cover: row.cover,
     published: row.published,
   }
-}
-
-function mediaType(value: string): MediaType {
-  if (value === 'Video' || value === 'Photography' || value === 'Design') return value
-  throw new Error(`Unexpected asset type: ${value}`)
-}
-
-function mediaChannel(value: string): MediaChannel {
-  if (value === 'Instagram' || value === 'Website' || value === 'Ads' || value === 'Design') return value
-  throw new Error(`Unexpected asset channel: ${value}`)
-}
-
-function orientation(value: string): Orientation {
-  if (value === 'Vertical' || value === 'Portrait' || value === 'Landscape' || value === 'Square') return value
-  throw new Error(`Unexpected asset orientation: ${value}`)
 }

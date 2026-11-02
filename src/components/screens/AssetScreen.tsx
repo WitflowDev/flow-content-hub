@@ -22,10 +22,26 @@ export function AssetScreen() {
   const { navigate, openDrawer, openGuide, toast } = useApp()
   const { media, getMedia } = useLibrary()
   const item = getMedia(routeParam(params.id))
+  if (!item) {
+    return (
+      <div className="page asset-page">
+        <div className="asset-nav">
+          <button type="button" className="text-btn" onClick={() => navigate('/content', true)}>
+            ← Back to content
+          </button>
+        </div>
+        <h1>This content is not available.</h1>
+      </div>
+    )
+  }
   const related = media.filter((entry) => entry.id !== item.id).slice(0, 4)
   const previous = related[0]
   const next = related[1]
   const guideId = item.type === 'Video' ? 'reels' : 'photos'
+  const driveFileId = item.driveFileId
+  const driveVideo = item.type === 'Video' && typeof driveFileId === 'string' && driveFileId.length > 0
+  const previewSrc =
+    item.type === 'Photography' && driveFileId ? `/api/drive/files/${driveFileId}/preview` : item.src
 
   return (
     <div className="page asset-page">
@@ -48,7 +64,11 @@ export function AssetScreen() {
       </div>
       <div className="asset-layout">
         <section className={item.type === 'Video' ? 'asset-preview card video' : 'asset-preview card'}>
-          <img src={item.src} alt={item.title} style={{ objectPosition: item.position }} />
+          {driveVideo ? (
+            <video controls playsInline preload="metadata" src={`/api/drive/files/${driveFileId}/stream`} aria-label={item.title} />
+          ) : (
+            <img src={previewSrc} alt={item.title} style={{ objectPosition: item.position }} />
+          )}
           {item.type === 'Video' && !item.driveFileId ? (
             <>
               <button type="button" className="big-play" onClick={() => toast('Video preview — prototype', 'success')}>
