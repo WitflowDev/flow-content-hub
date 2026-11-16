@@ -1,6 +1,6 @@
 'use server'
 
-import { roleFromAppMetadata } from '@/lib/auth'
+import { isAdminUser } from '@/lib/auth'
 import { createServiceClient } from '@/lib/supabase/admin'
 import { createClient } from '@/lib/supabase/server'
 import type { PromotionResult } from '@/lib/notifications/types'
@@ -28,7 +28,7 @@ export async function sendPromotion(input: { title: string; message: string; aud
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user || roleFromAppMetadata(user.app_metadata) !== 'admin') {
+  if (!user || !isAdminUser(user)) {
     return { ok: false, message: 'Only an admin can send a promotion.' }
   }
 

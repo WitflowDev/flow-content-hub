@@ -1,7 +1,7 @@
 import type { ReactNode } from 'react'
 import { redirect } from 'next/navigation'
 import { AppFrame } from '@/components/shell/AppFrame'
-import { roleFromAppMetadata } from '@/lib/auth'
+import { roleForUser } from '@/lib/auth'
 import { loadDriveLibrary } from '@/lib/drive/library'
 import { loadAccountNotices, syncAccountNotices } from '@/lib/notifications/sync'
 import { createClient } from '@/lib/supabase/server'
@@ -35,7 +35,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         id: user.id,
         name: profile?.name?.trim() || '',
         email: user.email ?? '',
-        role: roleFromAppMetadata(user.app_metadata),
+        role: roleForUser(user),
         onboardingDone: profile?.onboarding_done ?? false,
       }}
       notices={notices}

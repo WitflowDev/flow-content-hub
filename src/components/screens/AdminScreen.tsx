@@ -207,7 +207,7 @@ export function AdminScreen({
               <span>{fileLabel}</span>
             </div>
           </div>
-          <BusyButton type="submit" pending={uploading} pendingLabel="Uploading…" disabled={readyClients.length === 0}>
+          <BusyButton className="btn primary wide" type="submit" pending={uploading} pendingLabel="Uploading…" disabled={readyClients.length === 0}>
             <Icon name="upload" /> Add to selected clients
           </BusyButton>
           {uploading ? <p className="auth-status">Saving the files into the selected client folders.</p> : null}

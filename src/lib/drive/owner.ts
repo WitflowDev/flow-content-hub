@@ -2,6 +2,7 @@ import 'server-only'
 import { OAuth2Client } from 'google-auth-library'
 
 const OWNER_EMAIL = 'geral.productionsflow@gmail.com'
+const READER_EMAIL = 'content-hub-drive@flow-content-hub.iam.gserviceaccount.com'
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive'
 const CONTENT_HUB_NAME = 'Content Hub'
 const CLIENTS_FOLDER_NAME = 'Clients'
@@ -11,6 +12,7 @@ const FOLDER_MIME = 'application/vnd.google-apps.folder'
 type DriveFile = {
   id?: string
   name?: string
+  mimeType?: string
   parents?: string[]
   owners?: { emailAddress?: string }[]
 }
@@ -21,7 +23,7 @@ type DriveList = {
 }
 
 type DriveRequest = {
-  method?: 'GET' | 'POST'
+  method?: 'GET' | 'POST' | 'PATCH'
   body?: string
 }
 
@@ -52,9 +54,16 @@ export async function publishMediaToFolders(
   if (file.bytes.byteLength === 0) throw new Error('That file is empty.')
   if (file.bytes.byteLength > MAX_MEDIA_BYTES) throw new Error('Each file must be 80 MB or smaller.')
 
+  await ensureHubReader()
+  for (const folderId of folders) await placeUnderClients(folderId)
   const sourceId = await uploadOwnerFile(await libraryFolderId(), file)
   const saved: string[] = []
-  for (const folderId of folders) saved.push(await copyOwnerFile(sourceId, folderId, file.name))
+  try {
+    for (const folderId of folders) saved.push(await copyOwnerFile(sourceId, folderId, file.name))
+  } catch (error) {
+    if (saved.length === 0) await trashFile(sourceId)
+    throw error
+  }
   return saved
 }
 
@@ -64,11 +73,11 @@ async function uploadOwnerFile(
 ): Promise<string> {
   const boundary = `flow${crypto.randomUUID().replaceAll('-', '')}`
   const metadata = JSON.stringify({ name: file.name, mimeType: file.mimeType, parents: [folderId] })
-  const body = new Blob([
-    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n`,
-    `--${boundary}\r\nContent-Type: ${file.mimeType}\r\n\r\n`,
-    new Uint8Array(file.bytes),
-    `\r\n--${boundary}--`,
+  const body = Buffer.concat([
+    Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n`),
+    Buffer.from(`--${boundary}\r\nContent-Type: ${file.mimeType}\r\n\r\n`),
+    Buffer.from(file.bytes),
+    Buffer.from(`\r\n--${boundary}--`),
   ])
   const token = await accessToken()
   const response = await fetch(
@@ -121,7 +130,67 @@ export async function createClientDriveFolder(companyName: string): Promise<{ id
   if (!created.id || !(created.parents ?? []).includes(parentId) || !ownedByAccount) {
     throw new Error('The client folder could not be created inside Content Hub.')
   }
+  await ensureHubReader()
   return { id: created.id, name: created.name || name }
+}
+
+async function placeUnderClients(folderId: string): Promise<void> {
+  const clientsId = await clientsFolderId()
+  const folder = await ownerJson<DriveFile & { trashed?: boolean }>(
+    `files/${folderId}?supportsAllDrives=true&fields=id,name,mimeType,parents,trashed`,
+  )
+  if (folder.trashed || folder.mimeType !== FOLDER_MIME || !folder.id) {
+    throw new Error('The client folder is not available.')
+  }
+  if (folder.name === CONTENT_HUB_NAME || folder.name === CLIENTS_FOLDER_NAME || folder.name === LIBRARY_FOLDER_NAME) {
+    throw new Error('The client folder is not available.')
+  }
+  const parents = folder.parents ?? []
+  if (parents.includes(clientsId)) return
+  const params = new URLSearchParams({
+    addParents: clientsId,
+    supportsAllDrives: 'true',
+    fields: 'id,parents',
+  })
+  if (parents.length > 0) params.set('removeParents', parents.join(','))
+  const moved = await ownerJson<DriveFile>(`files/${folderId}?${params}`, { method: 'PATCH' })
+  if (!(moved.parents ?? []).includes(clientsId)) {
+    throw new Error('The client folder could not be placed in Content Hub.')
+  }
+}
+
+async function ensureHubReader(): Promise<void> {
+  const hubId = await contentHubId()
+  const response = await ownerFetch(
+    `files/${hubId}/permissions?supportsAllDrives=true&sendNotificationEmail=false`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ type: 'user', role: 'reader', emailAddress: readerEmail() }),
+    },
+  )
+  if (response.ok) return
+  const message = await driveError(response)
+  if (/already exists|duplicate/i.test(message)) return
+  throw new Error('Google Drive could not share Content Hub with the content library.')
+}
+
+function readerEmail(): string {
+  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON?.trim()
+  if (!raw) return READER_EMAIL
+  try {
+    const parsed = JSON.parse(raw) as { client_email?: unknown }
+    if (typeof parsed.client_email === 'string' && parsed.client_email.includes('@')) return parsed.client_email
+  } catch {
+    return READER_EMAIL
+  }
+  return READER_EMAIL
+}
+
+async function trashFile(fileId: string): Promise<void> {
+  await ownerJson(`files/${fileId}?supportsAllDrives=true`, {
+    method: 'PATCH',
+    body: JSON.stringify({ trashed: true }),
+  })
 }
 
 async function nextFolderName(parentId: string, base: string): Promise<string> {

@@ -1,6 +1,6 @@
 import { redirect } from 'next/navigation'
 import { AdminScreen } from '@/components/screens/AdminScreen'
-import { roleFromAppMetadata } from '@/lib/auth'
+import { ADMIN_EMAIL, isAdminUser } from '@/lib/auth'
 import { loadClientCollections } from '@/lib/catalog'
 import { createClient } from '@/lib/supabase/server'
 
@@ -10,7 +10,7 @@ export default async function AdminPage() {
     data: { user },
   } = await supabase.auth.getUser()
   if (!user) redirect('/login')
-  if (roleFromAppMetadata(user.app_metadata) !== 'admin') redirect('/home')
+  if (!isAdminUser(user)) redirect('/home')
 
   const [clients, assets, drafts, clientCollections] = await Promise.all([
     supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'client'),
@@ -39,7 +39,7 @@ export default async function AdminPage() {
         label: account.company_name?.trim() || account.name?.trim() || account.email || account.id,
       }))}
       clients={(accounts.data ?? [])
-        .filter((account) => account.id !== user.id && account.role !== 'admin')
+        .filter((account) => account.email?.trim().toLowerCase() !== ADMIN_EMAIL && account.role !== 'admin')
         .map((account) => ({
           id: account.id,
           label: account.company_name?.trim() || account.name?.trim() || account.email || 'Client',

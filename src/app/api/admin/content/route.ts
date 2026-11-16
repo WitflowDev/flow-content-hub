@@ -1,4 +1,4 @@
-import { roleFromAppMetadata } from '@/lib/auth'
+import { isAdminUser } from '@/lib/auth'
 import { publishMediaToFolders } from '@/lib/drive/owner'
 import { createClient } from '@/lib/supabase/server'
 
@@ -21,7 +21,7 @@ export async function POST(request: Request) {
   const {
     data: { user },
   } = await supabase.auth.getUser()
-  if (!user || roleFromAppMetadata(user.app_metadata) !== 'admin') {
+  if (!user || !isAdminUser(user)) {
     return json({ ok: false, message: 'Only an admin can upload content.' }, 403)
   }
 
@@ -54,8 +54,8 @@ export async function POST(request: Request) {
   try {
     for (const file of files) {
       const name = safeFileName(file.name)
-      const mimeType = file.type
-      if (!name || (!mimeType.startsWith('image/') && !mimeType.startsWith('video/'))) {
+      const mimeType = mediaType(file)
+      if (!name || !mimeType) {
         return json({ ok: false, message: 'Upload photos or videos only.' }, 400)
       }
       await publishMediaToFolders(
@@ -78,6 +78,22 @@ export async function POST(request: Request) {
     },
     200,
   )
+}
+
+function mediaType(file: File): string | null {
+  if (file.type.startsWith('image/') || file.type.startsWith('video/')) return file.type
+  const extension = file.name.split('.').pop()?.toLowerCase()
+  const types: Record<string, string> = {
+    jpg: 'image/jpeg',
+    jpeg: 'image/jpeg',
+    png: 'image/png',
+    gif: 'image/gif',
+    webp: 'image/webp',
+    mp4: 'video/mp4',
+    mov: 'video/quicktime',
+    webm: 'video/webm',
+  }
+  return extension ? (types[extension] ?? null) : null
 }
 
 function safeFileName(name: string): string | null {

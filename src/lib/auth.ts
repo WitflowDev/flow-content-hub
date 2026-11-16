@@ -2,7 +2,12 @@ export const TIP_KEY = 'flow-tip-content'
 
 export type AppRole = 'client' | 'admin'
 
-export function roleFromAppMetadata(metadata: object | null | undefined): AppRole {
-  if (!metadata || !('role' in metadata)) return 'client'
-  return metadata.role === 'admin' ? 'admin' : 'client'
+export const ADMIN_EMAIL = 'info@flowproductions.pt'
+
+export function isAdminUser(user: { email?: string | null } | null | undefined): boolean {
+  return user?.email?.trim().toLowerCase() === ADMIN_EMAIL
+}
+
+export function roleForUser(user: { email?: string | null } | null | undefined): AppRole {
+  return isAdminUser(user) ? 'admin' : 'client'
 }

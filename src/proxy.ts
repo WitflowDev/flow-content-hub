@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { roleFromAppMetadata } from '@/lib/auth'
+import { isAdminUser } from '@/lib/auth'
 import { readPublicSupabaseEnv } from '@/lib/supabase/env'
 
 type PendingCookie = {
@@ -53,7 +53,8 @@ export async function proxy(request: NextRequest) {
     return withSession(supabaseResponse, pendingCookies, redirectTo(request, nextPath))
   }
 
-  if (user && path.startsWith('/admin') && roleFromAppMetadata(user.app_metadata) !== 'admin') {
+  if (user && (path.startsWith('/admin') || path.startsWith('/api/admin')) && !isAdminUser(user)) {
+    if (path.startsWith('/api/')) return NextResponse.json({ ok: false, message: 'Only an admin can do that.' }, { status: 403 })
     return withSession(supabaseResponse, pendingCookies, redirectTo(request, '/home'))
   }
 
