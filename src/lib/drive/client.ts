@@ -7,6 +7,8 @@ const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive'
 const GRID_THUMBNAIL_SIZE = 1000
 const WIDE_IMAGE_SIZE = 2000
 const CONTENT_HUB_NAME = 'Content Hub'
+const CLIENTS_FOLDER_NAME = 'Clients'
+const LIBRARY_FOLDER_NAME = 'Library'
 const FOLDER_MIME = 'application/vnd.google-apps.folder'
 const FILE_FIELDS = 'id,name,mimeType,size,modifiedTime,parents,thumbnailLink,imageMediaMetadata(width,height),videoMediaMetadata(width,height,durationMillis)'
 
@@ -96,8 +98,20 @@ export async function readFolderName(folderId: string): Promise<string> {
   if (!isDriveFileId(folderId)) throw new Error('That folder is not available.')
   const folder = await getFile(folderId, 'id,name,mimeType,parents')
   if (!folder.id || folder.mimeType !== FOLDER_MIME || !folder.name) throw new Error('That folder is not available.')
-  const parentId = await contentHubId()
-  if (!(folder.parents ?? []).includes(parentId)) throw new Error('That folder is not available.')
+  const hubId = await contentHubId()
+  const parents = folder.parents ?? []
+  if (parents.includes(hubId)) {
+    if (folder.name === CLIENTS_FOLDER_NAME || folder.name === LIBRARY_FOLDER_NAME) {
+      throw new Error('That folder is not available.')
+    }
+    return folder.name
+  }
+  const parent = parents[0] ? await getFile(parents[0], 'id,name,mimeType,parents') : undefined
+  const insideClients =
+    parent?.name === CLIENTS_FOLDER_NAME &&
+    parent.mimeType === FOLDER_MIME &&
+    (parent.parents ?? []).includes(hubId)
+  if (!insideClients) throw new Error('That folder is not available.')
   return folder.name
 }
 
@@ -315,6 +329,14 @@ async function folderIdFor(folder: ClientFolder): Promise<string> {
   }
 }
 
+async function findNamedChild(parentId: string, name: string): Promise<string | undefined> {
+  const children = await listQuery(
+    `${quote(parentId)} in parents and mimeType = '${FOLDER_MIME}' and trashed = false`,
+    'nextPageToken,files(id,name)',
+  )
+  return children.find((item) => item.id && sameFolderName(item.name, name))?.id
+}
+
 async function findFolderId(folder: ClientFolder): Promise<string> {
   const parents = await listQuery(
     `name = ${quote(folder.parentName)} and mimeType = '${FOLDER_MIME}' and trashed = false`,
@@ -322,12 +344,17 @@ async function findFolderId(folder: ClientFolder): Promise<string> {
   )
   for (const parent of parents) {
     if (!parent.id) continue
-    const children = await listQuery(
-      `${quote(parent.id)} in parents and mimeType = '${FOLDER_MIME}' and trashed = false`,
+    const direct = await findNamedChild(parent.id, folder.folderName)
+    if (direct) return direct
+    const clients = await listQuery(
+      `${quote(parent.id)} in parents and name = ${quote(CLIENTS_FOLDER_NAME)} and mimeType = '${FOLDER_MIME}' and trashed = false`,
       'nextPageToken,files(id,name)',
     )
-    const child = children.find((item) => sameFolderName(item.name, folder.folderName))
-    if (child?.id) return child.id
+    for (const clientsFolder of clients) {
+      if (!clientsFolder.id) continue
+      const nested = await findNamedChild(clientsFolder.id, folder.folderName)
+      if (nested) return nested
+    }
   }
 
   const folders = await listQuery(

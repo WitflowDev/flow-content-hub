@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { BusyButton } from '@/components/feedback/BusyButton'
 import { createClient } from '@/lib/supabase/client'
 import { useApp } from '@/state/AppState'
 import { useSession } from '@/state/Session'
@@ -24,6 +25,9 @@ export function SettingsScreen() {
   const router = useRouter()
   const profile = useSession()
   const [name, setName] = useState(profile.name)
+  const [saving, setSaving] = useState(false)
+  const [replaying, setReplaying] = useState(false)
+  const [signingOut, setSigningOut] = useState(false)
 
   async function saveProfile() {
     const nextName = name.trim()
@@ -31,8 +35,11 @@ export function SettingsScreen() {
       toast('Add a name before saving')
       return
     }
+    if (saving) return
+    setSaving(true)
     const supabase = createClient()
     const { error } = await supabase.from('profiles').update({ name: nextName }).eq('id', profile.id)
+    setSaving(false)
     if (error) {
       toast('Could not save the profile')
       return
@@ -42,9 +49,12 @@ export function SettingsScreen() {
   }
 
   async function replayOnboarding() {
+    if (replaying) return
+    setReplaying(true)
     const supabase = createClient()
     const { error } = await supabase.from('profiles').update({ onboarding_done: false }).eq('id', profile.id)
     if (error) {
+      setReplaying(false)
       toast('Could not open onboarding')
       return
     }
@@ -75,9 +85,10 @@ export function SettingsScreen() {
             <label htmlFor="profile-company">Company</label>
             <input id="profile-company" defaultValue="" />
           </div>
-          <button type="button" className="btn primary" onClick={() => void saveProfile()}>
+          <BusyButton pending={saving} pendingLabel="Saving…" onClick={() => void saveProfile()}>
             Save changes
-          </button>
+          </BusyButton>
+          {saving ? <p className="auth-status">Saving your profile.</p> : null}
         </section>
         <section className="card settings-card">
           <h3>Notifications</h3>
@@ -86,17 +97,25 @@ export function SettingsScreen() {
           <ToggleRow label="Flow tips" initiallyOn={false} />
           <hr />
           <h3>Demo controls</h3>
-          <button type="button" className="btn ghost wide" onClick={() => void replayOnboarding()}>
+          <BusyButton className="btn ghost wide" pending={replaying} pendingLabel="Opening…" onClick={() => void replayOnboarding()}>
             Replay onboarding
-          </button>
+          </BusyButton>
           {profile.role === 'admin' ? (
             <button type="button" className="btn ghost wide" onClick={() => navigate('/admin', true)}>
               Open Flow Admin demo
             </button>
           ) : null}
-          <button type="button" className="btn danger wide" onClick={logout}>
+          <BusyButton
+            className="btn danger wide"
+            pending={signingOut}
+            pendingLabel="Signing out…"
+            onClick={() => {
+              setSigningOut(true)
+              logout()
+            }}
+          >
             Log out
-          </button>
+          </BusyButton>
         </section>
       </div>
     </div>

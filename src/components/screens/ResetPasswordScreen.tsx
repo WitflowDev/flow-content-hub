@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import type { EmailOtpType } from '@supabase/supabase-js'
 import { useRouter } from 'next/navigation'
+import { BusyButton } from '@/components/feedback/BusyButton'
 import { Icon } from '@/components/icons'
 import { AuthShell } from '@/components/shell/AuthShell'
 import { createClient } from '@/lib/supabase/client'
@@ -99,6 +100,7 @@ export function ResetPasswordScreen() {
         <p>This keeps the same account. Only the password changes.</p>
         {ready ? (
           <>
+            <fieldset className="login-fields" disabled={pending}>
             <div className="field">
               <label htmlFor="reset-password">New password</label>
               <input id="reset-password" name="password" type="password" autoComplete="new-password" required minLength={6} />
@@ -114,9 +116,11 @@ export function ResetPasswordScreen() {
                 minLength={6}
               />
             </div>
-            <button className="btn primary wide" type="submit">
+            </fieldset>
+            <BusyButton type="submit" className="btn primary wide" pending={pending} pendingLabel="Saving password…">
               Save password <Icon name="arrow" />
-            </button>
+            </BusyButton>
+            {pending ? <p className="auth-status">Updating your password.</p> : null}
           </>
         ) : null}
         {error ? <div className="demo-note">{error}</div> : null}

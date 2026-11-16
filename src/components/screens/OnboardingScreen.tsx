@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+import { BusyButton } from '@/components/feedback/BusyButton'
 import { Icon } from '@/components/icons'
 import { FlowTip } from '@/components/feedback/FlowTip'
 import { TutorialImage } from '@/components/guides/TutorialImage'
@@ -31,11 +33,15 @@ const steps = [
 export function OnboardingScreen() {
   const { navigate, toast } = useApp()
   const profile = useSession()
+  const [pending, setPending] = useState<'start' | 'skip' | null>(null)
 
-  async function finish() {
+  async function finish(action: 'start' | 'skip') {
+    if (pending) return
+    setPending(action)
     const supabase = createClient()
     const { error } = await supabase.from('profiles').update({ onboarding_done: true }).eq('id', profile.id)
     if (error) {
+      setPending(null)
       toast('Could not save your progress')
       return
     }
@@ -78,11 +84,17 @@ export function OnboardingScreen() {
         ))}
       </div>
       <div className="onboard-actions">
-        <button type="button" className="btn primary large" onClick={finish}>
+        <BusyButton
+          className="btn primary large"
+          pending={pending === 'start'}
+          pendingLabel="Opening your library…"
+          disabled={pending !== null}
+          onClick={() => void finish('start')}
+        >
           Let’s get started <Icon name="arrow" />
-        </button>
-        <button type="button" className="text-btn" onClick={finish}>
-          Skip for now
+        </BusyButton>
+        <button type="button" className="text-btn" onClick={() => void finish('skip')} disabled={pending !== null}>
+          {pending === 'skip' ? 'Skipping…' : 'Skip for now'}
         </button>
       </div>
       <FlowTip title="Your content stays at the centre. Flow can also help with the next step when you need it." />

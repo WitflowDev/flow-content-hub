@@ -34,6 +34,24 @@ function copyFor(mode: AuthMode): { title: string; text: string } {
   }
 }
 
+function pendingCopy(mode: AuthMode): { label: string; detail: string } {
+  switch (mode) {
+    case 'login':
+      return { label: 'Signing in…', detail: 'Checking your account.' }
+    case 'signup':
+      return {
+        label: 'Creating account…',
+        detail: 'Setting up your account and content folder. This can take a moment.',
+      }
+    case 'forgot':
+      return { label: 'Sending link…', detail: 'Sending the reset link.' }
+    default: {
+      const unexpected: never = mode
+      return unexpected
+    }
+  }
+}
+
 export function LoginScreen() {
   const router = useRouter()
   const [mode, setMode] = useState<AuthMode>('login')
@@ -41,6 +59,7 @@ export function LoginScreen() {
   const [notice, setNotice] = useState('')
   const [pending, setPending] = useState(false)
   const copy = copyFor(mode)
+  const progress = pendingCopy(mode)
 
   function switchMode(next: AuthMode) {
     setMode(next)
@@ -103,65 +122,74 @@ export function LoginScreen() {
 
   return (
     <AuthShell>
-      <form className="login-form card" id="login-form" onSubmit={onSubmit}>
+      <form className="login-form card" id="login-form" onSubmit={onSubmit} aria-busy={pending}>
         <div className="eyebrow">Private client area</div>
         <h2>{copy.title}</h2>
         <p>{copy.text}</p>
         {mode === 'signup' ? <p className="required-legend">* Required</p> : null}
-        <div className="field">
-          <label htmlFor="login-email">{mode === 'signup' ? 'Email *' : 'Email'}</label>
-          <input id="login-email" name="email" type="email" autoComplete="username" required />
-        </div>
-        {mode === 'forgot' ? null : (
+        <fieldset className="login-fields" disabled={pending}>
           <div className="field">
-            <label htmlFor="login-password">{mode === 'signup' ? 'Password *' : 'Password'}</label>
-            <input
-              id="login-password"
-              name="password"
-              type="password"
-              autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-              required
-              minLength={6}
-            />
+            <label htmlFor="login-email">{mode === 'signup' ? 'Email *' : 'Email'}</label>
+            <input id="login-email" name="email" type="email" autoComplete="username" required />
           </div>
-        )}
-        {mode === 'signup' ? (
-          <>
+          {mode === 'forgot' ? null : (
             <div className="field">
-              <label htmlFor="signup-company">Company name *</label>
-              <input id="signup-company" name="companyName" type="text" autoComplete="organization" required />
+              <label htmlFor="login-password">{mode === 'signup' ? 'Password *' : 'Password'}</label>
+              <input
+                id="login-password"
+                name="password"
+                type="password"
+                autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+                required
+                minLength={6}
+              />
             </div>
-            <div className="field">
-              <label htmlFor="signup-tax">Tax number (NIF)</label>
-              <input id="signup-tax" name="taxNumber" type="text" autoComplete="off" />
-            </div>
-            <div className="field">
-              <label htmlFor="signup-address">Address</label>
-              <input id="signup-address" name="address" type="text" autoComplete="street-address" />
-            </div>
-            <div className="field">
-              <label htmlFor="signup-postal">Postal code</label>
-              <input id="signup-postal" name="postalCode" type="text" autoComplete="postal-code" />
-            </div>
-          </>
-        ) : null}
-        <button className="btn primary wide" type="submit">
-          {submitLabel} <Icon name="arrow" />
+          )}
+          {mode === 'signup' ? (
+            <>
+              <div className="field">
+                <label htmlFor="signup-company">Company name *</label>
+                <input id="signup-company" name="companyName" type="text" autoComplete="organization" required />
+              </div>
+              <div className="field">
+                <label htmlFor="signup-tax">Tax number (NIF)</label>
+                <input id="signup-tax" name="taxNumber" type="text" autoComplete="off" />
+              </div>
+              <div className="field">
+                <label htmlFor="signup-address">Address</label>
+                <input id="signup-address" name="address" type="text" autoComplete="street-address" />
+              </div>
+              <div className="field">
+                <label htmlFor="signup-postal">Postal code</label>
+                <input id="signup-postal" name="postalCode" type="text" autoComplete="postal-code" />
+              </div>
+            </>
+          ) : null}
+        </fieldset>
+        <button className="btn primary wide" type="submit" disabled={pending}>
+          {pending ? <span className="btn-spinner" aria-hidden="true" /> : null}
+          {pending ? progress.label : submitLabel}
+          {pending ? null : <Icon name="arrow" />}
         </button>
+        {pending ? (
+          <p className="auth-status" role="status">
+            {progress.detail}
+          </p>
+        ) : null}
         {error ? <div className="demo-note">{error}</div> : null}
         {notice ? <div className="demo-note">{notice}</div> : null}
         <div className="login-switch">
           {mode === 'login' ? (
             <>
-              <button type="button" className="text-btn" onClick={() => switchMode('forgot')}>
+              <button type="button" className="text-btn" onClick={() => switchMode('forgot')} disabled={pending}>
                 Forgot password?
               </button>
-              <button type="button" className="text-btn" onClick={() => switchMode('signup')}>
+              <button type="button" className="text-btn" onClick={() => switchMode('signup')} disabled={pending}>
                 Create an account
               </button>
             </>
           ) : (
-            <button type="button" className="text-btn" onClick={() => switchMode('login')}>
+            <button type="button" className="text-btn" onClick={() => switchMode('login')} disabled={pending}>
               Back to log in
             </button>
           )}

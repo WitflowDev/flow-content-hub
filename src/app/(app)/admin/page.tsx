@@ -19,7 +19,10 @@ export default async function AdminPage() {
     loadClientCollections(),
   ])
 
-  const accounts = await supabase.from('profiles').select('id, email, name, company_name').order('email')
+  const accounts = await supabase
+    .from('profiles')
+    .select('id, email, name, company_name, role, drive_folder_id')
+    .order('email')
 
   if (clients.error) throw new Error(clients.error.message)
   if (assets.error) throw new Error(assets.error.message)
@@ -35,6 +38,14 @@ export default async function AdminPage() {
         id: account.id,
         label: account.company_name?.trim() || account.name?.trim() || account.email || account.id,
       }))}
+      clients={(accounts.data ?? [])
+        .filter((account) => account.id !== user.id && account.role !== 'admin')
+        .map((account) => ({
+          id: account.id,
+          label: account.company_name?.trim() || account.name?.trim() || account.email || 'Client',
+          email: account.email ?? '',
+          hasFolder: typeof account.drive_folder_id === 'string' && account.drive_folder_id.length > 0,
+        }))}
       clientCollections={clientCollections}
     />
   )

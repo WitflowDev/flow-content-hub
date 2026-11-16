@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+import { BusyButton } from '@/components/feedback/BusyButton'
 import { Icon } from '@/components/icons'
 import { downloadDriveFiles } from '@/lib/downloadDriveFiles'
 import { useApp } from '@/state/AppState'
@@ -8,13 +10,18 @@ import { useLibrary } from '@/state/Catalog'
 export function BulkBar() {
   const { selected, clearSelected } = useApp()
   const { getMedia } = useLibrary()
+  const [downloading, setDownloading] = useState(false)
 
-  function downloadSelected() {
+  async function downloadSelected() {
+    if (downloading) return
     const items = [...selected].flatMap((id) => {
       const item = getMedia(id)
       return item ? [item] : []
     })
+    setDownloading(true)
     downloadDriveFiles(items)
+    await new Promise((resolve) => setTimeout(resolve, 700))
+    setDownloading(false)
   }
 
   return (
@@ -22,9 +29,9 @@ export function BulkBar() {
       <span>
         <b>{selected.size}</b> selected
       </span>
-      <button type="button" className="btn soft" onClick={downloadSelected}>
+      <BusyButton className="btn soft" pending={downloading} pendingLabel="Downloading…" onClick={() => void downloadSelected()}>
         <Icon name="download" /> Download
-      </button>
+      </BusyButton>
       <button type="button" className="btn ghost" onClick={clearSelected}>
         Clear
       </button>

@@ -5,6 +5,7 @@ import { Icon } from '@/components/icons'
 import type { IconName } from '@/components/icons'
 import { Logo } from '@/components/shell/Logo'
 import { useApp } from '@/state/AppState'
+import { useSession } from '@/state/Session'
 import type { NavId } from '@/data/types'
 
 const items: Array<{ id: NavId; label: string; url: string; icon: IconName }> = [
@@ -14,7 +15,8 @@ const items: Array<{ id: NavId; label: string; url: string; icon: IconName }> = 
   { id: 'guides', label: 'Guides', url: '/guides', icon: 'book' },
 ]
 
-function activeNav(pathname: string): NavId {
+function activeNav(pathname: string): NavId | 'admin' {
+  if (pathname.startsWith('/admin')) return 'admin'
   if (pathname.startsWith('/asset') || pathname.startsWith('/content')) return 'content'
   if (pathname.startsWith('/collections') || pathname.startsWith('/collection/')) return 'collections'
   if (pathname.startsWith('/guides')) return 'guides'
@@ -24,6 +26,7 @@ function activeNav(pathname: string): NavId {
 export function Sidebar() {
   const pathname = usePathname()
   const active = activeNav(pathname)
+  const { role } = useSession()
   const { mobileNav, navigate, openDrawer } = useApp()
 
   return (
@@ -43,6 +46,16 @@ export function Sidebar() {
             <span>{item.label}</span>
           </button>
         ))}
+        {role === 'admin' ? (
+          <button
+            type="button"
+            className={active === 'admin' ? 'nav-item active' : 'nav-item'}
+            onClick={() => navigate('/admin', true)}
+          >
+            <Icon name="upload" />
+            <span>Admin</span>
+          </button>
+        ) : null}
       </nav>
       <div className="sidebar-bottom">
         <button type="button" className="help-card" onClick={openDrawer}>

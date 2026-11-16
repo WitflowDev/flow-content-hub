@@ -1,5 +1,7 @@
 'use client'
 
+import { useState } from 'react'
+import { BusyButton } from '@/components/feedback/BusyButton'
 import { useNotices } from '@/state/Notifications'
 import type { AccountNotice } from '@/lib/notifications/types'
 
@@ -32,14 +34,25 @@ function NotificationItem({ notice }: { notice: AccountNotice }) {
 
 export function NotificationPopover() {
   const { notices, markAllRead } = useNotices()
+  const [marking, setMarking] = useState(false)
+
+  async function markRead() {
+    if (marking) return
+    setMarking(true)
+    try {
+      await markAllRead()
+    } finally {
+      setMarking(false)
+    }
+  }
 
   return (
     <div className="popover notification-pop">
       <div className="popover-head">
         <h3>Notifications</h3>
-        <button type="button" className="text-btn" onClick={() => void markAllRead()}>
+        <BusyButton className="text-btn" pending={marking} pendingLabel="Marking…" onClick={() => void markRead()}>
           Mark all read
-        </button>
+        </BusyButton>
       </div>
       {notices.length === 0 ? <p className="notification-empty">No notifications.</p> : null}
       {notices.map((notice) => (

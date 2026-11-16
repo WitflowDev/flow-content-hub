@@ -1,6 +1,8 @@
 'use client'
 
+import { useState } from 'react'
 import { useParams } from 'next/navigation'
+import { BusyButton } from '@/components/feedback/BusyButton'
 import { Icon } from '@/components/icons'
 import { FlowTip } from '@/components/feedback/FlowTip'
 import { MediaCard } from '@/components/media/MediaCard'
@@ -28,6 +30,8 @@ export function CollectionDetailScreen() {
   const params = useParams()
   const { navigate, openGuide, toast } = useApp()
   const library = useLibrary()
+  const [sharing, setSharing] = useState(false)
+  const [downloading, setDownloading] = useState(false)
   const collection = library.getCollection(routeParam(params.slug))
   if (!collection) {
     return (
@@ -53,12 +57,24 @@ export function CollectionDetailScreen() {
   const hero = items[2]
 
   async function share() {
+    if (sharing) return
+    setSharing(true)
     try {
       await navigator.clipboard.writeText(window.location.href)
       toast('Collection link copied', 'success')
     } catch {
       toast('Share link ready', 'success')
+    } finally {
+      setSharing(false)
     }
+  }
+
+  async function downloadCollection() {
+    if (downloading) return
+    setDownloading(true)
+    downloadDriveFiles(items)
+    await new Promise((resolve) => setTimeout(resolve, 700))
+    setDownloading(false)
   }
 
   return (
@@ -87,12 +103,12 @@ export function CollectionDetailScreen() {
           <p className="collection-desc">{collection.description}</p>
         </div>
         <div className="collection-actions">
-          <button type="button" className="btn ghost" onClick={() => void share()}>
+          <BusyButton className="btn ghost" pending={sharing} pendingLabel="Copying link…" onClick={() => void share()}>
             <Icon name="share" /> Share collection
-          </button>
-          <button type="button" className="btn primary" onClick={() => downloadDriveFiles(items)}>
+          </BusyButton>
+          <BusyButton pending={downloading} pendingLabel="Downloading…" onClick={() => void downloadCollection()}>
             <Icon name="download" /> Download collection
-          </button>
+          </BusyButton>
         </div>
       </div>
       {lead && support && hero ? (

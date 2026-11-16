@@ -4,6 +4,8 @@ import { OAuth2Client } from 'google-auth-library'
 const OWNER_EMAIL = 'geral.productionsflow@gmail.com'
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive'
 const CONTENT_HUB_NAME = 'Content Hub'
+const CLIENTS_FOLDER_NAME = 'Clients'
+const LIBRARY_FOLDER_NAME = 'Library'
 const FOLDER_MIME = 'application/vnd.google-apps.folder'
 
 type DriveFile = {
@@ -36,10 +38,76 @@ export function companyFolderName(companyName: string): string | null {
   return cleaned
 }
 
+const MAX_MEDIA_BYTES = 80 * 1024 * 1024
+
+export async function publishMediaToFolders(
+  folderIds: string[],
+  file: { name: string; mimeType: string; bytes: Uint8Array },
+): Promise<string[]> {
+  const folders = [...new Set(folderIds.filter(Boolean))]
+  if (folders.length === 0) throw new Error('Choose at least one client.')
+  if (!file.mimeType.startsWith('image/') && !file.mimeType.startsWith('video/')) {
+    throw new Error('Upload a photo or a video.')
+  }
+  if (file.bytes.byteLength === 0) throw new Error('That file is empty.')
+  if (file.bytes.byteLength > MAX_MEDIA_BYTES) throw new Error('Each file must be 80 MB or smaller.')
+
+  const sourceId = await uploadOwnerFile(await libraryFolderId(), file)
+  const saved: string[] = []
+  for (const folderId of folders) saved.push(await copyOwnerFile(sourceId, folderId, file.name))
+  return saved
+}
+
+async function uploadOwnerFile(
+  folderId: string,
+  file: { name: string; mimeType: string; bytes: Uint8Array },
+): Promise<string> {
+  const boundary = `flow${crypto.randomUUID().replaceAll('-', '')}`
+  const metadata = JSON.stringify({ name: file.name, mimeType: file.mimeType, parents: [folderId] })
+  const body = new Blob([
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${metadata}\r\n`,
+    `--${boundary}\r\nContent-Type: ${file.mimeType}\r\n\r\n`,
+    new Uint8Array(file.bytes),
+    `\r\n--${boundary}--`,
+  ])
+  const token = await accessToken()
+  const response = await fetch(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,parents',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': `multipart/related; boundary=${boundary}`,
+      },
+      body,
+    },
+  )
+  if (!response.ok) throw new Error(await driveError(response))
+  const created = (await response.json()) as DriveFile
+  if (!created.id || !(created.parents ?? []).includes(folderId)) {
+    throw new Error('The file could not be saved in the client folder.')
+  }
+  return created.id
+}
+
+async function copyOwnerFile(sourceId: string, folderId: string, name: string): Promise<string> {
+  const copied = await ownerJson<DriveFile>(
+    `files/${sourceId}/copy?supportsAllDrives=true&fields=id,parents`,
+    {
+      method: 'POST',
+      body: JSON.stringify({ name, parents: [folderId] }),
+    },
+  )
+  if (!copied.id || !(copied.parents ?? []).includes(folderId)) {
+    throw new Error('The file could not be saved in every selected client folder.')
+  }
+  return copied.id
+}
+
 export async function createClientDriveFolder(companyName: string): Promise<{ id: string; name: string }> {
   const base = companyFolderName(companyName)
   if (!base) throw new Error('Enter a company name.')
-  const parentId = await contentHubId()
+  const parentId = await clientsFolderId()
   const name = await nextFolderName(parentId, base)
   const created = await ownerJson<DriveFile>('files?fields=id,name,parents,owners(emailAddress)', {
     method: 'POST',
@@ -65,6 +133,30 @@ async function nextFolderName(parentId: string, base: string): Promise<string> {
     if (!taken.has(normalizeFolderName(candidate))) return candidate
   }
   throw new Error('The client folder could not be created.')
+}
+
+async function clientsFolderId(): Promise<string> {
+  return childFolderId(await contentHubId(), CLIENTS_FOLDER_NAME)
+}
+
+async function libraryFolderId(): Promise<string> {
+  return childFolderId(await contentHubId(), LIBRARY_FOLDER_NAME)
+}
+
+async function childFolderId(parentId: string, name: string): Promise<string> {
+  const existing = await listFolders(
+    `${quote(parentId)} in parents and name = ${quote(name)} and mimeType = '${FOLDER_MIME}' and trashed = false`,
+  )
+  const match = existing.find((folder) => folder.id && folder.name === name)
+  if (match?.id) return match.id
+  const created = await ownerJson<DriveFile>('files?fields=id,name,parents', {
+    method: 'POST',
+    body: JSON.stringify({ name, mimeType: FOLDER_MIME, parents: [parentId] }),
+  })
+  if (!created.id || !(created.parents ?? []).includes(parentId)) {
+    throw new Error('The Content Hub folder is not available.')
+  }
+  return created.id
 }
 
 async function contentHubId(): Promise<string> {
