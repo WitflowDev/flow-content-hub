@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { saveAccountName, setOnboardingDone } from '@/lib/auth/account'
+import { saveAccountName } from '@/lib/auth/account'
 import { useApp } from '@/state/AppState'
 import { useSession } from '@/state/Session'
 
@@ -20,7 +20,7 @@ function ToggleRow({ label, initiallyOn }: { label: string; initiallyOn: boolean
 }
 
 export function SettingsScreen() {
-  const { navigate, toast, logout } = useApp()
+  const { toast, logout } = useApp()
   const router = useRouter()
   const profile = useSession()
   const [name, setName] = useState(profile.name)
@@ -38,15 +38,6 @@ export function SettingsScreen() {
     }
     toast('Profile saved', 'success')
     router.refresh()
-  }
-
-  async function replayOnboarding() {
-    const saved = await setOnboardingDone(false)
-    if (!saved) {
-      toast('Could not open onboarding')
-      return
-    }
-    navigate('/onboarding')
   }
 
   return (
@@ -71,7 +62,7 @@ export function SettingsScreen() {
           </div>
           <div className="field">
             <label htmlFor="profile-company">Company</label>
-            <input id="profile-company" defaultValue="" />
+            <input id="profile-company" value={profile.companyName} readOnly />
           </div>
           <button type="button" className="btn primary" onClick={() => void saveProfile()}>
             Save changes
@@ -84,9 +75,6 @@ export function SettingsScreen() {
           <ToggleRow label="Flow tips" initiallyOn={false} />
           <hr />
           <h3>Account</h3>
-          <button type="button" className="btn ghost wide" onClick={() => void replayOnboarding()}>
-            Replay onboarding
-          </button>
           <button type="button" className="btn danger wide" onClick={logout}>
             Log out
           </button>

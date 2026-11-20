@@ -20,7 +20,7 @@ export async function GET(_request: Request, context: RouteContext) {
     return new Response(thumbnail.body, {
       headers: {
         'Content-Type': thumbnail.mimeType,
-        'Cache-Control': 'private, no-store',
+        'Cache-Control': 'private, max-age=86400, stale-while-revalidate=604800',
       },
     })
   } catch {

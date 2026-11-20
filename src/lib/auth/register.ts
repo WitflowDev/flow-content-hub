@@ -3,6 +3,7 @@
 import { companyFolderName, createClientDriveFolder, ownerAccessConfigured } from '@/lib/drive/owner'
 import { adminDb } from '@/lib/firebase/admin'
 import { getSessionUser } from '@/lib/firebase/session'
+import { syncAccountNotices } from '@/lib/notifications/sync'
 
 type RegisterResult = { status: 'session' } | { status: 'error'; message: string }
 
@@ -52,6 +53,14 @@ export async function registerAccount(details: SignupDetails): Promise<RegisterR
   } catch (error) {
     console.error(error instanceof Error ? error.message : 'The account could not be saved.')
     return { status: 'error', message: 'The account could not be saved.' }
+  }
+
+  if (driveFolderId) {
+    try {
+      await syncAccountNotices(user.uid, { fileIds: [], folderName: companyName, hasFolder: true })
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : 'The library notice could not be saved.')
+    }
   }
 
   return { status: 'session' }

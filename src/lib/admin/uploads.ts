@@ -1,4 +1,5 @@
 import 'server-only'
+import { parseExportIds, type ExportId } from '@/data/exports'
 import { parseRole } from '@/lib/auth'
 import { sealUploadTicket } from '@/lib/admin/upload-ticket'
 import { parseTags } from '@/lib/tags'
@@ -38,6 +39,9 @@ export async function openAdminUpload(
     size: number
     tags: string
     suggestedUse: string
+    formats: ExportId[]
+    variantParentId: string
+    variantFormat: ExportId | null
   },
 ): Promise<UploadSession> {
   const fileName = cleanedFileName(input.fileName)
@@ -47,6 +51,9 @@ export async function openAdminUpload(
   if (!Number.isSafeInteger(input.size) || input.size <= 0 || input.size > MAX_UPLOAD_BYTES) {
     throw new Error('Files need to be under 1 GB.')
   }
+  if (input.variantParentId && !isDriveFileId(input.variantParentId)) throw new Error('The default photo could not be found.')
+  if (Boolean(input.variantParentId) !== Boolean(input.variantFormat)) throw new Error('Choose a format for this photo.')
+  if (input.variantFormat && !mimeType.startsWith('image/')) throw new Error('Each extra format needs to be a photo.')
   if (!isAccountId(input.accountId)) throw new Error('Choose a client account.')
 
   const profile = await readUserProfile(input.accountId)
@@ -78,6 +85,10 @@ export async function openAdminUpload(
       accountId: input.accountId,
       tags: parseTags(input.tags),
       suggestedUse: input.suggestedUse.trim().slice(0, 500),
+      formats: input.variantFormat ? [] : input.formats,
+      fileName,
+      variantParentId: input.variantParentId,
+      variantFormat: input.variantFormat,
     }),
     destinationId: parentId,
   }

@@ -2,6 +2,7 @@
 
 import { Icon } from '@/components/icons'
 import { CollectionFeature } from '@/components/collections/CollectionFeature'
+import { ContentDayOffer } from '@/components/feedback/ContentDayOffer'
 import { FlowTip } from '@/components/feedback/FlowTip'
 import { GuideCard } from '@/components/guides/GuideCard'
 import { MediaCard } from '@/components/media/MediaCard'
@@ -30,6 +31,7 @@ export function HomeScreen() {
           </button>
         </div>
       </header>
+      <ContentDayOffer />
       <section className="section section-tight">
         <div className="section-head">
           <div>

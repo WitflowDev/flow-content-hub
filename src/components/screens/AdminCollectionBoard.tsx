@@ -5,8 +5,7 @@ import type { FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import { InstagramCarousel } from '@/components/collections/InstagramCarousel'
 import { Icon } from '@/components/icons'
-import { VideoStill } from '@/components/media/VideoStill'
-import { adminPostMedia, adminVideoSrc, CollectionMapsEditor, type DraftCarousel } from '@/components/screens/CollectionMapsEditor'
+import { adminPostMedia, CollectionMapsEditor, type DraftCarousel } from '@/components/screens/CollectionMapsEditor'
 import { deleteAdminCollection, deleteAdminPost, deleteAdminPosts, loadAdminCollection, updateAdminCollection, updateAdminPost } from '@/lib/admin/content'
 import type { AdminCollectionDetail, AdminCollectionRow, AdminPost } from '@/lib/admin/types'
 import { useApp } from '@/state/AppState'
@@ -115,7 +114,6 @@ export function AdminCollectionBoard({ collection, onBack }: { collection: Admin
               title={detail.title}
               description={map.description}
               items={map.fileIds.map((id) => detail.posts.find((post) => post.id === id)).flatMap((post) => (post ? [adminPostMedia(post, collection.clientFolderId)] : []))}
-              videoSrc={adminVideoSrc(collection.clientFolderId)}
             />
           ))}
         </div>
@@ -148,11 +146,12 @@ export function AdminCollectionBoard({ collection, onBack }: { collection: Admin
                   />
                 </label>
                 <button type="button" className="admin-post-open" onClick={() => setEditor({ kind: 'post', post })}>
-                  {post.video ? (
-                    <VideoStill src={`/api/admin/files/${post.id}/stream?folder=${collection.clientFolderId}`} alt="" />
-                  ) : (
-                    <img src={`/api/admin/files/${post.id}/thumbnail?folder=${collection.clientFolderId}`} alt="" />
-                  )}
+                  <img
+                    src={`/api/admin/files/${post.id}/thumbnail?folder=${collection.clientFolderId}`}
+                    alt=""
+                    loading="lazy"
+                    decoding="async"
+                  />
                   <span className="admin-post-copy">
                     <b>{post.title}</b>
                     {post.description ? <small>{post.description}</small> : null}

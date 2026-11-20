@@ -9,7 +9,7 @@ const { loadEnvConfig } = require('@next/env')
 
 const OWNER_EMAIL = 'geral.productionsflow@gmail.com'
 const REDIRECT_URI = 'http://127.0.0.1:53682/oauth2callback'
-const SCOPE = 'https://www.googleapis.com/auth/drive'
+const SCOPES = ['https://www.googleapis.com/auth/drive', 'https://www.googleapis.com/auth/calendar']
 const ENV_PATH = '.env.local'
 const REFRESH_KEY = 'GOOGLE_OAUTH_REFRESH_TOKEN'
 
@@ -26,7 +26,7 @@ const oauth = new OAuth2Client({ clientId, clientSecret, redirectUri: REDIRECT_U
 const authUrl = oauth.generateAuthUrl({
   access_type: 'offline',
   prompt: 'consent',
-  scope: [SCOPE],
+  scope: SCOPES,
   login_hint: OWNER_EMAIL,
 })
 

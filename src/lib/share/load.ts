@@ -1,4 +1,5 @@
 import 'server-only'
+import { formatVariantId } from '@/data/exports'
 import { listContainedMedia, readContainedFolder } from '@/lib/drive/client'
 import { readCollectionRecords } from '@/lib/drive/publish'
 import { readAssetCopy } from '@/lib/drive/tags'
@@ -10,7 +11,7 @@ export async function loadSharedCollection(token: string): Promise<SharedCollect
   if (!share) return null
   const folder = await readContainedFolder(share.folderId)
   if (!folder) return null
-  const listed = await listContainedMedia(share.folderId)
+  const listed = (await listContainedMedia(share.folderId)).filter((file) => !formatVariantId(file.name))
   const copy = await readAssetCopy(listed.map((file) => file.id))
   const record = (await readCollectionRecords([share.folderId])).get(share.folderId)
   const ids = new Set(listed.map((file) => file.id))

@@ -1,40 +1,35 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { Logo } from '@/components/shell/Logo'
+import Link from 'next/link'
+import { LOGO_BLACK } from '@/components/shell/Logo'
 
 export function AuthShell({ children }: { children: ReactNode }) {
   return (
-    <div className="login-wrap">
-      <section className="login-art">
-        <div className="login-brand">
-          <Logo theme="light" />
+    <div className="landing day-landing auth-page">
+      <header className="site-header">
+        <div className="container header-inner">
+          <Link className="brand" href="/" aria-label="Flow Productions home">
+            <img src={LOGO_BLACK} alt="Flow Productions" />
+          </Link>
         </div>
-        <div className="login-story">
-          <div className="login-copy">
-            <div className="eyebrow light">Flow Content Hub</div>
+      </header>
+      <main>
+        <section className="hero container">
+          <div className="hero-content">
+            <span className="eyebrow">
+              <i className="eyebrow-dot" /> Flow Content Hub
+            </span>
             <h1>
               Your content.
               <br />
-              All in one place.
+              <span>All in one place.</span>
             </h1>
-            <p>A private client space for everything Flow creates for your brand — organised, easy to use and ready whenever you need it.</p>
+            <p>A private client space for everything Flow creates for your brand. Organised, easy to use and ready when you need it.</p>
           </div>
-          <div className="login-collage">
-            <figure>
-              <img src="/assets/media/surf_hd.jpg" alt="" />
-            </figure>
-            <figure>
-              <img src="/assets/media/portrait_hd.jpg" alt="" />
-            </figure>
-            <figure>
-              <img src="/assets/media/cliffs_hd.jpg" alt="" />
-            </figure>
-          </div>
-        </div>
-        <span className="login-foot">Flow with us.</span>
-      </section>
-      <section className="login-form-area">{children}</section>
+          <div className="auth-panel">{children}</div>
+        </section>
+      </main>
     </div>
   )
 }

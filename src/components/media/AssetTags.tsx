@@ -6,7 +6,12 @@ export function AssetTags({ item }: { item: MediaItem }) {
   if (!item.collection && tags.length === 0) return null
   return (
     <div className="asset-tag-row">
-      {item.collection ? <span className="tag collection">{item.collection}</span> : null}
+      {item.collection ? (
+        <span className="tag collection">
+          <small>Collection</small>
+          {item.collection}
+        </span>
+      ) : null}
       {tags.map((tag) => {
         const tone = tagClass(tag)
         return (

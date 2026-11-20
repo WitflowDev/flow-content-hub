@@ -16,7 +16,7 @@ export async function GET(_request: Request, context: RouteContext) {
       headers: {
         'Content-Type': image.mimeType,
         'Content-Disposition': 'inline',
-        'Cache-Control': 'private, no-store',
+        'Cache-Control': 'private, max-age=86400, stale-while-revalidate=604800',
       },
     })
   } catch {

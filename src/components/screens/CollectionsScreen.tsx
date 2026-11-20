@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Icon } from '@/components/icons'
 import { CollectionTile } from '@/components/collections/CollectionTile'
+import { ContentDayOffer } from '@/components/feedback/ContentDayOffer'
 import { FlowTip } from '@/components/feedback/FlowTip'
 import { useLibrary } from '@/state/Catalog'
 import type { Collection } from '@/data/types'
@@ -35,6 +36,7 @@ export function CollectionsScreen() {
           <p>Campaigns, Content Days and brand libraries — without digging through folders.</p>
         </div>
       </header>
+      <ContentDayOffer />
       <div className="collections-toolbar">
         <div className="content-search compact">
           <Icon name="search" />

@@ -1,0 +1,205 @@
+.day-landing {
+  --header: 76px;
+  min-height: 100vh;
+  background: #fff;
+  color: var(--text);
+  font-family: Inter, "Segoe UI", Arial, sans-serif;
+}
+.day-landing .skip-link {position:absolute;left:12px;top:-90px;background:#fff;color:#121217;border:2px solid var(--flow);border-radius:10px;padding:10px 16px;z-index:100}
+.day-landing .skip-link:focus {top:12px}
+.day-landing .container {width:min(calc(100% - 56px),1224px);margin-inline:auto}
+.day-landing .icon {width:17px;height:17px;flex:none;display:block}
+.day-landing .eyebrow {display:inline-flex;align-items:center;gap:8px;font-size:10px;letter-spacing:.14em;text-transform:uppercase;color:#77788c;font-weight:800;line-height:1.4}
+.day-landing .eyebrow-dot {height:7px;width:7px;border-radius:50%;background:var(--flow);flex:none}
+.day-landing .btn {min-height:43px;display:inline-flex;align-items:center;justify-content:center;gap:12px;border:1px solid var(--line-dark);padding:0 16px;background:#fff;border-radius:11px;color:var(--text);font-size:12.5px;font-weight:750;white-space:nowrap;transition:background .15s ease,transform .15s ease,box-shadow .15s ease}
+.day-landing .btn:hover {transform:translateY(-1px);box-shadow:var(--shadow-sm)}
+.day-landing .btn-primary {background:var(--flow);border-color:var(--flow);color:#fff;box-shadow:0 8px 18px rgba(104,67,255,.14)}
+.day-landing .btn-primary:hover {background:var(--flow-dark);border-color:var(--flow-dark)}
+.day-landing .btn-outline:hover {border-color:#cdbfff;background:#fcfbff}
+.day-landing .section {margin-top:0;padding-top:60px}
+.day-landing .section[id] {scroll-margin-top:92px}
+.day-landing .section-heading {display:flex;align-items:end;justify-content:space-between;gap:28px;margin-bottom:20px}
+.day-landing .section-heading h2 {font-size:clamp(26px,2.55vw,33px);line-height:1.12;letter-spacing:-.045em;margin:7px 0 0;font-weight:800}
+.day-landing .section-heading p {font-size:13px;line-height:1.55;color:var(--muted);margin:0;max-width:330px}
+.day-landing .site-header {height:var(--header);position:sticky;z-index:50;top:0;background:rgba(255,255,255,.96);backdrop-filter:blur(16px);border-bottom:1px solid var(--line)}
+.day-landing .header-inner {height:100%;display:flex;align-items:center;gap:30px}
+.day-landing .brand {display:inline-flex;align-items:center;flex:none}
+.day-landing .brand img {width:125px;height:auto;object-fit:contain}
+.day-landing .header-nav {margin-left:auto;display:flex;align-items:center;gap:29px}
+.day-landing .header-nav a {font-size:12px;color:#5a5c6f;font-weight:650}
+.day-landing .header-nav a:hover {color:var(--flow)}
+.day-landing .header-cta {min-height:40px}
+.day-landing .menu-toggle {display:none;width:40px;height:40px;padding:9px;border:1px solid var(--line);border-radius:11px;background:#fff}
+.day-landing .hero {display:grid;grid-template-columns:minmax(360px,.79fr) minmax(0,1.21fr);gap:52px;align-items:center;padding-top:52px;padding-bottom:10px}
+.day-landing .hero-content {min-width:0;padding-bottom:5px}
+.day-landing .hero h1 {font-size:clamp(41px,4vw,56px);line-height:1.045;letter-spacing:-.06em;font-weight:800;margin:18px 0 17px}
+.day-landing .hero h1 span {color:var(--flow)}
+.day-landing .hero-content > p {font-size:15.4px;line-height:1.68;color:var(--muted);margin:0 0 23px;max-width:465px}
+.day-landing .hero-actions {display:flex;align-items:center;gap:9px;flex-wrap:wrap}
+.day-landing .hero-meta {margin-top:22px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:10.8px;color:#8a8b99;font-weight:650}
+.day-landing .hero-meta span {color:#bab8c5}
+.day-landing .browser-frame {border:1px solid var(--line);border-radius:18px;overflow:hidden;background:#fff;box-shadow:var(--shadow)}
+.day-landing .frame-top {height:42px;padding:0 15px;display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:1px solid var(--line)}
+.day-landing .frame-label {display:inline-flex;align-items:center;gap:11px;color:#77788b;font-size:10px;font-weight:650}
+.day-landing .frame-dots {display:inline-flex;align-items:center;gap:5px}
+.day-landing .frame-dots i {display:block;width:7px;height:7px;border-radius:50%;background:#d3d0dd}
+.day-landing .frame-dots i:first-child {background:#aa9af7}
+.day-landing .frame-expand {border:0;background:transparent;padding:6px;color:#77788b;display:flex;align-items:center;gap:7px;font-size:10px}
+.day-landing .frame-expand .icon {width:14px;height:14px}
+.day-landing .frame-expand:hover {color:var(--flow)}
+.day-landing .hero-shot {display:block;width:100%;padding:0;border:0;background:#fff;text-align:left}
+.day-landing .hero-shot img {width:100%;height:auto;object-fit:contain}
+.day-landing .feature-grid {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.day-landing .feature-card {padding:0;border:1px solid var(--line);border-radius:16px;background:#fff;overflow:hidden;min-width:0;text-align:left;transition:transform .15s ease,box-shadow .15s ease}
+.day-landing .feature-card:hover {transform:translateY(-2px);box-shadow:var(--shadow-sm)}
+.day-landing .feature-visual {height:193px;background:#faf9fd;border-bottom:1px solid var(--line);overflow:hidden}
+.day-landing .feature-visual img {width:100%;height:100%;object-fit:cover;object-position:top left}
+.day-landing .feature-caption {padding:14px 16px 16px;display:flex;justify-content:space-between;align-items:center;gap:14px}
+.day-landing .feature-caption strong {display:block;font-size:15px;letter-spacing:-.02em;margin:0 0 5px}
+.day-landing .feature-caption span {display:block;color:var(--muted);font-size:11.5px}
+.day-landing .feature-caption .icon {width:16px;height:16px;color:var(--flow)}
+.day-landing .contentday-section {display:grid;grid-template-columns:1.06fr .94fr;gap:42px;align-items:center}
+.day-landing .day-visual {height:322px;min-width:0;display:grid;grid-template-columns:minmax(0,1.42fr) minmax(0,.78fr);gap:12px}
+.day-landing .day-image {min-width:0;min-height:0;margin:0;position:relative;overflow:hidden;border-radius:16px;background:#f4f2f7}
+.day-landing .day-image img,.day-landing .day-image video {width:100%;height:100%;display:block;object-fit:cover}
+.day-landing .day-image-main video {object-position:center}
+.day-landing .day-image-main img {object-position:42% 68%}
+.day-landing .day-image-secondary img {object-position:38% 42%}
+.day-landing .day-image:after {content:"";position:absolute;inset:45% 0 0;background:linear-gradient(transparent,rgba(0,0,0,.26));pointer-events:none}
+.day-landing .day-image figcaption {position:absolute;bottom:12px;left:12px;z-index:1;display:inline-flex;align-items:center;gap:6px;padding:7px 9px;background:rgba(16,15,22,.64);border:1px solid rgba(255,255,255,.14);backdrop-filter:blur(8px);border-radius:8px;color:#fff;font-size:10px;font-weight:750;letter-spacing:.06em}
+.day-landing .media-icon {width:12px;height:12px;display:inline-block}
+.day-landing .day-content h2 {font-size:clamp(27px,2.8vw,35px);line-height:1.12;letter-spacing:-.045em;font-weight:800;margin:9px 0 12px}
+.day-landing .day-content > p {font-size:13.6px;line-height:1.65;color:var(--muted);margin:0 0 19px;max-width:460px}
+.day-landing .day-content > p strong {color:var(--text)}
+.day-landing .deliverables {display:grid;grid-template-columns:1fr 1fr;column-gap:18px;row-gap:16px}
+.day-landing .deliverables > div {padding-top:11px;border-top:1px solid var(--line)}
+.day-landing .deliverables strong {display:block;font-size:13px;margin-bottom:4px}
+.day-landing .deliverables span {display:block;font-size:11px;color:var(--muted);line-height:1.4}
+.day-landing .pricing-heading {margin-bottom:16px}
+.day-landing .package-inclusions {display:flex;align-items:center;flex-wrap:wrap;gap:13px 20px;background:#fafafd;border:1px solid var(--line);border-radius:13px;padding:13px 16px;margin-bottom:16px}
+.day-landing .package-inclusions span {display:inline-flex;align-items:center;gap:7px;color:#626475;font-size:11px;font-weight:650;white-space:nowrap}
+.day-landing .package-intro {color:#9595a4;font-size:10px;letter-spacing:.115em;font-weight:800;margin-right:4px}
+.day-landing .package-inclusions .icon {height:16px;width:16px;color:var(--flow)}
+.day-landing .pricing-grid {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
+.day-landing .plan-card {position:relative;min-width:0;border:1px solid var(--line);border-radius:17px;background:#fff;padding:22px 22px 20px;display:flex;flex-direction:column}
+.day-landing .plan-card.is-selected {border-color:#cabfff;box-shadow:0 10px 30px rgba(104,67,255,.065)}
+.day-landing .plan-recommended {position:absolute;right:18px;top:18px;display:inline-flex;align-items:center;background:var(--flow-soft);color:var(--flow);font-size:9px;font-weight:800;letter-spacing:.06em;border-radius:6px;padding:6px 8px}
+.day-landing .plan-top {min-height:107px}
+.day-landing .plan-top h3 {font-size:24px;line-height:1.12;letter-spacing:-.04em;font-weight:800;margin:7px 0 8px}
+.day-landing .plan-top p {font-size:12px;line-height:1.57;color:var(--muted);margin:0}
+.day-landing .price {margin:13px 0 10px;display:flex;align-items:baseline;gap:8px;flex-wrap:wrap}
+.day-landing .price strong {font-size:37px;line-height:1;letter-spacing:-.06em;font-weight:800}
+.day-landing .price > span {font-size:11px;color:var(--muted);font-weight:650}
+.day-landing .plan-cadence {padding:10px 0 12px;border-top:1px solid var(--line);display:flex;gap:5px;flex-wrap:wrap;color:#525466;font-size:12px;min-height:52px}
+.day-landing .plan-cadence span {color:#858696}
+.day-landing .plan-cadence small {width:100%;font-size:10px;color:#9596a6;font-weight:600}
+.day-landing .plan-value {border:1px solid #eeeaff;border-radius:11px;background:#fcfbff;padding:13px 14px;margin-bottom:14px;min-height:120px}
+.day-landing .plan-value-label {font-size:9px;letter-spacing:.11em;color:var(--flow);font-weight:800;display:block;margin-bottom:6px}
+.day-landing .plan-value strong {font-size:14px;line-height:1.2;letter-spacing:-.02em;display:block}
+.day-landing .plan-value p {font-size:11.5px;color:#767788;line-height:1.48;margin:6px 0 0}
+.day-landing .plan-benefits {list-style:none;padding:0;margin:0 0 17px;display:flex;flex-direction:column;gap:9px}
+.day-landing .plan-benefits li {position:relative;padding-left:17px;color:#5e6071;font-size:11.5px;line-height:1.42}
+.day-landing .plan-benefits li:before {content:"";display:block;position:absolute;top:4px;left:1px;width:9px;height:9px;border:1.7px solid var(--flow);border-radius:50%;background:#fff}
+.day-landing .plan-benefits li b {color:var(--flow);font-weight:800}
+.day-landing .plan-btn {margin-top:auto;width:100%;justify-content:space-between;min-height:42px}
+.day-landing .plan-card.is-selected .plan-btn {background:var(--flow);color:#fff;border-color:var(--flow);box-shadow:0 8px 18px rgba(104,67,255,.14)}
+.day-landing .plan-note {margin:14px 0 0;color:#8d8e9d;font-size:11px;line-height:1.6;max-width:1020px}
+.day-landing .booking-grid {display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.day-landing .calendar-card,.day-landing .booking-card {border:1px solid var(--line);border-radius:17px;padding:22px;background:#fff;min-width:0}
+.day-landing .calendar-top {display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:17px}
+.day-landing .calendar-top h3 {font-size:20px;letter-spacing:-.035em;margin:5px 0 0}
+.day-landing .calendar-nav {display:flex;gap:7px}
+.day-landing .calendar-nav button {width:30px;height:30px;padding:7px;display:grid;place-items:center;border:1px solid var(--line);background:#fff;border-radius:8px;color:#666778}
+.day-landing .calendar-nav button:disabled {opacity:.3;cursor:default}
+.day-landing .calendar-nav button:not(:disabled):hover {border-color:#c9bfff;color:var(--flow)}
+.day-landing .weekdays,.day-landing .calendar-grid {display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:6px}
+.day-landing .weekdays {margin-bottom:8px}
+.day-landing .weekdays span {font-size:10px;color:#999aa7;text-align:center;font-weight:700;padding:5px 0}
+.day-landing .calendar-grid > button,.day-landing .calendar-grid > span {height:35px;display:grid;place-items:center}
+.day-landing .calendar-grid button {border:1px solid transparent;border-radius:9px;background:#fff;color:#363742;font-size:12px;font-weight:650}
+.day-landing .calendar-grid button:disabled {opacity:.27;cursor:default}
+.day-landing .calendar-grid button.selectable {background:#faf8ff;border-color:#f0ecff;color:var(--flow)}
+.day-landing .calendar-grid button.selectable:hover {background:#f0eaff;border-color:#d2c6ff}
+.day-landing .calendar-grid button.selected {color:#fff;background:var(--flow);border-color:var(--flow)}
+.day-landing .calendar-hint {color:#999aa7;font-size:10.5px;line-height:1.5;margin:14px 0 0}
+.day-landing .calendar-hint strong {color:#747586}
+.day-landing .booking-card > .eyebrow {margin-bottom:13px}
+.day-landing .booking-summary {display:grid;grid-template-columns:1.35fr 1fr;gap:9px;margin-bottom:16px}
+.day-landing .booking-summary > div {border:1px solid var(--line);border-radius:10px;background:#fafafd;padding:12px}
+.day-landing .booking-summary small {display:block;color:#999aa7;font-size:10px;margin-bottom:5px}
+.day-landing .booking-summary strong {display:block;font-size:13px;letter-spacing:-.02em}
+.day-landing .booking-form {display:grid;gap:10px}
+.day-landing .field {min-width:0}
+.day-landing .field label {display:block;font-size:10.7px;font-weight:750;color:#5b5d6d;margin-bottom:6px}
+.day-landing .field input,.day-landing .field select {height:38px;width:100%;border:1px solid var(--line-dark);border-radius:9px;padding:0 11px;background:#fff;outline:0;color:#32323b;font-size:12px}
+.day-landing .field input:focus,.day-landing .field select:focus {border-color:#a998ff;box-shadow:0 0 0 3px rgba(104,67,255,.08)}
+.day-landing .field input[aria-invalid="true"] {border-color:#c94760}
+.day-landing .field-row {display:grid;grid-template-columns:1fr 1fr;gap:10px}
+.day-landing .booking-submit {width:100%;justify-content:space-between;margin-top:4px}
+.day-landing .form-message {color:#9495a4;font-size:10.3px;line-height:1.5;margin:0}
+.day-landing .form-message.error {color:#c94760}
+.day-landing .booking-confirm {position:fixed;inset:0;z-index:80;background:rgba(18,18,23,.42);display:grid;place-items:center;padding:20px}
+.day-landing .booking-confirm-card {width:min(440px,100%);background:#fff;border:1px solid var(--line);border-radius:16px;padding:22px}
+.day-landing .booking-confirm-card h3 {margin:8px 0 8px;font-size:24px;letter-spacing:-.03em}
+.day-landing .booking-confirm-card p {margin:0 0 16px;color:var(--muted);line-height:1.5}
+.day-landing .booking-confirm-actions {display:flex;flex-direction:column;gap:8px}
+.day-landing .booking-confirm-actions .btn {width:100%}
+.day-landing .site-footer {border-top:1px solid var(--line);margin-top:54px;padding:22px 0 28px}
+.day-landing .footer-inner {display:flex;align-items:center;gap:16px;justify-content:space-between}
+.day-landing .footer-inner img {width:99px;height:auto}
+.day-landing .footer-inner span,.day-landing .footer-inner > a {font-size:11px;color:#999aa5}
+.day-landing .footer-inner > a {color:var(--flow);font-weight:650}
+.day-landing .image-dialog {position:fixed;z-index:80;inset:0;display:grid;place-items:center;background:rgba(17,16,28,.64);padding:24px}
+.day-landing .image-panel {width:min(1120px,92vw);max-height:91vh;background:#fff;border:1px solid var(--line);border-radius:15px;overflow:auto;box-shadow:0 25px 90px rgba(20,16,42,.3)}
+.day-landing .dialog-head {height:48px;padding:0 16px;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--line);font-size:13px}
+.day-landing .dialog-head button {width:31px;height:31px;background:#f3f3f7;color:#55576b;border:0;border-radius:8px;padding:7px}
+.day-landing .image-panel img {width:100%;max-height:calc(91vh - 48px);height:auto;object-fit:contain;background:#fafafd}
+@media (max-width:1100px) {
+  .day-landing .container {width:min(calc(100% - 44px),1224px)}
+  .day-landing .hero {grid-template-columns:minmax(300px,.8fr) minmax(0,1.2fr);gap:26px;padding-top:36px}
+  .day-landing .hero h1 {font-size:44px}
+  .day-landing .day-visual {height:300px}
+  .day-landing .contentday-section {gap:28px}
+}
+@media (max-width:850px) {
+  .day-landing .container {width:min(calc(100% - 40px),720px)}
+  .day-landing .header-nav {gap:17px}
+  .day-landing .hero {grid-template-columns:1fr;gap:25px;padding-top:32px}
+  .day-landing .hero h1 {font-size:48px}
+  .day-landing .hero-content > p {max-width:580px}
+  .day-landing .section {padding-top:44px}
+  .day-landing .feature-visual {height:170px}
+  .day-landing .contentday-section {grid-template-columns:1fr;gap:22px}
+  .day-landing .day-visual {height:300px}
+  .day-landing .deliverables {grid-template-columns:repeat(4,1fr)}
+  .day-landing .pricing-grid,.day-landing .booking-grid {grid-template-columns:1fr}
+  .day-landing .plan-card {padding:19px 17px}
+  .day-landing .price strong {font-size:32px}
+}
+@media (max-width:650px) {
+  .day-landing {--header:66px}
+  .day-landing .container {width:calc(100% - 32px)}
+  .day-landing .brand img {width:112px}
+  .day-landing .header-inner {gap:9px}
+  .day-landing .header-nav {display:none;position:absolute;top:var(--header);left:0;right:0;background:#fff;border-bottom:1px solid var(--line);box-shadow:var(--shadow-sm);padding:10px 16px 16px;align-items:flex-start;gap:0;flex-direction:column}
+  .day-landing .header-nav.open {display:flex}
+  .day-landing .header-nav a {display:block;padding:11px 0;font-size:13px;width:100%}
+  .day-landing .header-cta {margin-left:auto;min-height:37px;padding:0 10px;font-size:10.5px;gap:4px}
+  .day-landing .menu-toggle {display:grid;place-items:center}
+  .day-landing .hero h1 {font-size:clamp(37px,8.5vw,45px)}
+  .day-landing .section-heading {display:block}
+  .day-landing .section-heading p {margin-top:7px}
+  .day-landing .feature-grid {grid-template-columns:1fr;gap:10px}
+  .day-landing .feature-card {display:grid;grid-template-columns:47% 1fr;min-height:128px}
+  .day-landing .feature-visual {height:100%;min-height:128px;border-bottom:0;border-right:1px solid var(--line)}
+  .day-landing .day-visual {height:235px;gap:10px}
+  .day-landing .deliverables {grid-template-columns:repeat(2,1fr)}
+  .day-landing .plan-top,.day-landing .plan-cadence,.day-landing .plan-value {min-height:0}
+  .day-landing .package-intro {flex-basis:100%}
+  .day-landing .calendar-card,.day-landing .booking-card {padding:16px}
+  .day-landing .footer-inner {flex-wrap:wrap}
+  .day-landing .footer-inner span {flex-basis:100%}
+}
+@media (max-width:370px) {
+  .day-landing .field-row {grid-template-columns:1fr}
+}

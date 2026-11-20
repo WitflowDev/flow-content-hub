@@ -1,11 +1,16 @@
 import { NextResponse, type NextRequest } from 'next/server'
 import { parseRole } from '@/lib/auth'
 import { adminAuth, adminDb } from '@/lib/firebase/admin'
-import { SESSION_COOKIE } from '@/lib/firebase/config'
+import { FLOW_EMAIL_HEADER, FLOW_UID_HEADER, SESSION_COOKIE } from '@/lib/firebase/config'
+
+type SessionStamp = {
+  uid: string
+  email: string | null
+}
 
 export async function proxy(request: NextRequest) {
-  // Server actions POST to the current page. A redirect here is not a valid action response.
-  if (request.headers.has('next-action')) return NextResponse.next()
+  // Server actions verify the cookie themselves. Strip any client-supplied stamp first.
+  if (request.headers.has('next-action')) return continueWithUser(request, null)
 
   const path = request.nextUrl.pathname
   const user = await sessionUser(request.cookies.get(SESSION_COOKIE)?.value)
@@ -15,29 +20,39 @@ export async function proxy(request: NextRequest) {
     path === '/reset-password' ||
     path === '/api/auth/session' ||
     path.startsWith('/share/') ||
-    path.startsWith('/api/share/')
+    path.startsWith('/api/share/') ||
+    path === '/api/content-day/availability'
   if (!user && !isPublic) return redirectTo(request, '/login')
 
-  if (user && (path === '/login' || path.startsWith('/admin'))) {
+  if (user && (path === '/login' || path === '/onboarding')) return redirectTo(request, '/home')
+
+  if (user && path.startsWith('/admin')) {
     const profile = await adminDb().collection('users').doc(user.uid).get()
-    if (path === '/login') {
-      const nextPath = profile.get('onboardingDone') === true ? '/home' : '/onboarding'
-      return redirectTo(request, nextPath)
-    }
     if (parseRole(profile.get('role')) !== 'admin') return redirectTo(request, '/home')
   }
 
-  return NextResponse.next()
+  return continueWithUser(request, user)
 }
 
-async function sessionUser(token: string | undefined): Promise<{ uid: string } | null> {
+async function sessionUser(token: string | undefined): Promise<SessionStamp | null> {
   if (!token) return null
   try {
     const decoded = await adminAuth().verifyIdToken(token)
-    return { uid: decoded.uid }
+    return { uid: decoded.uid, email: decoded.email ?? null }
   } catch {
     return null
   }
+}
+
+function continueWithUser(request: NextRequest, user: SessionStamp | null) {
+  const headers = new Headers(request.headers)
+  headers.delete(FLOW_UID_HEADER)
+  headers.delete(FLOW_EMAIL_HEADER)
+  if (user) {
+    headers.set(FLOW_UID_HEADER, user.uid)
+    if (user.email) headers.set(FLOW_EMAIL_HEADER, user.email)
+  }
+  return NextResponse.next({ request: { headers } })
 }
 
 function redirectTo(request: NextRequest, pathname: string) {

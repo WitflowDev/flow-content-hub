@@ -9,6 +9,7 @@ const MEDIA_ACCESS_TTL_MS = 60_000
 const MEDIA_ACCESS_LIMIT = 400
 const WIDE_IMAGE_SIZE = 2000
 const CONTENT_HUB_NAME = 'Content Hub'
+const CLIENTS_FOLDER_NAME = 'Clients'
 const FOLDER_MIME = 'application/vnd.google-apps.folder'
 const FILE_FIELDS = 'id,name,mimeType,size,modifiedTime,parents,thumbnailLink,imageMediaMetadata(width,height),videoMediaMetadata(width,height,durationMillis)'
 
@@ -21,6 +22,7 @@ export type DriveListedFile = {
   width?: number
   height?: number
   durationMillis?: string
+  thumbnailLink?: string
 }
 
 type DriveFileResource = {
@@ -136,9 +138,12 @@ export async function readFolderName(folderId: string): Promise<string> {
   if (!isDriveFileId(folderId)) throw new Error('That folder is not available.')
   const folder = await getFile(folderId, 'id,name,mimeType,parents')
   if (!folder.id || folder.mimeType !== FOLDER_MIME || !folder.name) throw new Error('That folder is not available.')
-  const parentId = await contentHubId()
-  if (!(folder.parents ?? []).includes(parentId)) throw new Error('That folder is not available.')
-  return folder.name
+  const parents = folder.parents ?? []
+  const hubId = await contentHubId()
+  if (parents.includes(hubId)) return folder.name
+  const clientsId = await clientsFolderId()
+  if (clientsId && parents.includes(clientsId)) return folder.name
+  throw new Error('That folder is not available.')
 }
 
 export async function legacyFolderId(folder: ClientFolder): Promise<string> {
@@ -200,11 +205,52 @@ export async function thumbnailClientFile(folderId: string, fileId: string): Pro
   body: ReadableStream<Uint8Array>
 } | null> {
   const meta = await requireMediaFile(folderId, fileId)
+  return thumbnailFromMeta(meta)
+}
+
+export async function thumbnailForKnownFile(fileId: string): Promise<{
+  mimeType: string
+  body: ReadableStream<Uint8Array>
+} | null> {
+  if (!isDriveFileId(fileId)) return null
+  const meta = await getFile(fileId, FILE_FIELDS)
+  if (!meta.id || !meta.mimeType || meta.mimeType === FOLDER_MIME || !isMediaMime(meta.mimeType)) return null
+  return thumbnailFromMeta(meta)
+}
+
+export function gridThumbnailFromLink(link: string): Promise<{
+  mimeType: string
+  body: ReadableStream<Uint8Array>
+} | null> {
+  return loadThumbnail({ thumbnailLink: link }, GRID_THUMBNAIL_SIZE, true)
+}
+
+export function wideThumbnailFromLink(link: string): Promise<{
+  mimeType: string
+  body: ReadableStream<Uint8Array>
+} | null> {
+  return loadThumbnail({ thumbnailLink: link }, WIDE_IMAGE_SIZE, false)
+}
+
+export async function wideThumbnailForKnownFile(fileId: string): Promise<{
+  mimeType: string
+  body: ReadableStream<Uint8Array>
+} | null> {
+  if (!isDriveFileId(fileId)) return null
+  const meta = await getFile(fileId, FILE_FIELDS)
+  if (!meta.id || !meta.mimeType?.startsWith('image/')) return null
+  return loadThumbnail(meta, WIDE_IMAGE_SIZE, false)
+}
+
+async function thumbnailFromMeta(meta: DriveFileResource): Promise<{
+  mimeType: string
+  body: ReadableStream<Uint8Array>
+} | null> {
   const thumbnail = await loadThumbnail(meta, GRID_THUMBNAIL_SIZE, true)
   if (thumbnail) return thumbnail
-  if (!meta.mimeType?.startsWith('image/')) return null
+  if (!meta.mimeType?.startsWith('image/') || !meta.id) return null
   try {
-    const image = await originalMedia(fileId)
+    const image = await originalMedia(meta.id)
     return { mimeType: meta.mimeType, body: image.body }
   } catch {
     return null
@@ -353,7 +399,17 @@ function toListedFile(file: DriveFileResource): DriveListedFile {
     width: file.imageMediaMetadata?.width ?? file.videoMediaMetadata?.width,
     height: file.imageMediaMetadata?.height ?? file.videoMediaMetadata?.height,
     durationMillis: file.videoMediaMetadata?.durationMillis,
+    thumbnailLink: file.thumbnailLink,
   }
+}
+
+async function clientsFolderId(): Promise<string | null> {
+  const hubId = await contentHubId()
+  const children = await listQuery(
+    `${quote(hubId)} in parents and name = ${quote(CLIENTS_FOLDER_NAME)} and mimeType = '${FOLDER_MIME}' and trashed = false`,
+    'nextPageToken,files(id,name)',
+  )
+  return children.find((item) => item.id && item.name === CLIENTS_FOLDER_NAME)?.id ?? null
 }
 
 async function contentHubId(): Promise<string> {

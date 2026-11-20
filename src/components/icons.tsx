@@ -20,6 +20,7 @@ export type IconName =
   | 'plus'
   | 'users'
   | 'upload'
+  | 'calendar'
 
 function StrokeIcon({ strokeWidth, children }: { strokeWidth: number; children: ReactNode }) {
   return (
@@ -166,6 +167,13 @@ function renderIcon(name: IconName): ReactNode {
           <path d="M12 16V4" />
           <path d="m7 9 5-5 5 5" />
           <path d="M5 20h14" />
+        </StrokeIcon>
+      )
+    case 'calendar':
+      return (
+        <StrokeIcon strokeWidth={1.8}>
+          <rect x="4" y="5" width="16" height="15" rx="2" />
+          <path d="M8 3v4M16 3v4M4 10h16" />
         </StrokeIcon>
       )
     default: {

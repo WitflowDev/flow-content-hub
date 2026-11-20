@@ -51,9 +51,8 @@ export function Topbar() {
           <Icon name="bell" />
           {unread ? <span className="badge-dot" /> : null}
         </button>
-        <button type="button" className="avatar-btn" onClick={() => navigate('/settings')}>
+        <button type="button" className="avatar-btn" onClick={() => navigate('/settings')} aria-label="Open profile">
           <span className="avatar">{initials}</span>
-          <span className="chev">⌄</span>
         </button>
       </div>
     </header>

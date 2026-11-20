@@ -1,74 +1,12 @@
+'use client'
+
+import { useEffect, useState } from 'react'
 import Link from 'next/link'
-import { Logo } from '@/components/shell/Logo'
+import { ContentDayBooking } from '@/components/content-day/ContentDayBooking'
+import { LOGO_BLACK, Logo } from '@/components/shell/Logo'
+import { contentDayPlans as plans, type ContentDayPlanId as PlanId } from '@/lib/content-day'
 
-const gaps = [
-  {
-    title: 'A different place every time',
-    text: 'The last film is in an email, the selects are on a transfer link, and the brief is in another thread.',
-  },
-  {
-    title: 'A folder with no brief',
-    text: 'A set of strong files, and nothing on them that says which one is for the feed, the site, or the campaign.',
-  },
-  {
-    title: 'The follow-up starts from zero',
-    text: 'Asking for another crop means describing the file again, instead of pointing at the original.',
-  },
-]
-
-const steps = [
-  {
-    title: 'Flow delivers the work',
-    text: 'New files are added to your library and organised into collections when a project is ready.',
-  },
-  {
-    title: 'You take what you need',
-    text: 'Sign in, browse the latest content, and download the files for social, the website, or a campaign.',
-  },
-  {
-    title: 'You ask for the next step',
-    text: 'Guides show how to use the content. Talk to Flow when you want something adapted or made from scratch.',
-  },
-]
-
-const trustedLogos = [
-  { src: '/assets/trust_by_logos/aljustrel.png', alt: 'Aljustrel' },
-  { src: '/assets/trust_by_logos/greencolab.png', alt: 'GreenCoLab' },
-  { src: '/assets/trust_by_logos/ccdr.png', alt: 'CCDR' },
-  { src: '/assets/trust_by_logos/emjogo.png', alt: 'emjogo' },
-  { src: '/assets/trust_by_logos/fujifilm.png', alt: 'Fujifilm' },
-  { src: '/assets/trust_by_logos/portugal-invitational.png', alt: 'Portugal Invitational' },
-  { src: '/assets/trust_by_logos/pga-tour-champions.png', alt: 'PGA TOUR Champions' },
-  { src: '/assets/trust_by_logos/castro-verde.png', alt: 'Município de Castro Verde' },
-  { src: '/assets/trust_by_logos/faro.png', alt: 'Faro' },
-  { src: '/assets/trust_by_logos/zion.png', alt: 'ZION Creative Artisans' },
-  { src: '/assets/trust_by_logos/infralobo.png', alt: 'Infralobo' },
-  { src: '/assets/trust_by_logos/nature-soul-food.png', alt: 'Nature Soul Food' },
-  { src: '/assets/trust_by_logos/woodfinish.png', alt: 'woodfinish' },
-  { src: '/assets/trust_by_logos/loule.png', alt: 'Loulé' },
-  { src: '/assets/trust_by_logos/details.png', alt: 'Details' },
-  { src: '/assets/trust_by_logos/indasa.png', alt: 'Indasa' },
-  { src: '/assets/trust_by_logos/learnable.png', alt: 'Learnable' },
-  { src: '/assets/trust_by_logos/clubstohire.png', alt: 'Clubs to Hire' },
-  { src: '/assets/trust_by_logos/inframoura.png', alt: 'Inframoura' },
-  { src: '/assets/trust_by_logos/zero.png', alt: 'ZERO' },
-  { src: '/assets/trust_by_logos/supabase-logo-wordmark--light-DqU5XrIo.png', alt: 'Supabase' },
-  { src: '/assets/trust_by_logos/techhub.png', alt: 'TechHub' },
-  { src: '/assets/trust_by_logos/ualg.png', alt: 'Universidade do Algarve' },
-  { src: '/assets/trust_by_logos/vilamoura.png', alt: 'Vilamoura' },
-  { src: '/assets/trust_by_logos/algarve-stp-DUufmjBb.png', alt: 'Algarve STP' },
-  { src: '/assets/trust_by_logos/amd-logo-emea-cAfc972V.png', alt: 'AMD' },
-  { src: '/assets/trust_by_logos/dengun-black-BIKZu3ue.png', alt: 'Dengun' },
-  { src: '/assets/trust_by_logos/descomunal_logo-CGQAddA7.jpg', alt: 'Descomunal' },
-  { src: '/assets/trust_by_logos/lionheart-test-E2sVxee5.jpg', alt: 'Lionheart' },
-  { src: '/assets/trust_by_logos/logo-IPBN-sWkP0Fqr.png', alt: 'IPBN' },
-  { src: '/assets/trust_by_logos/logo_ETIC-Algarve-DE5MJMn2.png', alt: 'ETIC Algarve' },
-  { src: '/assets/trust_by_logos/made-logo-black-CNPTOqT2.png', alt: 'MADE' },
-  { src: '/assets/trust_by_logos/OpenAI-black-wordmark-BfYT-5-s.png', alt: 'OpenAI' },
-  { src: '/assets/trust_by_logos/talking-therapy-v2-no-bg-BO7dZuMo.png', alt: 'Talking Therapy' },
-  { src: '/assets/trust_by_logos/ualg-tec-B2R0ykns.png', alt: 'UAlg Tec' },
-  { src: '/assets/trust_by_logos/Untitled.jpg', alt: 'Belvedere' },
-]
+type Lightbox = { src: string; title: string }
 
 const socials = [
   {
@@ -84,7 +22,7 @@ const socials = [
   {
     label: 'LinkedIn',
     href: 'https://www.linkedin.com/company/productions-flow/',
-    path: 'M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 1 1 0-4.124 2.062 2.062 0 0 1 0 4.124zM7.119 20.452H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z',
+    path: 'M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 0 1 0-4.124 2.062 2.062 0 0 1 0 4.124zM7.119 20.452H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z',
   },
   {
     label: 'YouTube',
@@ -93,213 +31,346 @@ const socials = [
   },
 ]
 
-const libraryFiles = [
-  { src: '/assets/media/surf_hd.jpg', title: 'Surf Session Highlight', meta: 'Video · 00:28', tag: 'Instagram' },
-  { src: '/assets/media/portrait_hd.jpg', title: 'Golden Hour Portrait', meta: 'Photography · JPG', tag: 'Website' },
-  { src: '/assets/media/cliffs_hd.jpg', title: 'Coastal Overview', meta: 'Photography · JPG', tag: 'Campaign' },
-]
+const shots = {
+  library: { src: '/assets/tutorials/photos.png', title: 'Content library' },
+  filters: { src: '/assets/tutorials/filters.png', title: 'Content library' },
+  collections: { src: '/assets/tutorials/collections.png', title: 'Collections by project' },
+  guides: { src: '/assets/tutorials/reels.png', title: 'Guides and tips' },
+}
+
+function Arrow() {
+  return (
+    <svg className="icon" aria-hidden="true" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M5 12h14m-5-5 5 5-5 5" />
+    </svg>
+  )
+}
 
 export function LandingScreen() {
+  const [menuOpen, setMenuOpen] = useState(false)
+  const [plan, setPlan] = useState<PlanId>('quarterly')
+  const [lightbox, setLightbox] = useState<Lightbox | null>(null)
+
+  useEffect(() => {
+    if (window.location.hash !== '#agenda') return
+    document.getElementById('agenda')?.scrollIntoView({ block: 'start' })
+  }, [])
+
+  function choosePlan(id: PlanId, scroll: boolean) {
+    setPlan(id)
+    if (!scroll) return
+    const behavior = window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
+    document.getElementById('agenda')?.scrollIntoView({ behavior, block: 'start' })
+  }
+
+  function closeMenu() {
+    setMenuOpen(false)
+  }
+
   return (
-    <div className="landing">
-      <header className="landing-bar">
-        <Logo />
-        <nav>
-          <Link href="/login">Sign in</Link>
-          <Link href="/login?mode=signup" className="btn primary">
-            Create an account
-          </Link>
-        </nav>
-      </header>
-      <section className="landing-hero">
-        <div className="landing-copy">
-          <div className="eyebrow">Flow Content Hub</div>
-          <h1>
-            Your content. All in <em>one place.</em>
-          </h1>
-          <p>
-            A private library for the photos, films and campaign files Flow makes for your brand. Open a collection, download
-            what you need, and ask for the next version without losing the original.
-          </p>
-          <div className="landing-actions">
-            <Link href="/login" className="btn primary large">
+    <div className="landing day-landing">
+      <a className="skip-link" href="#conteudo">
+        Skip to content
+      </a>
+      <header className="site-header" id="topo">
+        <div className="container header-inner">
+          <a className="brand" href="#topo" aria-label="Flow Productions home">
+            <img src={LOGO_BLACK} alt="Flow Productions" />
+          </a>
+          <nav className={menuOpen ? 'header-nav open' : 'header-nav'} aria-label="Main">
+            <a href="#plataforma" onClick={closeMenu}>
+              The platform
+            </a>
+            <a href="#contentday" onClick={closeMenu}>
+              Content Day
+            </a>
+            <a href="#planos" onClick={closeMenu}>
+              Plans
+            </a>
+            <Link href="/login" onClick={closeMenu}>
               Sign in
             </Link>
-            <Link href="/login?mode=signup" className="btn ghost large">
-              Create an account
-            </Link>
-          </div>
-          <p className="landing-note">Your account. Your files. Nothing is shared with another brand.</p>
+          </nav>
+          <a href="#agenda" className="btn btn-primary header-cta">
+            Book a Content Day <Arrow />
+          </a>
+          <button
+            type="button"
+            className="menu-toggle"
+            aria-expanded={menuOpen}
+            aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+            onClick={() => setMenuOpen((open) => !open)}
+          >
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round">
+              <path d="M4 7h16M4 12h16M4 17h16" />
+            </svg>
+          </button>
         </div>
-        <div className="landing-window" aria-hidden="true">
-          <div className="landing-window-bar">
-            <i />
-            <i />
-            <i />
-            <b>Your library</b>
-          </div>
-          <div className="landing-window-body">
-            <div className="landing-preview-set">
-              <div className="landing-mini-mosaic">
-                {libraryFiles.map((file) => (
-                  <img key={file.title} src={file.src} alt="" />
-                ))}
-              </div>
-              <div>
-                <small>Collection</small>
-                <strong>Summer Content Day</strong>
-                <em>12 files · ready to download</em>
-              </div>
-            </div>
-            <ul className="landing-file-list">
-              {libraryFiles.map((file) => (
-                <li key={file.title}>
-                  <img src={file.src} alt="" />
-                  <div>
-                    <b>{file.title}</b>
-                    <small>{file.meta}</small>
-                  </div>
-                  <span>{file.tag}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
-        </div>
-      </section>
+      </header>
 
-      <section className="trusted" aria-label="Trusted by">
-        <p className="trusted-label">Trusted by</p>
-        <div className="trusted-viewport">
-          <div className="trusted-track">
-            {['a', 'b'].map((copy) => (
-              <div className="trusted-set" key={copy} aria-hidden={copy === 'b'}>
-                {trustedLogos.map((logo) => (
-                  <span className="trusted-logo" key={`${copy}-${logo.src}`}>
-                    <img src={logo.src} alt={copy === 'a' ? logo.alt : ''} />
+      <main id="conteudo">
+        <section className="hero container" aria-labelledby="heroTitle">
+          <div className="hero-content">
+            <span className="eyebrow">
+              <i className="eyebrow-dot" /> FLOW CONTENT DAY
+            </span>
+            <h1 id="heroTitle">
+              New content.
+              <br />
+              <span>Every month.</span>
+            </h1>
+            <p>One production day each month. Video, photography and social posts, delivered in your Content Hub and ready to use.</p>
+            <div className="hero-actions">
+              <a href="#agenda" className="btn btn-primary">
+                Request a date <Arrow />
+              </a>
+              <a href="#plataforma" className="btn btn-outline">
+                Explore the Hub
+              </a>
+            </div>
+            <div className="hero-meta">
+              1 Content Day each month <span aria-hidden="true">·</span> 09:00 to 18:00 <span aria-hidden="true">·</span> Delivered in the Hub
+            </div>
+          </div>
+          <div className="hero-media">
+            <div className="browser-frame">
+              <div className="frame-top">
+                <div className="frame-label">
+                  <span className="frame-dots" aria-hidden="true">
+                    <i />
+                    <i />
+                    <i />
                   </span>
-                ))}
+                  <span>Flow Content Hub</span>
+                </div>
+                <button type="button" className="frame-expand" onClick={() => setLightbox(shots.library)}>
+                  <span>Enlarge</span>
+                </button>
               </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
-      <section className="landing-section landing-band">
-        <div className="landing-section-head center">
-          <div className="eyebrow">Before the library</div>
-          <h2>The work is finished. Finding it takes longer than using it.</h2>
-          <p>Flow already makes the content. The library is where your team keeps it, understands it, and asks for the next version.</p>
-        </div>
-        <div className="landing-gaps">
-          {gaps.map((gap) => (
-            <article key={gap.title} className="card">
-              <h3>{gap.title}</h3>
-              <p>{gap.text}</p>
-            </article>
-          ))}
-        </div>
-      </section>
-
-      <section className="landing-section">
-        <div className="landing-section-head">
-          <div className="eyebrow">Inside your account</div>
-          <h2>What you can actually do with a file.</h2>
-        </div>
-
-        <article className="landing-feature">
-          <div>
-            <h3>Grouped by the job, not by the day it was sent.</h3>
-            <p>A content day or a campaign arrives as one collection. Open it, read what it is for, and download the set together.</p>
-            <ul>
-              <li>Photos and films from the same project stay together.</li>
-              <li>The collection has its own description, written by Flow.</li>
-              <li>Download one file or the whole set.</li>
-            </ul>
-          </div>
-          <div className="landing-panel">
-            <div className="landing-cover">
-              <img src="/assets/media/surf_hd.jpg" alt="" />
-              <img src="/assets/media/portrait_hd.jpg" alt="" />
-              <img src="/assets/media/cliffs_hd.jpg" alt="" />
+              <button type="button" className="hero-shot" onClick={() => setLightbox(shots.library)} aria-label="Enlarge the Content Hub library">
+                <img src={shots.library.src} alt="Flow Content Hub library with videos and photographs." />
+              </button>
             </div>
-            <div className="landing-cover-meta">
-              <b>Summer Content Day</b>
-              <span>12 files</span>
-            </div>
-            <p>Campaign stills and a short film, delivered as one collection.</p>
           </div>
-        </article>
+        </section>
 
-        <article className="landing-feature reverse">
-          <div>
-            <h3>Each file says where it belongs.</h3>
-            <p>Search by name or tag, filter by photo or video, and read the suggested use before you download.</p>
-            <ul>
-              <li>Tags such as the channel or the campaign, written for that file.</li>
-              <li>A suggested use, only when Flow has one to add.</li>
-              <li>Photo and video stay separate when you filter.</li>
-            </ul>
+        <section className="section container" id="plataforma" aria-labelledby="hubTitle">
+          <div className="section-heading">
+            <div>
+              <span className="eyebrow">THE CONTENT HUB</span>
+              <h2 id="hubTitle">Your content, without the mess.</h2>
+            </div>
+            <p>A visual library. Everything where you expect to find it.</p>
           </div>
-          <div className="landing-panel">
-            <div className="landing-file-card">
-              <img src="/assets/media/cliffs_hd.jpg" alt="" />
-              <div>
-                <small>Photography</small>
-                <b>Coastal Overview</b>
-                <p>Wide frame for a web hero, a campaign page, or a destination post.</p>
+          <div className="feature-grid">
+            <button type="button" className="feature-card" onClick={() => setLightbox(shots.filters)}>
+              <div className="feature-visual">
+                <img src={shots.filters.src} alt="Grid of videos and photographs in the Hub library" />
+              </div>
+              <div className="feature-caption">
                 <div>
-                  <span>Website</span>
-                  <span>Summer</span>
+                  <strong>Library</strong>
+                  <span>Find, filter and download.</span>
                 </div>
               </div>
-            </div>
+            </button>
+            <button type="button" className="feature-card" onClick={() => setLightbox(shots.collections)}>
+              <div className="feature-visual">
+                <img src={shots.collections.src} alt="Collections with files grouped by project" />
+              </div>
+              <div className="feature-caption">
+                <div>
+                  <strong>Collections</strong>
+                  <span>Each session in its own place.</span>
+                </div>
+              </div>
+            </button>
+            <button type="button" className="feature-card" onClick={() => setLightbox(shots.guides)}>
+              <div className="feature-visual">
+                <img src={shots.guides.src} alt="A video page in the Hub with suggested use and download" />
+              </div>
+              <div className="feature-caption">
+                <div>
+                  <strong>Guides and tips</strong>
+                  <span>Visual help, kept simple.</span>
+                </div>
+              </div>
+            </button>
           </div>
-        </article>
+        </section>
 
-        <article className="landing-feature">
-          <div>
-            <h3>The next request stays on the original.</h3>
-            <p>Need another crop, a film, or a new campaign? Send it from the asset. Flow opens that exact file, not a description of it.</p>
-            <ul>
-              <li>The request is tied to the photo or video you were looking at.</li>
-              <li>Add a phone number if you want a call back.</li>
-              <li>Guides sit next to the library when you want to use the work as it is.</li>
-            </ul>
-          </div>
-          <div className="landing-panel">
-            <div className="landing-request">
-              <small>Talk to Flow</small>
-              <b>Another crop of this frame</b>
-              <p>Square version for the feed, keeping the coastline on the right.</p>
-              <div>
-                <img src="/assets/media/cliffs_hd.jpg" alt="" />
-                <span>
-                  Linked to
-                  <strong>Coastal Overview</strong>
+        <section className="section contentday-section container" id="contentday" aria-labelledby="dayTitle">
+          <div className="day-visual">
+            <figure className="day-image day-image-main">
+              <video src="/assets/mock_videos/reel_explainer.mp4" autoPlay muted loop playsInline />
+              <figcaption>
+                <span className="media-icon" aria-hidden="true">
+                  <svg viewBox="0 0 24 24" fill="currentColor">
+                    <path d="m8 5 11 7-11 7V5Z" />
+                  </svg>
                 </span>
+                REEL
+              </figcaption>
+            </figure>
+            <figure className="day-image day-image-secondary">
+              <img src="/assets/guide_photos/recording_one.jpg" alt="Filming at an event with a stabilised camera" />
+              <figcaption>PHOTOGRAPHY</figcaption>
+            </figure>
+          </div>
+          <div className="day-content">
+            <span className="eyebrow">THE CONTENT DAY PLAN</span>
+            <h2 id="dayTitle">
+              One day to create.
+              <br />
+              Content for the whole month.
+            </h2>
+            <p>
+              Every month, one day for your brand, from <strong>09:00 to 18:00</strong>. We produce video and photography, prepare post materials and deliver everything organised in the Hub.
+            </p>
+            <div className="deliverables">
+              <div>
+                <strong>Video</strong>
+                <span>Edited reels, ready to use</span>
+              </div>
+              <div>
+                <strong>Photography</strong>
+                <span>Professional selects and edits</span>
+              </div>
+              <div>
+                <strong>Posts</strong>
+                <span>Covers and base pieces for publishing</span>
+              </div>
+              <div>
+                <strong>Content Hub</strong>
+                <span>Private library, downloads and tips</span>
               </div>
             </div>
           </div>
-        </article>
-      </section>
+        </section>
 
-      <section className="landing-section">
-        <div className="landing-section-head">
-          <div className="eyebrow">How it works</div>
-          <h2>From delivery to the next request.</h2>
-        </div>
-        <ol className="landing-steps">
-          {steps.map((step, index) => (
-            <li key={step.title}>
-              <span>{index + 1}</span>
-              <div>
-                <h3>{step.title}</h3>
-                <p>{step.text}</p>
+        <section className="section pricing-section container" id="planos" aria-labelledby="pricingTitle">
+          <div className="section-heading pricing-heading">
+            <div>
+              <span className="eyebrow">MONTHLY PLANS</span>
+              <h2 id="pricingTitle">The same Content Day. A plan that fits.</h2>
+            </div>
+            <p>Video, photography and post materials every month. The commitment sets the pace and the price.</p>
+          </div>
+          <div className="package-inclusions">
+            <span className="package-intro">IN EACH CONTENT DAY</span>
+            <span>09:00 to 18:00</span>
+            <span>Up to 5 reels*</span>
+            <span>Up to 40 photographs</span>
+            <span>Posts, covers and Hub</span>
+          </div>
+          <div className="pricing-grid">
+            <article className={plan === 'monthly' ? 'plan-card is-selected' : 'plan-card'}>
+              <div className="plan-top">
+                <span className="eyebrow">01 / FLEXIBILITY</span>
+                <h3>Monthly</h3>
+                <p>For refreshing the brand or launching a campaign with one clear goal.</p>
               </div>
-            </li>
-          ))}
-        </ol>
-      </section>
+              <div className="price">
+                <strong>890 €</strong>
+                <span>/ month plus VAT</span>
+              </div>
+              <div className="plan-cadence">
+                <b>1 Content Day</b> <span>for 1 month</span>
+              </div>
+              <div className="plan-value">
+                <span className="plan-value-label">WHY THIS PLAN</span>
+                <strong>Start with flexibility.</strong>
+                <p>One full production and delivery cycle, without a commitment of several months.</p>
+              </div>
+              <ul className="plan-benefits">
+                <li>Video, photography and post materials*</li>
+                <li>Finished content organised in the Hub</li>
+                <li>One consolidated round of changes</li>
+              </ul>
+              <button type="button" className="btn btn-outline plan-btn" onClick={() => choosePlan('monthly', true)}>
+                Choose monthly <Arrow />
+              </button>
+            </article>
+            <article className={plan === 'quarterly' ? 'plan-card is-selected' : 'plan-card'}>
+              <span className="plan-recommended">MOST CHOSEN</span>
+              <div className="plan-top">
+                <span className="eyebrow">02 / CONTINUITY</span>
+                <h3>Quarterly</h3>
+                <p>To keep the brand active for three months, with one production day each month.</p>
+              </div>
+              <div className="price">
+                <strong>850 €</strong>
+                <span>/ month plus VAT</span>
+              </div>
+              <div className="plan-cadence">
+                <b>3 Content Days</b>
+                <span>over 3 months</span>
+                <small>Total 2,550 € plus VAT</small>
+              </div>
+              <div className="plan-value">
+                <span className="plan-value-label">WHY THIS PLAN</span>
+                <strong>Build a rhythm.</strong>
+                <p>Three moments to create content that fits together and feeds seasonal campaigns.</p>
+              </div>
+              <ul className="plan-benefits">
+                <li>Video, photography and post materials* each month</li>
+                <li>3 collections organised in the Hub</li>
+                <li>
+                  <b>Save 120 €</b> compared with 3 months on the monthly plan
+                </li>
+              </ul>
+              <button type="button" className="btn btn-outline plan-btn" onClick={() => choosePlan('quarterly', true)}>
+                Choose quarterly <Arrow />
+              </button>
+            </article>
+            <article className={plan === 'semiannual' ? 'plan-card is-selected' : 'plan-card'}>
+              <div className="plan-top">
+                <span className="eyebrow">03 / CONSISTENCY</span>
+                <h3>Half year</h3>
+                <p>For brands that need content often, across several moments in the year.</p>
+              </div>
+              <div className="price">
+                <strong>800 €</strong>
+                <span>/ month plus VAT</span>
+              </div>
+              <div className="plan-cadence">
+                <b>6 Content Days</b>
+                <span>over 6 months</span>
+                <small>Total 4,800 € plus VAT</small>
+              </div>
+              <div className="plan-value">
+                <span className="plan-value-label">WHY THIS PLAN</span>
+                <strong>Build a living archive.</strong>
+                <p>Regular production for different seasons, campaigns and brand content.</p>
+              </div>
+              <ul className="plan-benefits">
+                <li>Video, photography and post materials* each month</li>
+                <li>6 collections with history in the Hub</li>
+                <li>
+                  <b>Save 540 €</b> compared with 6 months on the monthly plan
+                </li>
+              </ul>
+              <button type="button" className="btn btn-outline plan-btn" onClick={() => choosePlan('semiannual', true)}>
+                Choose half year <Arrow />
+              </button>
+            </article>
+          </div>
+          <p className="plan-note">
+            *Up to 5 edited reels or 1 short horizontal video per session, and up to 40 edited photographs. Simple covers, ideas and post materials are agreed in the brief. Publishing, social management and ads are not included. Hub access is for viewing and downloading the delivered files.
+          </p>
+        </section>
+
+        <section className="section booking-section container" aria-labelledby="bookingTitle">
+          <div className="section-heading">
+            <div>
+              <span className="eyebrow">CALENDAR</span>
+              <h2 id="bookingTitle">Choose the first day.</h2>
+            </div>
+            <p>Pick a preferred date. We confirm it with you before booking.</p>
+          </div>
+          <ContentDayBooking mode="ask" plan={plan} onPlanChange={setPlan} />
+        </section>
+      </main>
 
       <footer className="landing-foot">
         <div className="landing-foot-grid">
@@ -318,12 +389,7 @@ export function LandingScreen() {
               <b>Faro</b>
               Edifício Ualg Tec, Campus da Penha, 8005-139 Faro
             </p>
-            <a
-              className="landing-vr"
-              href="https://www.flowproductions.pt/13587_Ficha%20Webiste.pdf"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
+            <a className="landing-vr" href="https://www.flowproductions.pt/13587_Ficha%20Webiste.pdf" target="_blank" rel="noopener noreferrer">
               FLOW VR
             </a>
           </div>
@@ -346,19 +412,30 @@ export function LandingScreen() {
             </div>
           </div>
         </div>
-        <img
-          className="landing-signature"
-          src="/assets/Barras%20de%20Assinaturas%20Algarve2030_Positivo.svg"
-          alt="Algarve 2030 programme signature bars — co-financing"
-        />
+        <img className="landing-signature" src="/assets/Barras%20de%20Assinaturas%20Algarve2030_Positivo.svg" alt="Algarve 2030 programme signature bars for co-financing" />
         <div className="landing-legal">
           <p>
-            Flow Productions is duly recognised as a startup as of 1 April 2026, having demonstrated compliance with the
-            requirements set out in Article 2 of Law No. 21/2023 of 25 May.
+            Flow Productions is duly recognised as a startup as of 1 April 2026, having demonstrated compliance with the requirements set out in Article 2 of Law No. 21/2023 of 25 May.
           </p>
           <p>Flow Productions ©. All Rights Reserved.</p>
         </div>
       </footer>
+
+      {lightbox ? (
+        <div className="image-dialog" role="dialog" aria-modal="true" aria-label="Platform preview" onClick={() => setLightbox(null)}>
+          <div className="image-panel" onClick={(event) => event.stopPropagation()}>
+            <div className="dialog-head">
+              <strong>{lightbox.title}</strong>
+              <button type="button" aria-label="Close preview" onClick={() => setLightbox(null)}>
+                <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" aria-hidden="true">
+                  <path d="m6 6 12 12M18 6 6 18" />
+                </svg>
+              </button>
+            </div>
+            <img src={lightbox.src} alt={lightbox.title} />
+          </div>
+        </div>
+      ) : null}
     </div>
   )
 }

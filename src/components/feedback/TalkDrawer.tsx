@@ -3,31 +3,30 @@
 import { useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { Icon } from '@/components/icons'
-import type { IconName } from '@/components/icons'
 import { submitServiceRequest } from '@/lib/admin/actions'
 import { DEFAULT_DIAL_ISO, DIAL_COUNTRIES } from '@/lib/phone/countries'
 import type { ServiceName } from '@/lib/requests/services'
-import { SERVICE_NAMES } from '@/lib/requests/services'
+import { isServiceName, SERVICE_NAMES } from '@/lib/requests/services'
 import { useApp } from '@/state/AppState'
 import { useLibrary } from '@/state/Catalog'
 import type { MediaItem } from '@/data/types'
 
-function serviceCopy(name: ServiceName): { description: string; icon: IconName } {
+function serviceCopy(name: ServiceName): string {
   switch (name) {
     case 'Social Media':
-      return { description: 'Copy, calendars, publishing and ongoing management.', icon: 'folder' }
+      return 'Copy, calendars, publishing and ongoing management.'
     case 'Video':
-      return { description: 'Editing, reels, campaign adaptations and motion.', icon: 'play' }
+      return 'Editing, reels, campaign adaptations and motion.'
     case 'Photography':
-      return { description: 'Lifestyle, product, spaces and events.', icon: 'layers' }
+      return 'Lifestyle, product, spaces and events.'
     case 'Design & Branding':
-      return { description: 'Campaign assets, templates and brand systems.', icon: 'grid' }
+      return 'Campaign assets, templates and brand systems.'
     case 'Website':
-      return { description: 'Design, development, content and optimisation.', icon: 'home' }
+      return 'Design, development, content and optimisation.'
     case 'Paid Media':
-      return { description: 'Campaign strategy, creative and activation.', icon: 'bell' }
+      return 'Campaign strategy, creative and activation.'
     case 'Something else':
-      return { description: 'Tell us what you have in mind.', icon: 'chat' }
+      return 'Tell us what you have in mind.'
     default: {
       const unexpected: never = name
       return unexpected
@@ -95,35 +94,29 @@ export function TalkDrawer() {
             <Icon name="close" />
           </button>
         </div>
-        <div className="service-list">
-          {SERVICE_NAMES.map((name) => {
-            const service = { name, ...serviceCopy(name) }
-            return (
+        <div className="talk-services" role="group" aria-label="Service">
+          {SERVICE_NAMES.map((name) => (
             <button
-              key={service.name}
+              key={name}
               type="button"
-              className={selectedService === service.name ? 'service-option selected' : 'service-option'}
-              onClick={() => setSelectedService(service.name)}
+              className={selectedService === name ? 'talk-service on' : 'talk-service'}
+              aria-pressed={selectedService === name}
+              onClick={() => setSelectedService(name)}
             >
-              <span className="service-icon">
-                <Icon name={service.icon} />
-              </span>
-              <span>
-                <strong>{service.name}</strong>
-                <small>{service.description}</small>
-              </span>
-              <span>→</span>
+              {name}
             </button>
-            )
-          })}
+          ))}
         </div>
+        <p className="talk-service-note">
+          {isServiceName(selectedService) ? serviceCopy(selectedService) : 'Choose a service, then describe the work.'}
+        </p>
         {asset?.driveFileId ? (
           <p className="drawer-asset">
             This request links to <b>{asset.title}</b>
             {asset.collection ? ` in ${asset.collection}` : ''}.
           </p>
         ) : null}
-        <div className="field">
+        <div className="field talk-message">
           <label htmlFor="service-message">Tell us what you need</label>
           <textarea
             id="service-message"

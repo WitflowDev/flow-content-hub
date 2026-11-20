@@ -35,7 +35,6 @@ export function CollectionTile({ collection }: { collection: Collection }) {
               <MediaThumb item={item} />
             </span>
           ))}
-          <span className="collection-cover-title">{collection.title}</span>
           <span className="asset-total">{collection.count}</span>
         </div>
       ) : null}

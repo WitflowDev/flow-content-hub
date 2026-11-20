@@ -1,3 +1,12 @@
+import type { ExportId } from '@/data/exports'
+
+export type PhotoVariant = {
+  fileId: string
+  name: string
+  bytes: number
+  mimeType: string
+}
+
 export type MediaType = 'Video' | 'Photography' | 'Design'
 export type MediaChannel = 'Instagram' | 'Website' | 'Ads' | 'Design'
 export type Orientation = 'Vertical' | 'Portrait' | 'Landscape' | 'Square'
@@ -17,6 +26,9 @@ export type MediaItem = {
   position: string
   description: string
   driveFileId?: string | null
+  bytes?: number
+  exports?: string[]
+  variants?: Partial<Record<ExportId, PhotoVariant>>
 }
 
 export type ContentMap = {
@@ -58,4 +70,4 @@ export type SortMode = (typeof SORT_MODES)[number]
 
 export type ViewMode = 'grid' | 'list'
 
-export type NavId = 'home' | 'content' | 'collections' | 'guides'
+export type NavId = 'home' | 'content' | 'collections' | 'guides' | 'content-day'

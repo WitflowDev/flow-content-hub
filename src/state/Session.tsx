@@ -8,6 +8,7 @@ export type SessionProfile = {
   id: string
   name: string
   email: string
+  companyName: string
   role: AppRole
   onboardingDone: boolean
 }

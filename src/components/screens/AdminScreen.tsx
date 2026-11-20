@@ -5,11 +5,13 @@ import type { FormEvent, MouseEvent } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
 import { Icon } from '@/components/icons'
-import { VideoStill } from '@/components/media/VideoStill'
+import { EXPORT_FORMATS, variantFileName, type ExportId } from '@/data/exports'
 import { AdminCollectionBoard } from '@/components/screens/AdminCollectionBoard'
 import { UploadMaps, type DraftMap } from '@/components/screens/UploadMaps'
+import { confirmContentDay } from '@/lib/admin/content-day'
 import { nextStandardNames, saveCollectionMaps } from '@/lib/admin/content'
 import { setCollectionPublished, setRequestStatus } from '@/lib/admin/actions'
+import { contentDayPlans, formatContentDay, parseDateKey, type ContentDayRequest } from '@/lib/content-day'
 import type { AdminAccount, AdminCollectionRow, ServiceRequestRow, ServiceRequestStatus } from '@/lib/admin/types'
 import { isServiceRequestStatus } from '@/lib/admin/types'
 import { sendPromotion } from '@/lib/notifications/actions'
@@ -44,6 +46,7 @@ export function AdminScreen({
   accounts,
   collections,
   requests,
+  contentDays,
 }: {
   clientCount: number
   publishedAssets: number
@@ -52,6 +55,7 @@ export function AdminScreen({
   accounts: AdminAccount[]
   collections: AdminCollectionRow[]
   requests: ServiceRequestRow[]
+  contentDays: ContentDayRequest[]
 }) {
   const { toast } = useApp()
   const router = useRouter()
@@ -62,6 +66,7 @@ export function AdminScreen({
   const [clientId, setClientId] = useState('all')
   const [requestFilter, setRequestFilter] = useState<RequestFilter>('all')
   const [savingRequest, setSavingRequest] = useState('')
+  const [confirmingDay, setConfirmingDay] = useState('')
   const clientCollections = clientId === 'all' ? collections : collections.filter((collection) => collection.accountId === clientId)
   const visibleCollections = showAll ? clientCollections : clientCollections.slice(0, PREVIEW_COUNT)
   const visibleRequests = requestFilter === 'all' ? requests : requests.filter((request) => request.status === requestFilter)
@@ -76,6 +81,19 @@ export function AdminScreen({
       toast(result.message)
       return
     }
+    router.refresh()
+  }
+
+  async function onConfirmDay(id: string) {
+    if (confirmingDay) return
+    setConfirmingDay(id)
+    const result = await confirmContentDay({ id })
+    setConfirmingDay('')
+    if (!result.ok) {
+      toast(result.message)
+      return
+    }
+    toast('Content Day added to the calendar', 'success')
     router.refresh()
   }
 
@@ -111,6 +129,31 @@ export function AdminScreen({
         <StatCard label="Draft collections" value={String(draftCollections)} sub="Awaiting publish" />
       </div>
       <PromotionPanel accounts={accounts} />
+      <section className="card admin-panel">
+        <div className="panel-head">
+          <div>
+            <div className="eyebrow">Content Day</div>
+            <h2>Dates waiting for confirmation</h2>
+          </div>
+        </div>
+        {contentDays.length === 0 ? <p className="admin-empty">No Content Day requests yet.</p> : null}
+        {contentDays.map((day) => {
+          const date = parseDateKey(day.date)
+          return (
+            <div className="request-row" key={day.id}>
+              <div>
+                <b>{day.company}</b>
+                <small>
+                  {date ? formatContentDay(date) : day.date} · {contentDayPlans[day.plan].name} · {day.name} · {day.email}
+                </small>
+              </div>
+              <button type="button" className="btn primary" disabled={confirmingDay === day.id} onClick={() => void onConfirmDay(day.id)}>
+                {confirmingDay === day.id ? 'Confirming' : 'Confirm'}
+              </button>
+            </div>
+          )
+        })}
+      </section>
       <div className="admin-layout">
         <section className="card admin-panel">
           <div className="panel-head">
@@ -160,16 +203,12 @@ export function AdminScreen({
               }}
             >
               <div className="admin-thumb">
-                {collection.coverFileId && collection.coverVideo ? (
-                  <VideoStill
-                    src={`/api/admin/files/${collection.coverFileId}/stream?folder=${collection.clientFolderId}`}
-                    alt=""
-                  />
-                ) : null}
-                {collection.coverFileId && !collection.coverVideo ? (
+                {collection.coverFileId ? (
                   <img
                     src={`/api/admin/files/${collection.coverFileId}/thumbnail?folder=${collection.clientFolderId}`}
                     alt=""
+                    loading="lazy"
+                    decoding="async"
                   />
                 ) : null}
               </div>
@@ -335,12 +374,15 @@ function UploadDialog({
   const [standardNames, setStandardNames] = useState(false)
   const [picked, setPicked] = useState<File[]>([])
   const [maps, setMaps] = useState<DraftMap[]>([])
+  const [formatMode, setFormatMode] = useState<'single' | 'several'>('single')
+  const [defaultPhoto, setDefaultPhoto] = useState<File | null>(null)
+  const [variantFiles, setVariantFiles] = useState<Partial<Record<ExportId, File | null>>>({})
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState('')
   const [error, setError] = useState('')
   const { toast } = useApp()
   const destinations = collections.filter((collection) => collection.accountId === accountId)
-  const canMap = destination !== '' && picked.length > 1
+  const canMap = formatMode === 'single' && destination !== '' && picked.length > 1
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -351,6 +393,10 @@ function UploadDialog({
     }
     if (destination === 'new' && !collectionName.trim()) {
       setError('Name the collection.')
+      return
+    }
+    if (formatMode === 'several') {
+      await uploadSeveral()
       return
     }
     if (picked.length === 0) {
@@ -384,6 +430,7 @@ function UploadDialog({
           destinationId ? '' : collectionDescription,
           tags,
           picked.length > 1 && useMode === 'each' ? (fileUses[index] ?? '') : suggestedUse,
+          [],
         )
         destinationId = saved.destinationId
         fileIds.push(saved.fileId)
@@ -412,6 +459,66 @@ function UploadDialog({
     }
   }
 
+  async function uploadSeveral() {
+    if (!defaultPhoto || !isImageFile(defaultPhoto)) {
+      setError('Choose the default photo.')
+      return
+    }
+    for (const format of EXPORT_FORMATS) {
+      const extra = variantFiles[format.id]
+      if (extra && !isImageFile(extra)) {
+        setError(`${format.label} needs to be a photo.`)
+        return
+      }
+    }
+    setUploading(true)
+    setError('')
+    let destinationId = destination === 'new' ? '' : destination
+    const namedCollection = destination === 'new' ? collectionName : ''
+    try {
+      const names = standardNames
+        ? await standardFileNames([defaultPhoto], accountId, destination === 'new' ? '' : destination, destination === 'new' ? collectionName : '')
+        : [defaultPhoto.name]
+      const defaultName = names[0] ?? defaultPhoto.name
+      setProgress('Uploading the default photo')
+      const saved = await uploadOne(
+        defaultPhoto,
+        defaultName,
+        accountId,
+        destinationId,
+        destinationId ? '' : namedCollection,
+        destinationId ? '' : collectionDescription,
+        tags,
+        suggestedUse,
+        [],
+      )
+      if (!saved.fileId) throw new Error('The default photo could not be saved to Drive.')
+      destinationId = saved.destinationId
+      for (const format of EXPORT_FORMATS) {
+        const extra = variantFiles[format.id]
+        if (!extra) continue
+        setProgress(`Uploading ${format.label}`)
+        await uploadOne(
+          extra,
+          variantFileName(defaultName, format.id),
+          accountId,
+          destinationId,
+          '',
+          '',
+          '',
+          '',
+          [],
+          { parentId: saved.fileId, format: format.id },
+        )
+      }
+      onUploaded()
+    } catch (uploadError) {
+      setUploading(false)
+      setProgress('')
+      setError(uploadError instanceof Error ? uploadError.message : 'The file could not be saved to Drive.')
+    }
+  }
+
   return (
     <>
       <div className="modal-backdrop" onClick={() => (uploading ? undefined : onClose())} />
@@ -426,7 +533,7 @@ function UploadDialog({
           </button>
         </div>
         <p className="upload-note">
-          Files are saved in the client folder inside Content Hub. A new collection stays hidden until you publish it. Files added
+          Files are saved in the client folder inside Clients. A new collection stays hidden until you publish it. Files added
           to the library show up in My Content straight away.
         </p>
         <div className="field">
@@ -546,25 +653,92 @@ function UploadDialog({
             ))}
           </div>
         )}
-        <div className="field">
-          <label htmlFor="upload-files">Files</label>
-          <input
-            id="upload-files"
-            type="file"
-            accept="image/*,video/*"
-            multiple
-            disabled={uploading}
-            required={picked.length === 0}
-            onChange={(event) => {
-              const next = [...(event.target.files ?? [])]
-              setPicked(next)
-              setFileUses(next.map(() => ''))
-              setUseMode('shared')
-              setMaps([])
-            }}
-          />
+        <div className="upload-choice">
+          <span>Are all of these photos a single format?</span>
+          <div className="inline-controls">
+            <button
+              type="button"
+              className={formatMode === 'single' ? 'pill active' : 'pill'}
+              disabled={uploading}
+              onClick={() => {
+                setFormatMode('single')
+                setDefaultPhoto(null)
+                setVariantFiles({})
+              }}
+            >
+              One format
+            </button>
+            <button
+              type="button"
+              className={formatMode === 'several' ? 'pill active' : 'pill'}
+              disabled={uploading}
+              onClick={() => {
+                setFormatMode('several')
+                setPicked([])
+                setFileUses([])
+                setMaps([])
+                setUseMode('shared')
+              }}
+            >
+              Several formats
+            </button>
+          </div>
         </div>
-        {picked.length > 0 ? (
+        {formatMode === 'single' ? (
+          <div className="field">
+            <label htmlFor="upload-files">Files</label>
+            <input
+              id="upload-files"
+              type="file"
+              accept="image/*,video/*"
+              multiple
+              disabled={uploading}
+              required={picked.length === 0}
+              onChange={(event) => {
+                const next = [...(event.target.files ?? [])]
+                setPicked(next)
+                setFileUses(next.map(() => ''))
+                setUseMode('shared')
+                setMaps([])
+              }}
+            />
+          </div>
+        ) : null}
+        {formatMode === 'several' ? (
+          <div className="format-uploads">
+            <p>Upload the photo people see in the library. Add a file under each other format when that size already exists.</p>
+            <label className="field">
+              <span>Default photo</span>
+              <input
+                type="file"
+                accept="image/*"
+                disabled={uploading}
+                required={!defaultPhoto}
+                onChange={(event) => setDefaultPhoto(event.target.files?.[0] ?? null)}
+              />
+            </label>
+            {EXPORT_FORMATS.map((format) => (
+              <label key={format.id} className="format-upload">
+                <span>
+                  <b>{format.label}</b>
+                  <small>{format.note}</small>
+                </span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  disabled={uploading}
+                  onChange={(event) =>
+                    setVariantFiles((current) => ({
+                      ...current,
+                      [format.id]: event.target.files?.[0] ?? null,
+                    }))
+                  }
+                />
+              </label>
+            ))}
+          </div>
+        ) : null}
+        {formatMode === 'single' && picked.length > 0 || formatMode === 'several' && defaultPhoto ? (
           <label className="upload-check">
             <input type="checkbox" checked={standardNames} disabled={uploading} onChange={(event) => setStandardNames(event.target.checked)} />
             <span>Rename to Photo #1, Video #1, and so on. Numbers continue from the standard names already in this folder.</span>
@@ -629,6 +803,11 @@ function fileExtension(file: File): string {
   }
 }
 
+function isImageFile(file: File): boolean {
+  if (file.type.startsWith('image/')) return true
+  return /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(file.name)
+}
+
 async function uploadOne(
   file: File,
   fileName: string,
@@ -638,6 +817,8 @@ async function uploadOne(
   collectionDescription: string,
   tags: string,
   suggestedUse: string,
+  formats: ExportId[],
+  variant?: { parentId: string; format: ExportId },
 ): Promise<{ destinationId: string; fileId: string }> {
   const started = await fetch('/api/admin/uploads', {
     method: 'POST',
@@ -652,6 +833,9 @@ async function uploadOne(
       size: file.size,
       tags,
       suggestedUse,
+      formats,
+      variantParentId: variant?.parentId ?? '',
+      variantFormat: variant?.format ?? null,
     }),
   })
   const startedBody: unknown = await started.json().catch(() => null)

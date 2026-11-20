@@ -4,6 +4,7 @@ import { OAuth2Client } from 'google-auth-library'
 const OWNER_EMAIL = 'geral.productionsflow@gmail.com'
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive'
 const CONTENT_HUB_NAME = 'Content Hub'
+const CLIENTS_FOLDER_NAME = 'Clients'
 const FOLDER_MIME = 'application/vnd.google-apps.folder'
 
 type DriveFile = {
@@ -25,6 +26,8 @@ type DriveRequest = {
 
 let cachedClient: OAuth2Client | undefined
 let cachedContentHub: Promise<string> | undefined
+let cachedClients: Promise<string> | undefined
+let cachedNest: Promise<number> | undefined
 
 export function ownerAccessConfigured(): boolean {
   return Boolean(process.env.GOOGLE_OAUTH_CLIENT_ID && process.env.GOOGLE_OAUTH_CLIENT_SECRET && process.env.GOOGLE_OAUTH_REFRESH_TOKEN)
@@ -39,7 +42,8 @@ export function companyFolderName(companyName: string): string | null {
 export async function createClientDriveFolder(companyName: string): Promise<{ id: string; name: string }> {
   const base = companyFolderName(companyName)
   if (!base) throw new Error('Enter a company name.')
-  const parentId = await contentHubId()
+  await organizeClientFolders()
+  const parentId = await clientsFolderId()
   const name = await nextFolderName(parentId, base)
   const created = await ownerJson<DriveFile>('files?fields=id,name,parents,owners(emailAddress)', {
     method: 'POST',
@@ -51,9 +55,17 @@ export async function createClientDriveFolder(companyName: string): Promise<{ id
   })
   const ownedByAccount = (created.owners ?? []).some((owner) => owner.emailAddress === OWNER_EMAIL)
   if (!created.id || !(created.parents ?? []).includes(parentId) || !ownedByAccount) {
-    throw new Error('The client folder could not be created inside Content Hub.')
+    throw new Error('The client folder could not be created inside Clients.')
   }
   return { id: created.id, name: created.name || name }
+}
+
+export function organizeClientFolders(): Promise<number> {
+  cachedNest ??= nestClientFolders().catch((error: unknown) => {
+    cachedNest = undefined
+    throw error
+  })
+  return cachedNest
 }
 
 export async function createOwnedFolder(parentId: string, name: string): Promise<{ id: string; name: string }> {
@@ -128,6 +140,56 @@ async function nextFolderName(parentId: string, base: string): Promise<string> {
   throw new Error('The client folder could not be created.')
 }
 
+async function clientsFolderId(): Promise<string> {
+  cachedClients ??= findClientsFolderId()
+  try {
+    return await cachedClients
+  } catch (error) {
+    cachedClients = undefined
+    throw error
+  }
+}
+
+async function findClientsFolderId(): Promise<string> {
+  const hubId = await contentHubId()
+  const children = await listFolders(
+    `${quote(hubId)} in parents and name = ${quote(CLIENTS_FOLDER_NAME)} and mimeType = '${FOLDER_MIME}' and trashed = false`,
+  )
+  const existing = children.find((folder) => folder.id && folder.name === CLIENTS_FOLDER_NAME)
+  if (existing?.id) return existing.id
+  const created = await ownerJson<DriveFile>('files?fields=id,name,parents,owners(emailAddress)', {
+    method: 'POST',
+    body: JSON.stringify({
+      name: CLIENTS_FOLDER_NAME,
+      mimeType: FOLDER_MIME,
+      parents: [hubId],
+    }),
+  })
+  const ownedByAccount = (created.owners ?? []).some((owner) => owner.emailAddress === OWNER_EMAIL)
+  if (!created.id || !(created.parents ?? []).includes(hubId) || !ownedByAccount) {
+    throw new Error('The Clients folder could not be created inside Content Hub.')
+  }
+  return created.id
+}
+
+async function nestClientFolders(): Promise<number> {
+  const hubId = await contentHubId()
+  const clientsId = await clientsFolderId()
+  const children = await listFolders(`${quote(hubId)} in parents and mimeType = '${FOLDER_MIME}' and trashed = false`)
+  let moved = 0
+  for (const child of children) {
+    if (!child.id || child.id === clientsId || child.name === CLIENTS_FOLDER_NAME) continue
+    const ownedByAccount = (child.owners ?? []).some((owner) => owner.emailAddress === OWNER_EMAIL)
+    if (!ownedByAccount) continue
+    await ownerJson<DriveFile>(
+      `files/${encodeURIComponent(child.id)}?addParents=${encodeURIComponent(clientsId)}&removeParents=${encodeURIComponent(hubId)}&fields=id,parents`,
+      { method: 'PATCH', body: '{}' },
+    )
+    moved += 1
+  }
+  return moved
+}
+
 async function contentHubId(): Promise<string> {
   cachedContentHub ??= findContentHubId()
   try {
@@ -156,7 +218,7 @@ async function listFolders(query: string): Promise<DriveFile[]> {
   do {
     const params = new URLSearchParams({
       q: query,
-      fields: 'nextPageToken,files(id,name)',
+      fields: 'nextPageToken,files(id,name,owners(emailAddress))',
       pageSize: '100',
       corpora: 'user',
       spaces: 'drive',

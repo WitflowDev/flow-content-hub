@@ -4,6 +4,7 @@ import { FieldValue } from 'firebase-admin/firestore'
 import { isServiceRequestStatus } from '@/lib/admin/types'
 import { requireAdmin } from '@/lib/auth/admin'
 import { isDriveFileId, listClientFolder, readDirectChildFolder, readFolderName } from '@/lib/drive/client'
+import { invalidateLibrary } from '@/lib/drive/cache'
 import { writeCollectionState } from '@/lib/drive/publish'
 import { adminDb } from '@/lib/firebase/admin'
 import { readUserProfile } from '@/lib/firebase/profile'
@@ -93,6 +94,7 @@ export async function setCollectionPublished(input: {
     title: folder.name,
     published: input.published,
   })
+  invalidateLibrary(profile.driveFolderId)
   return { ok: true }
 }
 

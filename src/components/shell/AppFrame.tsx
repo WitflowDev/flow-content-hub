@@ -1,6 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { LibraryPrefetch } from '@/components/media/LibraryPrefetch'
 import { Shell } from '@/components/shell/Shell'
 import type { Collection, MediaItem } from '@/data/types'
 import type { AccountNotice } from '@/lib/notifications/types'
@@ -24,6 +25,7 @@ export function AppFrame({
   return (
     <SessionProvider profile={profile}>
       <CatalogProvider media={media} collections={collections}>
+        <LibraryPrefetch />
         <NotificationsProvider notices={notices}>
           <Shell>{children}</Shell>
         </NotificationsProvider>

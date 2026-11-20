@@ -1,5 +1,6 @@
 import 'server-only'
 import { createHmac, timingSafeEqual } from 'node:crypto'
+import { exportFormat, parseExportIds, type ExportId } from '@/data/exports'
 
 const TICKET_TTL_MS = 20 * 60 * 1000
 
@@ -11,6 +12,10 @@ type UploadTicket = {
   accountId: string
   tags: string[]
   suggestedUse: string
+  formats: ExportId[]
+  fileName: string
+  variantParentId: string
+  variantFormat: ExportId | null
   exp: number
 }
 
@@ -22,6 +27,10 @@ export function sealUploadTicket(input: {
   accountId: string
   tags: string[]
   suggestedUse: string
+  formats: ExportId[]
+  fileName: string
+  variantParentId: string
+  variantFormat: ExportId | null
 }): string {
   const ticket: UploadTicket = { ...input, exp: Date.now() + TICKET_TTL_MS }
   const body = Buffer.from(JSON.stringify(ticket)).toString('base64url')
@@ -45,7 +54,13 @@ export function openUploadTicket(token: string, adminUid: string): UploadTicket 
   if (!isTicket(parsed)) return null
   if (parsed.adminUid !== adminUid || parsed.exp <= Date.now()) return null
   if (!parsed.uploadUrl.startsWith('https://www.googleapis.com/upload/drive/')) return null
-  return parsed
+  return {
+    ...parsed,
+    formats: parseExportIds(parsed.formats),
+    fileName: typeof parsed.fileName === 'string' ? parsed.fileName.slice(0, 180) : 'photo',
+    variantParentId: typeof parsed.variantParentId === 'string' ? parsed.variantParentId : '',
+    variantFormat: typeof parsed.variantFormat === 'string' ? (exportFormat(parsed.variantFormat)?.id ?? null) : null,
+  }
 }
 
 function ticketSecret(): string {
@@ -68,7 +83,11 @@ function isTicket(value: unknown): value is UploadTicket {
     ticket.tags.every((tag) => typeof tag === 'string') &&
     typeof ticket.suggestedUse === 'string' &&
     ticket.suggestedUse.length <= 500 &&
-    typeof ticket.exp === 'number'
+    typeof ticket.exp === 'number' &&
+    (ticket.formats === undefined || Array.isArray(ticket.formats)) &&
+    (ticket.fileName === undefined || typeof ticket.fileName === 'string') &&
+    (ticket.variantParentId === undefined || typeof ticket.variantParentId === 'string') &&
+    (ticket.variantFormat === undefined || ticket.variantFormat === null || typeof ticket.variantFormat === 'string')
   )
 }
 

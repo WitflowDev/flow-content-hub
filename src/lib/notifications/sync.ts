@@ -6,14 +6,16 @@ import type { AccountNotice } from '@/lib/notifications/types'
 
 const NEW_FILE_LIMIT = 25
 
-export async function syncAccountNotices(input: {
-  fileIds: string[]
-  folderName: string | null
-  hasFolder: boolean
-}): Promise<void> {
-  const user = await getSessionUser()
-  if (!user) return
-  const notices = adminDb().collection('users').doc(user.uid).collection('notifications')
+export async function syncAccountNotices(
+  userId: string,
+  input: {
+    fileIds: string[]
+    folderName: string | null
+    hasFolder: boolean
+  },
+): Promise<void> {
+  if (!userId) return
+  const notices = adminDb().collection('users').doc(userId).collection('notifications')
   const existing = await notices.get()
   const ids = new Set(existing.docs.map((item) => item.id))
 

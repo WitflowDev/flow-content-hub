@@ -8,12 +8,10 @@ export function InstagramCarousel({
   title,
   items,
   description = '',
-  videoSrc,
 }: {
   title: string
   items: MediaItem[]
   description?: string
-  videoSrc?: (item: MediaItem) => string | undefined
 }) {
   const scroller = useRef<HTMLDivElement>(null)
   const [index, setIndex] = useState(0)
@@ -44,7 +42,7 @@ export function InstagramCarousel({
         <div className="ig-scroller" ref={scroller} onScroll={onScroll}>
           {items.map((item) => (
             <div className="ig-slide" key={item.id}>
-              <MediaThumb item={item} videoSrc={videoSrc?.(item)} />
+              <MediaThumb item={item} />
             </div>
           ))}
         </div>

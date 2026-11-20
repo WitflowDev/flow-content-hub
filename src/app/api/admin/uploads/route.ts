@@ -1,8 +1,13 @@
 import { NextResponse } from 'next/server'
+import { exportFormat, parseExportIds, type ExportId } from '@/data/exports'
 import { openAdminUpload } from '@/lib/admin/uploads'
 import { openUploadTicket } from '@/lib/admin/upload-ticket'
 import { requireAdmin } from '@/lib/auth/admin'
-import { saveAssetCopy } from '@/lib/drive/tags'
+import { invalidateLibrary } from '@/lib/drive/cache'
+import { isDriveFileId } from '@/lib/drive/client'
+import { attachAssetVariant, saveAssetCopy } from '@/lib/drive/tags'
+import { readUserProfile } from '@/lib/firebase/profile'
+import { syncAccountNotices } from '@/lib/notifications/sync'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -17,6 +22,9 @@ type UploadRequest = {
   size: number
   tags: string
   suggestedUse: string
+  formats: ReturnType<typeof parseExportIds>
+  variantParentId: string
+  variantFormat: ExportId | null
 }
 
 export async function POST(request: Request) {
@@ -70,12 +78,37 @@ export async function PUT(request: Request) {
     return NextResponse.json({ error: 'The file could not be saved to Drive.' }, { status: 502 })
   }
   const fileId = await savedFileId(saved)
-  if (fileId && (ticket.tags.length > 0 || ticket.suggestedUse)) {
-    try {
-      await saveAssetCopy(fileId, ticket.accountId, ticket.tags, ticket.suggestedUse)
-    } catch (error) {
-      console.error(error instanceof Error ? error.message : 'The photo notes could not be saved.')
+  const variantUpload = Boolean(ticket.variantParentId)
+  if (variantUpload && (!ticket.variantFormat || !fileId)) {
+    return NextResponse.json({ error: 'The extra format could not be saved.' }, { status: 400 })
+  }
+  try {
+    if (variantUpload && ticket.variantFormat && fileId) {
+      await attachAssetVariant(ticket.variantParentId, ticket.accountId, ticket.variantFormat, {
+        fileId,
+        name: ticket.fileName,
+        bytes: ticket.size,
+        mimeType: ticket.mimeType,
+      })
+    } else if (fileId) {
+      await saveAssetCopy(fileId, ticket.accountId, ticket.tags, ticket.suggestedUse, ticket.formats)
     }
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : 'The photo notes could not be saved.')
+    if (variantUpload) {
+      return NextResponse.json({ error: 'The extra format could not be linked to the photo.' }, { status: 502 })
+    }
+  }
+  try {
+    const profile = await readUserProfile(ticket.accountId)
+    if (profile?.driveFolderId) invalidateLibrary(profile.driveFolderId)
+    await syncAccountNotices(ticket.accountId, {
+      fileIds: !variantUpload && fileId ? [fileId] : [],
+      folderName: profile?.companyName || null,
+      hasFolder: Boolean(profile?.driveFolderId),
+    })
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : 'The library notice could not be saved.')
   }
   return NextResponse.json({ ok: true, fileId })
 }
@@ -103,6 +136,8 @@ function readUploadRequest(value: unknown): UploadRequest | null {
   if (typeof body.size !== 'number' || !Number.isFinite(body.size)) return null
   if (typeof body.tags !== 'string' || body.tags.length > 300) return null
   if (typeof body.suggestedUse !== 'string' || body.suggestedUse.length > 500) return null
+  const variant = readVariantLink(body)
+  if (!variant) return null
   return {
     accountId: body.accountId,
     destinationId: body.destinationId,
@@ -113,7 +148,18 @@ function readUploadRequest(value: unknown): UploadRequest | null {
     size: body.size,
     tags: body.tags,
     suggestedUse: body.suggestedUse,
+    formats: parseExportIds(body.formats),
+    variantParentId: variant.parentId,
+    variantFormat: variant.format,
   }
+}
+
+function readVariantLink(body: Record<string, unknown>): { parentId: string; format: ExportId | null } | null {
+  const parentId = typeof body.variantParentId === 'string' ? body.variantParentId : ''
+  const format = typeof body.variantFormat === 'string' ? (exportFormat(body.variantFormat)?.id ?? null) : null
+  if (!parentId && !format) return { parentId: '', format: null }
+  if (!parentId || !format || !isDriveFileId(parentId)) return null
+  return { parentId, format }
 }
 
 function publicMessage(error: unknown, fallback: string): string {

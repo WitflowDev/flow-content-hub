@@ -3,6 +3,7 @@ import type { ReactNode } from 'react'
 import { SessionKeeper } from '@/components/auth/SessionKeeper'
 import { AppStateProvider } from '@/state/AppState'
 import '../../styles.css'
+import '../components/screens/day-landing.css'
 
 export const metadata: Metadata = {
   title: 'Flow Content Hub',

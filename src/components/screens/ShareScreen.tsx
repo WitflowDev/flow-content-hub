@@ -3,7 +3,6 @@
 import { useState } from 'react'
 import { InstagramCarousel } from '@/components/collections/InstagramCarousel'
 import { Logo } from '@/components/shell/Logo'
-import { VideoStill } from '@/components/media/VideoStill'
 import type { MediaItem } from '@/data/types'
 import type { SharedCollectionView, SharedFile } from '@/lib/share/types'
 
@@ -45,11 +44,7 @@ export function ShareScreen({ token, collection }: { token: string; collection: 
           {collection.files.map((file) => (
             <button key={file.id} type="button" className="media-card share-card" onClick={() => setOpenId(file.id)}>
               <span className="thumb">
-                {file.type === 'Video' ? (
-                  <VideoStill src={fileUrl(token, file.id, 'stream')} alt="" />
-                ) : (
-                  <img src={fileUrl(token, file.id, 'thumbnail')} alt="" />
-                )}
+                <img src={fileUrl(token, file.id, 'thumbnail')} alt="" loading="lazy" decoding="async" />
               </span>
               <span className="media-card-title">{file.title}</span>
             </button>
@@ -70,7 +65,6 @@ export function ShareScreen({ token, collection }: { token: string; collection: 
                   title={collection.title}
                   description={map.description}
                   items={map.slides.map((file) => toMedia(file, token))}
-                  videoSrc={shareVideo}
                 />
               ))}
             </div>
@@ -87,7 +81,13 @@ export function ShareScreen({ token, collection }: { token: string; collection: 
               </button>
             </div>
             {open.type === 'Video' ? (
-              <video controls playsInline preload="metadata" src={fileUrl(token, open.id, 'stream')} />
+              <video
+                controls
+                playsInline
+                preload="metadata"
+                poster={fileUrl(token, open.id, 'thumbnail')}
+                src={fileUrl(token, open.id, 'stream')}
+              />
             ) : (
               <img src={fileUrl(token, open.id, 'preview')} alt={open.title} />
             )}
@@ -124,10 +124,6 @@ export function ShareScreen({ token, collection }: { token: string; collection: 
       ) : null}
     </div>
   )
-}
-
-function shareVideo(item: MediaItem): string | undefined {
-  return item.driveFileId ? fileUrl(item.collection, item.driveFileId, 'stream') : undefined
 }
 
 function toMedia(file: SharedFile, token: string): MediaItem {

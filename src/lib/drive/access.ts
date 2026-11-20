@@ -7,7 +7,7 @@ export type ClientFolder = {
 const CLIENT_FOLDERS: ClientFolder[] = [
   {
     email: 'tania@witflow.co',
-    parentName: 'Content Hub',
+    parentName: 'Clients',
     folderName: 'Tânia Witflow',
   },
 ]

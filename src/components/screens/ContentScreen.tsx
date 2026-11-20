@@ -2,19 +2,38 @@
 
 import { useMemo, type FormEvent } from 'react'
 import { Icon } from '@/components/icons'
+import { ContentDayOffer } from '@/components/feedback/ContentDayOffer'
 import { FlowTip } from '@/components/feedback/FlowTip'
-import { TutorialImage } from '@/components/guides/TutorialImage'
 import { BulkBar, EmptyState } from '@/components/media/BulkBar'
 import { MediaCard } from '@/components/media/MediaCard'
 import { MediaListRow } from '@/components/media/MediaListRow'
 import { CONTENT_TYPE_FILTERS, SORT_MODES } from '@/data/types'
 import type { SortMode } from '@/data/types'
-import { mediaTags } from '@/lib/library'
+import { mediaTags, type SearchCloseness } from '@/lib/library'
 import { useApp, useSelectionActions } from '@/state/AppState'
 import { useLibrary } from '@/state/Catalog'
 
 function isSortMode(value: string): value is SortMode {
   return (SORT_MODES as readonly string[]).includes(value)
+}
+
+function searchSummary(closeness: SearchCloseness, count: number): string {
+  switch (closeness) {
+    case 'exact':
+      return `${count} matching ${count === 1 ? 'asset' : 'assets'}`
+    case 'half':
+      return count === 1
+        ? 'No exact match. 1 asset shares at least half of that text.'
+        : `No exact match. ${count} assets share at least half of that text.`
+    case 'quarter':
+      return count === 1
+        ? 'No closer match. 1 asset shares at least a quarter of that text.'
+        : `No closer match. ${count} assets share at least a quarter of that text.`
+    default: {
+      const unexpected: never = closeness
+      return unexpected
+    }
+  }
 }
 
 export function ContentScreen() {
@@ -29,9 +48,6 @@ export function ContentScreen() {
     setSort,
     view,
     setView,
-    tipVisible,
-    mounted,
-    dismissTip,
   } = useApp()
   const { clearSelected } = useSelectionActions()
   const { media, filteredMedia: applyFilters } = useLibrary()
@@ -43,10 +59,11 @@ export function ContentScreen() {
     return ['All', ...[...names].sort((left, right) => left.localeCompare(right))]
   }, [media])
 
-  const results = useMemo(
+  const outcome = useMemo(
     () => applyFilters({ search, contentType, channel, sort }),
     [applyFilters, search, contentType, channel, sort],
   )
+  const results = outcome.items
   const filtering = Boolean(search) || contentType !== 'All' || channel !== 'All'
 
   function clearFilters() {
@@ -69,7 +86,7 @@ export function ContentScreen() {
         <div className="page-title">
           <div className="eyebrow">My Content</div>
           <h1>{search ? `Results for “${search}”` : 'Your content library'}</h1>
-          <p>{search ? `${results.length} matching assets` : 'Browse, filter and download every final asset in one place.'}</p>
+          <p>{search ? searchSummary(outcome.closeness, results.length) : 'Browse, filter and download every final asset in one place.'}</p>
         </div>
       </header>
       <section className="library-toolbar card">
@@ -137,24 +154,7 @@ export function ContentScreen() {
           </div>
         </div>
       </section>
-      {mounted && tipVisible ? (
-        <section className="inline-tip card">
-          <div className="inline-tip-icon">
-            <Icon name="light" />
-          </div>
-          <div>
-            <div className="eyebrow">Quick tip</div>
-            <h3>Use filters to find the right content in seconds.</h3>
-            <p>Combine content type, channel and search. Your original files stay untouched.</p>
-          </div>
-          <div className="inline-tip-gif">
-            <TutorialImage id="filters" alt="Using filters" />
-          </div>
-          <button type="button" className="tip-close" onClick={dismissTip}>
-            <Icon name="close" />
-          </button>
-        </section>
-      ) : null}
+      <ContentDayOffer />
       <BulkBar />
       <div className="results-head">
         <span>

@@ -30,11 +30,6 @@ export function adminPostMedia(post: AdminPost, clientFolderId: string): MediaIt
   }
 }
 
-export function adminVideoSrc(clientFolderId: string): (item: MediaItem) => string | undefined {
-  return (item) =>
-    item.driveFileId ? `/api/admin/files/${item.driveFileId}/stream?folder=${encodeURIComponent(clientFolderId)}` : undefined
-}
-
 export function CollectionMapsEditor({
   posts,
   clientFolderId,
@@ -121,7 +116,6 @@ export function CollectionMapsEditor({
                 title="Preview"
                 description={map.description}
                 items={slides}
-                videoSrc={adminVideoSrc(clientFolderId)}
               />
             ) : (
               <small className="upload-map-hint">Select at least two files.</small>

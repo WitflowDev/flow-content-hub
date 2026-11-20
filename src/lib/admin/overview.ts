@@ -3,6 +3,7 @@ import type { Timestamp } from 'firebase-admin/firestore'
 import type { AdminAccount, AdminCollectionRow, ServiceRequestRow, ServiceRequestStatus } from '@/lib/admin/types'
 import { isServiceRequestStatus } from '@/lib/admin/types'
 import { parseRole } from '@/lib/auth'
+import { formatVariantId } from '@/data/exports'
 import { isDriveFileId, listClientFolder, type DrivePlacedFile } from '@/lib/drive/client'
 import { readCollectionRecords } from '@/lib/drive/publish'
 import { adminDb } from '@/lib/firebase/admin'
@@ -62,10 +63,11 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
     )
     draftCollections += draftIds.size
     for (const file of entry.listed.files) {
+      if (formatVariantId(file.name)) continue
       if (!file.collectionId || !draftIds.has(file.collectionId)) publishedAssets += 1
     }
     for (const collection of entry.listed.collections) {
-      const members = entry.listed.files.filter((file) => file.collectionId === collection.id)
+      const members = entry.listed.files.filter((file) => file.collectionId === collection.id && !formatVariantId(file.name))
       const record = records.get(collection.id)
       const cover = newestFile(members)
       collections.push({

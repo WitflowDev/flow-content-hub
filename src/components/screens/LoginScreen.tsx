@@ -12,7 +12,7 @@ import {
 import { useRouter } from 'next/navigation'
 import { Icon } from '@/components/icons'
 import { AuthShell } from '@/components/shell/AuthShell'
-import { accountEntryPath } from '@/lib/auth/account'
+import { readContentDayDraft } from '@/lib/content-day'
 import { registerAccount } from '@/lib/auth/register'
 import { auth } from '@/lib/firebase'
 import { establishSession } from '@/lib/firebase/browser-session'
@@ -20,8 +20,7 @@ import { establishSession } from '@/lib/firebase/browser-session'
 type AuthMode = 'login' | 'signup' | 'forgot'
 
 export async function enterPlatform(router: { push: (href: string) => void; refresh: () => void }) {
-  const path = await accountEntryPath()
-  router.push(path)
+  router.push(readContentDayDraft() ? '/content-day' : '/home')
   router.refresh()
 }
 
@@ -166,7 +165,7 @@ export function LoginScreen({ initialMode = 'login' }: { initialMode?: AuthMode 
             </div>
           </>
         ) : null}
-        <button className="btn primary wide" type="submit">
+        <button className="btn btn-primary wide" type="submit">
           {submitLabel} <Icon name="arrow" />
         </button>
         {error ? <div className="demo-note">{error}</div> : null}
