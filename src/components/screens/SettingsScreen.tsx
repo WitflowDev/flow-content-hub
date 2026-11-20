@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { createClient } from '@/lib/supabase/client'
+import { saveAccountName, setOnboardingDone } from '@/lib/auth/account'
 import { useApp } from '@/state/AppState'
 import { useSession } from '@/state/Session'
 
@@ -31,9 +31,8 @@ export function SettingsScreen() {
       toast('Add a name before saving')
       return
     }
-    const supabase = createClient()
-    const { error } = await supabase.from('profiles').update({ name: nextName }).eq('id', profile.id)
-    if (error) {
+    const saved = await saveAccountName(nextName)
+    if (!saved) {
       toast('Could not save the profile')
       return
     }
@@ -42,9 +41,8 @@ export function SettingsScreen() {
   }
 
   async function replayOnboarding() {
-    const supabase = createClient()
-    const { error } = await supabase.from('profiles').update({ onboarding_done: false }).eq('id', profile.id)
-    if (error) {
+    const saved = await setOnboardingDone(false)
+    if (!saved) {
       toast('Could not open onboarding')
       return
     }
@@ -57,7 +55,7 @@ export function SettingsScreen() {
         <div className="page-title">
           <div className="eyebrow">Account</div>
           <h1>Profile & preferences</h1>
-          <p>Manage your client account and demo settings.</p>
+          <p>Manage your client account.</p>
         </div>
       </header>
       <div className="settings-grid">
@@ -85,15 +83,10 @@ export function SettingsScreen() {
           <ToggleRow label="Collection ready" initiallyOn />
           <ToggleRow label="Flow tips" initiallyOn={false} />
           <hr />
-          <h3>Demo controls</h3>
+          <h3>Account</h3>
           <button type="button" className="btn ghost wide" onClick={() => void replayOnboarding()}>
             Replay onboarding
           </button>
-          {profile.role === 'admin' ? (
-            <button type="button" className="btn ghost wide" onClick={() => navigate('/admin', true)}>
-              Open Flow Admin demo
-            </button>
-          ) : null}
           <button type="button" className="btn danger wide" onClick={logout}>
             Log out
           </button>

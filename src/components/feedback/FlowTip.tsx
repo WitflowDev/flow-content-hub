@@ -35,16 +35,13 @@ export function FlowTip({
       </div>
       <div className="tip-visual">
         <div className="mini-card">
-          <small>Social</small>
-          <img src="/assets/media/surf_hd.jpg" alt="" />
+          <img src="/assets/guide_photos/drone_recording.jpg" alt="" />
         </div>
         <div className="mini-card">
-          <small>Campaigns</small>
-          <img src="/assets/media/cliffs_hd.jpg" alt="" />
+          <img src="/assets/guide_photos/recording_one.jpg" alt="" />
         </div>
         <div className="mini-card">
-          <small>Website</small>
-          <img src="/assets/media/cove_hd.jpg" alt="" />
+          <img src="/assets/guide_photos/recording_two.jpg" alt="" />
         </div>
       </div>
     </section>

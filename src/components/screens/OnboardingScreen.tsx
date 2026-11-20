@@ -3,9 +3,8 @@
 import { Icon } from '@/components/icons'
 import { FlowTip } from '@/components/feedback/FlowTip'
 import { TutorialImage } from '@/components/guides/TutorialImage'
-import { createClient } from '@/lib/supabase/client'
+import { setOnboardingDone } from '@/lib/auth/account'
 import { useApp } from '@/state/AppState'
-import { useSession } from '@/state/Session'
 
 const steps = [
   {
@@ -30,12 +29,10 @@ const steps = [
 
 export function OnboardingScreen() {
   const { navigate, toast } = useApp()
-  const profile = useSession()
 
   async function finish() {
-    const supabase = createClient()
-    const { error } = await supabase.from('profiles').update({ onboarding_done: true }).eq('id', profile.id)
-    if (error) {
+    const saved = await setOnboardingDone(true)
+    if (!saved) {
       toast('Could not save your progress')
       return
     }

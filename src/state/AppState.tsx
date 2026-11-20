@@ -4,7 +4,7 @@ import { useRouter } from 'next/navigation'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { TIP_KEY } from '@/lib/auth'
-import { createClient } from '@/lib/supabase/client'
+import { endSession } from '@/lib/firebase/browser-session'
 import type { ChannelFilter, ContentTypeFilter, SortMode, ViewMode } from '@/data/types'
 
 type ToastType = '' | 'success'
@@ -33,9 +33,6 @@ type AppContextValue = {
   toggleNotifications: () => void
   selectedService: string
   setSelectedService: (value: string) => void
-  selected: Set<string>
-  toggleSelected: (id: string) => void
-  clearSelected: () => void
   guide: string | null
   openGuide: (id: string) => void
   closeGuide: () => void
@@ -50,10 +47,27 @@ type AppContextValue = {
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
+const SelectedContext = createContext<Set<string> | null>(null)
+const SelectionActionsContext = createContext<{
+  toggleSelected: (id: string) => void
+  clearSelected: () => void
+} | null>(null)
 
 export function useApp(): AppContextValue {
   const value = useContext(AppContext)
   if (!value) throw new Error('useApp must be used within AppStateProvider')
+  return value
+}
+
+export function useSelected(): Set<string> {
+  const value = useContext(SelectedContext)
+  if (!value) throw new Error('useSelected must be used within AppStateProvider')
+  return value
+}
+
+export function useSelectionActions(): { toggleSelected: (id: string) => void; clearSelected: () => void } {
+  const value = useContext(SelectionActionsContext)
+  if (!value) throw new Error('useSelectionActions must be used within AppStateProvider')
   return value
 }
 
@@ -152,13 +166,16 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const logout = useCallback(() => {
     setDrawer(false)
     setNotifications(false)
-    void createClient()
-      .auth.signOut()
-      .finally(() => {
-        router.push('/login')
-        router.refresh()
-      })
+    void endSession().finally(() => {
+      router.push('/login')
+      router.refresh()
+    })
   }, [router])
+
+  const selectionActions = useMemo(
+    () => ({ toggleSelected, clearSelected }),
+    [toggleSelected, clearSelected],
+  )
 
   const value = useMemo<AppContextValue>(
     () => ({
@@ -179,9 +196,6 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       toggleNotifications,
       selectedService,
       setSelectedService,
-      selected,
-      toggleSelected,
-      clearSelected,
       guide,
       openGuide,
       closeGuide,
@@ -212,9 +226,6 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       toggleNotifications,
       selectedService,
       setSelectedService,
-      selected,
-      toggleSelected,
-      clearSelected,
       guide,
       openGuide,
       closeGuide,
@@ -231,12 +242,16 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   return (
     <AppContext.Provider value={value}>
-      {children}
-      <div id="toast-root" aria-live="polite">
-        {toasts.map((item) => (
-          <ToastMessage key={item.id} item={item} onDone={removeToast} />
-        ))}
-      </div>
+      <SelectionActionsContext.Provider value={selectionActions}>
+        <SelectedContext.Provider value={selected}>
+          {children}
+          <div id="toast-root" aria-live="polite">
+            {toasts.map((item) => (
+              <ToastMessage key={item.id} item={item} onDone={removeToast} />
+            ))}
+          </div>
+        </SelectedContext.Provider>
+      </SelectionActionsContext.Provider>
     </AppContext.Provider>
   )
 }

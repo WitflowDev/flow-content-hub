@@ -2,20 +2,26 @@
 
 import { useState } from 'react'
 import type { FormEvent } from 'react'
+import { FirebaseError } from 'firebase/app'
+import {
+  createUserWithEmailAndPassword,
+  sendPasswordResetEmail,
+  signInWithEmailAndPassword,
+  type User,
+} from 'firebase/auth'
 import { useRouter } from 'next/navigation'
 import { Icon } from '@/components/icons'
 import { AuthShell } from '@/components/shell/AuthShell'
+import { accountEntryPath } from '@/lib/auth/account'
 import { registerAccount } from '@/lib/auth/register'
-import { createClient } from '@/lib/supabase/client'
+import { auth } from '@/lib/firebase'
+import { establishSession } from '@/lib/firebase/browser-session'
 
 type AuthMode = 'login' | 'signup' | 'forgot'
 
-const resetRedirectTo = 'http://localhost:3000/reset-password'
-
 export async function enterPlatform(router: { push: (href: string) => void; refresh: () => void }) {
-  const supabase = createClient()
-  const { data: profile } = await supabase.from('profiles').select('onboarding_done').maybeSingle()
-  router.push(profile?.onboarding_done ? '/home' : '/onboarding')
+  const path = await accountEntryPath()
+  router.push(path)
   router.refresh()
 }
 
@@ -34,9 +40,9 @@ function copyFor(mode: AuthMode): { title: string; text: string } {
   }
 }
 
-export function LoginScreen() {
+export function LoginScreen({ initialMode = 'login' }: { initialMode?: AuthMode }) {
   const router = useRouter()
-  const [mode, setMode] = useState<AuthMode>('login')
+  const [mode, setMode] = useState<AuthMode>(initialMode)
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [pending, setPending] = useState(false)
@@ -58,19 +64,42 @@ export function LoginScreen() {
     setPending(true)
     setError('')
     setNotice('')
-    const supabase = createClient()
-
     if (mode === 'forgot') {
-      await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: resetRedirectTo,
-      })
+      try {
+        await sendPasswordResetEmail(auth(), email, {
+          url: `${window.location.origin}/reset-password`,
+        })
+      } catch {
+        // The notice stays generic so the form does not reveal whether the email exists.
+      }
       setPending(false)
       setNotice('If an account exists for that email, a reset link is on its way.')
       return
     }
 
+    let user: User
+    try {
+      user = mode === 'signup' ? await openOrCreateAccount(email, password) : await signInAccount(email, password)
+    } catch (error) {
+      const current = signedInAccount(email)
+      if (!current) {
+        setPending(false)
+        setError(messageFor(mode, error))
+        return
+      }
+      user = current
+    }
+
+    try {
+      await establishSession(user)
+    } catch (error) {
+      setPending(false)
+      setError(messageFor(mode, error))
+      return
+    }
+
     if (mode === 'signup') {
-      const result = await registerAccount(email, password, {
+      const result = await registerAccount({
         companyName: String(form.get('companyName') ?? ''),
         taxNumber: String(form.get('taxNumber') ?? ''),
         address: String(form.get('address') ?? ''),
@@ -81,22 +110,14 @@ export function LoginScreen() {
         setError(result.message)
         return
       }
-      if (result.status === 'session') {
-        await enterPlatform(router)
-        return
-      }
-      setPending(false)
-      setNotice('Check your email to confirm your account. You can sign in after that.')
-      return
     }
 
-    const { error: signInError } = await supabase.auth.signInWithPassword({ email, password })
-    if (signInError) {
+    try {
+      await enterPlatform(router)
+    } catch {
       setPending(false)
-      setError('Those details didn’t match. Check the email and password and try again.')
-      return
+      setError('The account could not be opened.')
     }
-    await enterPlatform(router)
   }
 
   const submitLabel = mode === 'login' ? 'Log in' : mode === 'signup' ? 'Create account' : 'Send reset link'
@@ -169,4 +190,55 @@ export function LoginScreen() {
       </form>
     </AuthShell>
   )
+}
+
+async function signInAccount(email: string, password: string): Promise<User> {
+  const credential = await signInWithEmailAndPassword(auth(), email, password)
+  return credential.user
+}
+
+async function openOrCreateAccount(email: string, password: string): Promise<User> {
+  try {
+    const credential = await createUserWithEmailAndPassword(auth(), email, password)
+    return credential.user
+  } catch (error) {
+    if (error instanceof FirebaseError && error.code === 'auth/email-already-in-use') {
+      return signInAccount(email, password)
+    }
+    throw error
+  }
+}
+
+function signedInAccount(email: string): User | null {
+  const current = auth().currentUser
+  if (!current?.email) return null
+  return current.email.toLowerCase() === email.toLowerCase() ? current : null
+}
+
+function messageFor(mode: AuthMode, error: unknown): string {
+  if (error instanceof Error && error.message === 'The session could not be saved.') {
+    return 'The session could not be saved. Try again in a moment.'
+  }
+  if (mode === 'login' && isCredentialError(error)) {
+    return 'Those details didn’t match. Check the email and password and try again.'
+  }
+  if (error instanceof FirebaseError && error.code === 'auth/weak-password') {
+    return 'Use a password of at least 6 characters.'
+  }
+  if (error instanceof FirebaseError && error.code === 'auth/invalid-email') return 'Enter a valid email.'
+  if (mode === 'login') return 'The account could not be opened.'
+  return 'The account could not be saved.'
+}
+
+function isCredentialError(error: unknown): boolean {
+  if (!(error instanceof FirebaseError)) return false
+  switch (error.code) {
+    case 'auth/invalid-credential':
+    case 'auth/wrong-password':
+    case 'auth/user-not-found':
+    case 'auth/invalid-email':
+      return true
+    default:
+      return false
+  }
 }

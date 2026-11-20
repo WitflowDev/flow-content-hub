@@ -1,13 +1,10 @@
 'use server'
 
 import { companyFolderName, createClientDriveFolder, ownerAccessConfigured } from '@/lib/drive/owner'
-import { createServiceClient } from '@/lib/supabase/admin'
-import { createClient } from '@/lib/supabase/server'
+import { adminDb } from '@/lib/firebase/admin'
+import { getSessionUser } from '@/lib/firebase/session'
 
-type RegisterResult =
-  | { status: 'session' }
-  | { status: 'confirm' }
-  | { status: 'error'; message: string }
+type RegisterResult = { status: 'session' } | { status: 'error'; message: string }
 
 export type SignupDetails = {
   companyName: string
@@ -16,60 +13,46 @@ export type SignupDetails = {
   postalCode: string
 }
 
-export async function registerAccount(email: string, password: string, details: SignupDetails): Promise<RegisterResult> {
-  const trimmed = email.trim().toLowerCase()
+export async function registerAccount(details: SignupDetails): Promise<RegisterResult> {
   const companyName = companyFolderName(details.companyName)
-  if (!trimmed.includes('@') || password.length < 6) {
-    return { status: 'error', message: 'Enter an email and a password of at least 6 characters.' }
-  }
   if (!companyName) return { status: 'error', message: 'Enter a company name.' }
-  if (!ownerAccessConfigured()) {
-    return { status: 'error', message: 'Google Drive owner access is not configured.' }
+
+  const user = await getSessionUser()
+  if (!user?.email) return { status: 'error', message: 'The account could not be saved.' }
+
+  const ref = adminDb().collection('users').doc(user.uid)
+  const existing = await ref.get()
+  const savedFolder = existing.get('driveFolderId')
+  if (typeof savedFolder === 'string' && savedFolder) return { status: 'session' }
+
+  let driveFolderId = ''
+  if (ownerAccessConfigured()) {
+    try {
+      driveFolderId = (await createClientDriveFolder(companyName)).id
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : 'The client folder could not be created.')
+    }
+  } else {
+    console.error('Google Drive owner access is not configured.')
   }
-  if (!process.env.NEXT_PUBLIC_SUPABASE_URL || !process.env.SUPABASE_SECRET_KEY) {
+
+  const savedName = existing.get('name')
+  try {
+    await ref.set(
+      {
+        email: user.email,
+        name: typeof savedName === 'string' ? savedName : '',
+        companyName,
+        driveFolderId,
+        role: existing.get('role') === 'admin' ? 'admin' : 'client',
+        onboardingDone: existing.get('onboardingDone') === true,
+      },
+      { merge: true },
+    )
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : 'The account could not be saved.')
     return { status: 'error', message: 'The account could not be saved.' }
   }
 
-  const supabase = await createClient()
-  const { data, error } = await supabase.auth.signUp({ email: trimmed, password })
-  if (error) return { status: 'error', message: error.message }
-  if (!data.user || data.user.identities?.length === 0) return { status: 'confirm' }
-
-  let folder: { id: string }
-  try {
-    folder = await createClientDriveFolder(companyName)
-  } catch (error) {
-    const message = error instanceof Error ? error.message : 'The client folder could not be created.'
-    console.error(message)
-    return { status: 'error', message }
-  }
-
-  try {
-    const admin = createServiceClient()
-    const { data: saved, error: saveError } = await admin
-      .from('profiles')
-      .update({
-        email: trimmed,
-        drive_folder_id: folder.id,
-        company_name: companyName,
-        tax_number: blankToNull(details.taxNumber),
-        address: blankToNull(details.address),
-        postal_code: blankToNull(details.postalCode),
-      })
-      .eq('id', data.user.id)
-      .is('drive_folder_id', null)
-      .select('id')
-    if (saveError || !saved?.length) {
-      return { status: 'error', message: 'The account was created, but the content folder could not be saved.' }
-    }
-  } catch {
-    return { status: 'error', message: 'The account was created, but the content folder could not be saved.' }
-  }
-
-  return data.session ? { status: 'session' } : { status: 'confirm' }
-}
-
-function blankToNull(value: string): string | null {
-  const trimmed = value.trim()
-  return trimmed || null
+  return { status: 'session' }
 }

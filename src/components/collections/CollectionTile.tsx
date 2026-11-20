@@ -1,8 +1,20 @@
 'use client'
 
+import { MediaThumb } from '@/components/media/MediaThumb'
 import { useApp } from '@/state/AppState'
 import { useLibrary } from '@/state/Catalog'
 import type { Collection } from '@/data/types'
+
+type MosaicCount = 1 | 2 | 3 | 4 | 6 | 9
+
+function mosaicCount(available: number): MosaicCount {
+  if (available >= 9) return 9
+  if (available >= 6) return 6
+  if (available >= 4) return 4
+  if (available >= 3) return 3
+  if (available >= 2) return 2
+  return 1
+}
 
 export function CollectionTile({ collection }: { collection: Collection }) {
   const { navigate } = useApp()
@@ -11,29 +23,26 @@ export function CollectionTile({ collection }: { collection: Collection }) {
     const item = getMedia(id)
     return item ? [item] : []
   })
-  const primary = covers[0]
-  const secondary = covers[1]
-  const tertiary = covers[2]
-  const coverClass = tertiary ? 'collection-cover' : secondary ? 'collection-cover pair' : 'collection-cover single'
+  const count = mosaicCount(covers.length)
+  const shown = covers.slice(0, count)
 
   return (
     <button type="button" className="collection-tile card" onClick={() => navigate(`/collection/${collection.slug}`, true)}>
-      {primary ? (
-        <div className={coverClass}>
-          <img src={primary.src} alt="" style={{ objectPosition: primary.position }} />
-          {secondary ? (
-            <div className="split">
-              <img src={secondary.src} alt="" style={{ objectPosition: secondary.position }} />
-              {tertiary ? <img src={tertiary.src} alt="" style={{ objectPosition: tertiary.position }} /> : null}
-            </div>
-          ) : null}
+      {shown.length > 0 ? (
+        <div className={`collection-cover mosaic-${count}`}>
+          {shown.map((item) => (
+            <span key={item.id} className="collection-cover-cell">
+              <MediaThumb item={item} />
+            </span>
+          ))}
+          <span className="collection-cover-title">{collection.title}</span>
           <span className="asset-total">{collection.count}</span>
         </div>
       ) : null}
       <div className="collection-body">
         <div>
           <h3>{collection.title}</h3>
-          <p>{collection.description}</p>
+          {collection.description ? <p>{collection.description}</p> : null}
         </div>
         <span className="collection-meta">
           {collection.count} assets <b>·</b> {collection.date}

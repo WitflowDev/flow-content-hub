@@ -1,17 +1,15 @@
 'use client'
 
-import type { MouseEvent } from 'react'
-import { Icon } from '@/components/icons'
-import { DriveVideoFrame } from '@/components/media/DriveVideoFrame'
+import { memo, type MouseEvent } from 'react'
 import { MediaActions } from '@/components/media/MediaActions'
-import { tagClass } from '@/lib/library'
+import { SelectBox } from '@/components/media/SelectBox'
+import { AssetTags } from '@/components/media/AssetTags'
+import { MediaThumb } from '@/components/media/MediaThumb'
 import { useApp } from '@/state/AppState'
 import type { MediaItem } from '@/data/types'
 
-export function MediaListRow({ item }: { item: MediaItem }) {
-  const { selected, toggleSelected, navigate } = useApp()
-  const isSelected = selected.has(item.id)
-  const channelClass = tagClass(item.channel)
+export const MediaListRow = memo(function MediaListRow({ item }: { item: MediaItem }) {
+  const { navigate } = useApp()
 
   function openAsset(event: MouseEvent<HTMLElement>) {
     const target = event.target
@@ -20,34 +18,18 @@ export function MediaListRow({ item }: { item: MediaItem }) {
   }
 
   return (
-    <article className={isSelected ? 'media-row selected' : 'media-row'} onClick={openAsset}>
-      <button
-        type="button"
-        className={isSelected ? 'select-box list-select on' : 'select-box list-select'}
-        data-select={item.id}
-        onClick={(event) => {
-          event.stopPropagation()
-          toggleSelected(item.id)
-        }}
-      >
-        {isSelected ? <Icon name="check" /> : null}
-      </button>
-      {item.type === 'Video' && item.driveFileId ? (
-        <span className="row-still">
-          <DriveVideoFrame fileId={item.driveFileId} fallbackSrc={item.src} position={item.position} alt="" />
-        </span>
-      ) : (
-        <img src={item.src} alt="" style={{ objectPosition: item.position }} />
-      )}
+    <article className="media-row" onClick={openAsset}>
+      <SelectBox id={item.id} title={item.title} variant="list" />
+      <MediaThumb item={item} />
       <div className="row-copy">
         <b>{item.title}</b>
         <small>{item.collection}</small>
       </div>
-      <span className={channelClass ? `tag ${channelClass}` : 'tag'}>{item.channel}</span>
+      <AssetTags item={item} />
       <span className="row-meta">
         {item.file} · {item.size}
       </span>
       <MediaActions item={item} />
     </article>
   )
-}
+})

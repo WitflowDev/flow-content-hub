@@ -2,5 +2,8 @@ node_modules/
 .next/
 out/
 *.tsbuildinfo
-.env.local
-.env*.local
+
+# Secrets stay local. The empty example is the only env file that belongs in git.
+.env
+.env.*
+!.env.example

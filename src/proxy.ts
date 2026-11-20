@@ -1,80 +1,49 @@
-import { createServerClient } from '@supabase/ssr'
 import { NextResponse, type NextRequest } from 'next/server'
-import { roleFromAppMetadata } from '@/lib/auth'
-import { readPublicSupabaseEnv } from '@/lib/supabase/env'
-
-type PendingCookie = {
-  name: string
-  value: string
-  options: Parameters<NextResponse['cookies']['set']>[2]
-}
+import { parseRole } from '@/lib/auth'
+import { adminAuth, adminDb } from '@/lib/firebase/admin'
+import { SESSION_COOKIE } from '@/lib/firebase/config'
 
 export async function proxy(request: NextRequest) {
-  const { url, key } = readPublicSupabaseEnv()
-  let supabaseResponse = NextResponse.next({ request })
-  let pendingCookies: PendingCookie[] = []
+  // Server actions POST to the current page. A redirect here is not a valid action response.
+  if (request.headers.has('next-action')) return NextResponse.next()
 
-  const supabase = createServerClient(url, key, {
-    cookies: {
-      getAll() {
-        return request.cookies.getAll()
-      },
-      setAll(cookiesToSet, headers) {
-        pendingCookies = cookiesToSet
-        cookiesToSet.forEach(({ name, value }) => request.cookies.set(name, value))
-        supabaseResponse = NextResponse.next({ request })
-        cookiesToSet.forEach(({ name, value, options }) => {
-          supabaseResponse.cookies.set(name, value, options)
-        })
-        Object.entries(headers).forEach(([header, value]) => {
-          supabaseResponse.headers.set(header, value)
-        })
-      },
-    },
-  })
-
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
   const path = request.nextUrl.pathname
+  const user = await sessionUser(request.cookies.get(SESSION_COOKIE)?.value)
+  const isPublic =
+    path === '/' ||
+    path === '/login' ||
+    path === '/reset-password' ||
+    path === '/api/auth/session' ||
+    path.startsWith('/share/') ||
+    path.startsWith('/api/share/')
+  if (!user && !isPublic) return redirectTo(request, '/login')
 
-  const isPublic = path === '/login' || path === '/reset-password'
-  if (!user && !isPublic) {
-    return withSession(supabaseResponse, pendingCookies, redirectTo(request, '/login'))
+  if (user && (path === '/login' || path.startsWith('/admin'))) {
+    const profile = await adminDb().collection('users').doc(user.uid).get()
+    if (path === '/login') {
+      const nextPath = profile.get('onboardingDone') === true ? '/home' : '/onboarding'
+      return redirectTo(request, nextPath)
+    }
+    if (parseRole(profile.get('role')) !== 'admin') return redirectTo(request, '/home')
   }
 
-  if (user && path === '/login') {
-    const { data: profile } = await supabase
-      .from('profiles')
-      .select('onboarding_done')
-      .eq('id', user.id)
-      .maybeSingle()
-    const nextPath = profile?.onboarding_done ? '/home' : '/onboarding'
-    return withSession(supabaseResponse, pendingCookies, redirectTo(request, nextPath))
-  }
+  return NextResponse.next()
+}
 
-  if (user && path.startsWith('/admin') && roleFromAppMetadata(user.app_metadata) !== 'admin') {
-    return withSession(supabaseResponse, pendingCookies, redirectTo(request, '/home'))
+async function sessionUser(token: string | undefined): Promise<{ uid: string } | null> {
+  if (!token) return null
+  try {
+    const decoded = await adminAuth().verifyIdToken(token)
+    return { uid: decoded.uid }
+  } catch {
+    return null
   }
-
-  return supabaseResponse
 }
 
 function redirectTo(request: NextRequest, pathname: string) {
   const url = request.nextUrl.clone()
   url.pathname = pathname
   return NextResponse.redirect(url)
-}
-
-function withSession(source: NextResponse, cookies: PendingCookie[], response: NextResponse) {
-  cookies.forEach(({ name, value, options }) => {
-    response.cookies.set(name, value, options)
-  })
-  for (const header of ['cache-control', 'expires', 'pragma']) {
-    const value = source.headers.get(header)
-    if (value) response.headers.set(header, value)
-  }
-  return response
 }
 
 export const config = {

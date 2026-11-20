@@ -1,24 +1,32 @@
 import 'server-only'
 import type { Collection, MediaItem, Orientation } from '@/data/types'
 import { listClientFolder, type DriveCollectionFolder, type DrivePlacedFile } from './client'
+import { readCollectionRecords, type CollectionRecord } from './publish'
 import { driveFolderForUser } from './resolve'
+import { readAssetCopy } from './tags'
 
 export async function loadDriveLibrary(
   userId: string,
   email: string | null | undefined,
+  driveFolderId: string | null,
 ): Promise<{ items: MediaItem[]; collections: Collection[]; folderName: string | null; hasFolder: boolean }> {
-  const folder = await driveFolderForUser(userId, email)
+  const folder = await driveFolderForUser(userId, email, driveFolderId)
   if (!folder) return { items: [], collections: [], folderName: null, hasFolder: false }
   const listed = await listClientFolder(folder.id)
+  const records = await readCollectionRecords(listed.collections.map((entry) => entry.id))
+  const hidden = new Set([...records].filter(([, record]) => !record.published).map(([id]) => id))
+  const collections = listed.collections.filter((entry) => !hidden.has(entry.id))
+  const files = listed.files.filter((file) => !file.collectionId || !hidden.has(file.collectionId))
+  const copy = await readAssetCopy(files.map((file) => file.id))
   return {
-    items: listed.files.map((file) => toMediaItem(file, file.collectionName ?? folder.name)),
-    collections: listed.collections.map((entry) => toCollection(entry, listed.files)),
+    items: files.map((file) => toMediaItem(file, file.collectionName ?? '', copy.get(file.id))),
+    collections: collections.map((entry) => toCollection(entry, files, records.get(entry.id))),
     folderName: folder.name,
     hasFolder: true,
   }
 }
 
-function toCollection(folder: DriveCollectionFolder, files: DrivePlacedFile[]): Collection {
+function toCollection(folder: DriveCollectionFolder, files: DrivePlacedFile[], record: CollectionRecord | undefined): Collection {
   const members = files
     .filter((file) => file.collectionId === folder.id)
     .sort((left, right) => (right.modifiedTime ?? '').localeCompare(left.modifiedTime ?? ''))
@@ -28,9 +36,12 @@ function toCollection(folder: DriveCollectionFolder, files: DrivePlacedFile[]): 
     title: folder.name,
     count: ids.length,
     date: formatCollectionDate(folder.modifiedTime ?? members[0]?.modifiedTime),
-    description: `Delivered in the ${folder.name} folder.`,
+    updatedAt: folder.modifiedTime ?? members[0]?.modifiedTime ?? '',
+    description: record?.description ?? '',
+    tags: record?.tags ?? [],
+    maps: record?.maps ?? [],
     ids,
-    cover: ids.slice(0, 3),
+    cover: ids.slice(0, 9),
     published: true,
   }
 }
@@ -47,9 +58,14 @@ function formatCollectionDate(value: string | undefined): string {
   }).format(date)
 }
 
-function toMediaItem(file: DrivePlacedFile, collection: string): MediaItem {
+function toMediaItem(
+  file: DrivePlacedFile,
+  collection: string,
+  copy: { tags: string[]; suggestedUse: string } | undefined,
+): MediaItem {
   const type = file.mimeType.startsWith('video/') ? 'Video' : 'Photography'
   const duration = type === 'Video' ? formatDuration(file.durationMillis) : undefined
+  const tags = copy?.tags ?? []
   return {
     id: `drive-${file.id}`,
     title: titleFromName(file.name),
@@ -58,11 +74,12 @@ function toMediaItem(file: DrivePlacedFile, collection: string): MediaItem {
     size: formatSize(file.size),
     duration,
     src: `/api/drive/files/${file.id}/thumbnail`,
-    channel: 'Design',
+    channel: tags[0] ?? '',
+    tags,
     orientation: orientationFor(type, file.width, file.height),
     collection,
     position: '50% 50%',
-    description: `Delivered in the ${collection} folder.`,
+    description: copy?.suggestedUse ?? '',
     driveFileId: file.id,
   }
 }

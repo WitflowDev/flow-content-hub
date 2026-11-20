@@ -1,41 +1,17 @@
 import { redirect } from 'next/navigation'
 import { AdminScreen } from '@/components/screens/AdminScreen'
-import { roleFromAppMetadata } from '@/lib/auth'
-import { loadClientCollections } from '@/lib/catalog'
-import { createClient } from '@/lib/supabase/server'
+import { loadAdminOverview } from '@/lib/admin/overview'
+import { parseRole } from '@/lib/auth'
+import { readUserProfile } from '@/lib/firebase/profile'
+import { getSessionUser } from '@/lib/firebase/session'
 
 export default async function AdminPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) redirect('/login')
-  if (roleFromAppMetadata(user.app_metadata) !== 'admin') redirect('/home')
 
-  const [clients, assets, drafts, clientCollections] = await Promise.all([
-    supabase.from('profiles').select('id', { count: 'exact', head: true }).eq('role', 'client'),
-    supabase.from('assets').select('id', { count: 'exact', head: true }).eq('published', true),
-    supabase.from('collections').select('slug', { count: 'exact', head: true }).eq('published', false),
-    loadClientCollections(),
-  ])
+  const profile = await readUserProfile(user.uid)
+  if (!profile || parseRole(profile.role) !== 'admin') redirect('/home')
 
-  const accounts = await supabase.from('profiles').select('id, email, name, company_name').order('email')
-
-  if (clients.error) throw new Error(clients.error.message)
-  if (assets.error) throw new Error(assets.error.message)
-  if (drafts.error) throw new Error(drafts.error.message)
-  if (accounts.error) throw new Error(accounts.error.message)
-
-  return (
-    <AdminScreen
-      clientCount={clients.count ?? 0}
-      publishedAssets={assets.count ?? 0}
-      draftCollections={drafts.count ?? 0}
-      accounts={(accounts.data ?? []).map((account) => ({
-        id: account.id,
-        label: account.company_name?.trim() || account.name?.trim() || account.email || account.id,
-      }))}
-      clientCollections={clientCollections}
-    />
-  )
+  const overview = await loadAdminOverview()
+  return <AdminScreen {...overview} />
 }

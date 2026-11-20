@@ -6,6 +6,8 @@ import { driveFolderForCurrentUser } from '@/lib/drive/resolve'
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
+const placeholderBytes = readFileSync(join(process.cwd(), 'public', 'assets', 'flow-logo-black.png'))
+
 type RouteContext = {
   params: Promise<{ fileId: string }>
 }
@@ -21,7 +23,7 @@ export async function GET(_request: Request, context: RouteContext) {
     return new Response(thumbnail.body, {
       headers: {
         'Content-Type': thumbnail.mimeType,
-        'Cache-Control': 'private, no-store',
+        'Cache-Control': 'private, max-age=3600',
       },
     })
   } catch {
@@ -30,8 +32,7 @@ export async function GET(_request: Request, context: RouteContext) {
 }
 
 function placeholder(): Response {
-  const bytes = readFileSync(join(process.cwd(), 'public', 'assets', 'flow-logo-black.png'))
-  return new Response(bytes, {
+  return new Response(placeholderBytes, {
     headers: {
       'Content-Type': 'image/png',
       'Cache-Control': 'private, no-store',

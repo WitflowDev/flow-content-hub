@@ -4,7 +4,7 @@ import { useParams } from 'next/navigation'
 import { Icon } from '@/components/icons'
 import { TutorialImage } from '@/components/guides/TutorialImage'
 import { MediaCard } from '@/components/media/MediaCard'
-import { assetFormat, routeParam } from '@/lib/library'
+import { assetFormat, mediaTags, routeParam } from '@/lib/library'
 import { useApp } from '@/state/AppState'
 import { useLibrary } from '@/state/Catalog'
 
@@ -35,6 +35,7 @@ export function AssetScreen() {
     )
   }
   const related = media.filter((entry) => entry.id !== item.id).slice(0, 4)
+  const tags = mediaTags(item)
   const previous = related[0]
   const next = related[1]
   const guideId = item.type === 'Video' ? 'reels' : 'photos'
@@ -94,18 +95,22 @@ export function AssetScreen() {
           <p className="asset-sub">
             {item.file} <span>·</span> {item.duration || 'Final'} <span>·</span> {item.orientation}
           </p>
-          <div className="asset-block">
-            <h3>Recommended for</h3>
-            <div className="recommend-pills">
-              <span>{item.channel}</span>
-              <span>{item.channel === 'Instagram' ? 'TikTok' : 'Instagram'}</span>
-              <span>{item.channel === 'Ads' ? 'Meta Ads' : 'Campaigns'}</span>
+          {tags.length > 0 ? (
+            <div className="asset-block">
+              <h3>Recommended for</h3>
+              <div className="recommend-pills">
+                {tags.map((tag) => (
+                  <span key={tag}>{tag}</span>
+                ))}
+              </div>
             </div>
-          </div>
-          <div className="asset-block">
-            <h3>Suggested use</h3>
-            <p>{item.description}</p>
-          </div>
+          ) : null}
+          {item.description ? (
+            <div className="asset-block">
+              <h3>Suggested use</h3>
+              <p>{item.description}</p>
+            </div>
+          ) : null}
           <a
             className="btn primary wide"
             href={item.driveFileId ? `/api/drive/files/${item.driveFileId}` : item.src}
@@ -125,12 +130,7 @@ export function AssetScreen() {
           <DetailRow label="Version" value="Final" />
           <DetailRow label="Format" value={assetFormat(item.orientation)} />
           <DetailRow label="File size" value={item.size} />
-          <DetailRow label="Collection" value={item.collection} />
-          <div className="asset-tags">
-            <span className="tag">Summer</span>
-            <span className="tag blue">Lifestyle</span>
-            <span className="tag green">Final</span>
-          </div>
+          <DetailRow label="Collection" value={item.collection || 'Library'} />
         </section>
         <section className="asset-guide card">
           <div className="asset-guide-copy">

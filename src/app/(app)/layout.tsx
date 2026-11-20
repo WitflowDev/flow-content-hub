@@ -1,26 +1,17 @@
 import type { ReactNode } from 'react'
 import { redirect } from 'next/navigation'
 import { AppFrame } from '@/components/shell/AppFrame'
-import { roleFromAppMetadata } from '@/lib/auth'
 import { loadDriveLibrary } from '@/lib/drive/library'
+import { ensureUserProfile } from '@/lib/firebase/profile'
+import { getSessionUser } from '@/lib/firebase/session'
 import { loadAccountNotices, syncAccountNotices } from '@/lib/notifications/sync'
-import { createClient } from '@/lib/supabase/server'
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) redirect('/login')
 
-  const { data: profile, error } = await supabase
-    .from('profiles')
-    .select('name, onboarding_done')
-    .eq('id', user.id)
-    .maybeSingle()
-  if (error) throw new Error(error.message)
-
-  const driveLibrary = await loadDriveLibrary(user.id, user.email)
+  const profile = await ensureUserProfile(user)
+  const driveLibrary = await loadDriveLibrary(user.uid, user.email, profile?.driveFolderId ?? null)
   const driveFileIds = driveLibrary.items.flatMap((item) => (item.driveFileId ? [item.driveFileId] : []))
   await syncAccountNotices({
     fileIds: driveFileIds,
@@ -32,11 +23,11 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   return (
     <AppFrame
       profile={{
-        id: user.id,
-        name: profile?.name?.trim() || '',
-        email: user.email ?? '',
-        role: roleFromAppMetadata(user.app_metadata),
-        onboardingDone: profile?.onboarding_done ?? false,
+        id: user.uid,
+        name: profile?.name.trim() || '',
+        email: user.email ?? profile?.email ?? '',
+        role: profile?.role ?? 'client',
+        onboardingDone: profile?.onboardingDone ?? false,
       }}
       notices={notices}
       media={driveLibrary.items}

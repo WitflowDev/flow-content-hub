@@ -1,6 +1,7 @@
 'use client'
 
 import { Icon } from '@/components/icons'
+import { MediaThumb } from '@/components/media/MediaThumb'
 import { useApp } from '@/state/AppState'
 import { useLibrary } from '@/state/Catalog'
 import type { Collection } from '@/data/types'
@@ -8,17 +9,19 @@ import type { Collection } from '@/data/types'
 export function CollectionFeature({ collection }: { collection: Collection }) {
   const { navigate } = useApp()
   const { getMedia } = useLibrary()
-  const covers = collection.cover.flatMap((id) => {
-    const item = getMedia(id)
-    return item ? [item] : []
-  })
+  const covers = collection.cover
+    .flatMap((id) => {
+      const item = getMedia(id)
+      return item ? [item] : []
+    })
+    .slice(0, 3)
 
   return (
     <div className="collection-feature card" onClick={() => navigate(`/collection/${collection.slug}`, true)}>
       {covers.length > 0 ? (
         <div className="collection-stack">
           {covers.map((item) => (
-            <img key={item.id} src={item.src} alt="" style={{ objectPosition: item.position }} />
+            <MediaThumb key={item.id} item={item} />
           ))}
           {covers.length >= 3 && collection.count > 3 ? (
             <span className="collection-count">+{collection.count - 3}</span>

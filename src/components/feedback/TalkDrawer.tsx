@@ -1,23 +1,82 @@
 'use client'
 
+import { useState } from 'react'
+import { usePathname } from 'next/navigation'
 import { Icon } from '@/components/icons'
 import type { IconName } from '@/components/icons'
+import { submitServiceRequest } from '@/lib/admin/actions'
+import { DEFAULT_DIAL_ISO, DIAL_COUNTRIES } from '@/lib/phone/countries'
+import type { ServiceName } from '@/lib/requests/services'
+import { SERVICE_NAMES } from '@/lib/requests/services'
 import { useApp } from '@/state/AppState'
+import { useLibrary } from '@/state/Catalog'
+import type { MediaItem } from '@/data/types'
 
-const services: Array<{ name: string; description: string; icon: IconName }> = [
-  { name: 'Social Media', description: 'Copy, calendars, publishing and ongoing management.', icon: 'folder' },
-  { name: 'Video', description: 'Editing, reels, campaign adaptations and motion.', icon: 'play' },
-  { name: 'Photography', description: 'Lifestyle, product, spaces and events.', icon: 'layers' },
-  { name: 'Design & Branding', description: 'Campaign assets, templates and brand systems.', icon: 'grid' },
-  { name: 'Website', description: 'Design, development, content and optimisation.', icon: 'home' },
-  { name: 'Paid Media', description: 'Campaign strategy, creative and activation.', icon: 'bell' },
-  { name: 'Something else', description: 'Tell us what you have in mind.', icon: 'chat' },
-]
+function serviceCopy(name: ServiceName): { description: string; icon: IconName } {
+  switch (name) {
+    case 'Social Media':
+      return { description: 'Copy, calendars, publishing and ongoing management.', icon: 'folder' }
+    case 'Video':
+      return { description: 'Editing, reels, campaign adaptations and motion.', icon: 'play' }
+    case 'Photography':
+      return { description: 'Lifestyle, product, spaces and events.', icon: 'layers' }
+    case 'Design & Branding':
+      return { description: 'Campaign assets, templates and brand systems.', icon: 'grid' }
+    case 'Website':
+      return { description: 'Design, development, content and optimisation.', icon: 'home' }
+    case 'Paid Media':
+      return { description: 'Campaign strategy, creative and activation.', icon: 'bell' }
+    case 'Something else':
+      return { description: 'Tell us what you have in mind.', icon: 'chat' }
+    default: {
+      const unexpected: never = name
+      return unexpected
+    }
+  }
+}
+
+function assetOnPath(pathname: string, getMedia: (id: string) => MediaItem | null): MediaItem | null {
+  if (!pathname.startsWith('/asset/')) return null
+  const id = pathname.slice('/asset/'.length).split('/')[0] ?? ''
+  if (!id) return null
+  try {
+    return getMedia(decodeURIComponent(id))
+  } catch {
+    return null
+  }
+}
 
 export function TalkDrawer() {
+  const pathname = usePathname()
+  const { getMedia } = useLibrary()
+  const asset = assetOnPath(pathname, getMedia)
   const { closeDrawer, selectedService, setSelectedService, toast } = useApp()
+  const [message, setMessage] = useState('')
+  const [phoneIso, setPhoneIso] = useState(DEFAULT_DIAL_ISO)
+  const [phoneNumber, setPhoneNumber] = useState('')
+  const [sending, setSending] = useState(false)
 
-  function send() {
+  async function send() {
+    if (sending) return
+    if (!selectedService) {
+      toast('Choose a service')
+      return
+    }
+    setSending(true)
+    const result = await submitServiceRequest({
+      service: selectedService,
+      message,
+      phoneIso,
+      phoneNumber,
+      assetFileId: asset?.driveFileId ?? '',
+    })
+    setSending(false)
+    if (!result.ok) {
+      toast(result.message)
+      return
+    }
+    setMessage('')
+    setPhoneNumber('')
     closeDrawer()
     toast('Message sent to Flow', 'success')
   }
@@ -37,7 +96,9 @@ export function TalkDrawer() {
           </button>
         </div>
         <div className="service-list">
-          {services.map((service) => (
+          {SERVICE_NAMES.map((name) => {
+            const service = { name, ...serviceCopy(name) }
+            return (
             <button
               key={service.name}
               type="button"
@@ -53,13 +114,52 @@ export function TalkDrawer() {
               </span>
               <span>→</span>
             </button>
-          ))}
+            )
+          })}
         </div>
+        {asset?.driveFileId ? (
+          <p className="drawer-asset">
+            This request links to <b>{asset.title}</b>
+            {asset.collection ? ` in ${asset.collection}` : ''}.
+          </p>
+        ) : null}
         <div className="field">
           <label htmlFor="service-message">Tell us what you need</label>
-          <textarea id="service-message" placeholder="E.g. We’d like to turn this collection into a paid campaign…" />
+          <textarea
+            id="service-message"
+            placeholder="E.g. We’d like to turn this collection into a paid campaign…"
+            value={message}
+            maxLength={1000}
+            onChange={(event) => setMessage(event.target.value)}
+          />
         </div>
-        <button type="button" className="btn primary wide" onClick={send}>
+        <div className="field">
+          <label htmlFor="service-phone">Phone</label>
+          <div className="phone-row">
+            <select
+              id="service-phone-country"
+              aria-label="Country code"
+              value={phoneIso}
+              onChange={(event) => setPhoneIso(event.target.value)}
+            >
+              {DIAL_COUNTRIES.map((country) => (
+                <option key={country.iso} value={country.iso}>
+                  {country.name} +{country.dial}
+                </option>
+              ))}
+            </select>
+            <input
+              id="service-phone"
+              type="tel"
+              inputMode="tel"
+              placeholder="Optional"
+              value={phoneNumber}
+              maxLength={20}
+              onChange={(event) => setPhoneNumber(event.target.value)}
+            />
+          </div>
+        </div>
+        <button type="button" className="btn primary wide" disabled={sending} onClick={() => void send()}>
           Send to Flow <Icon name="arrow" />
         </button>
         <div className="drawer-note">No commitment. We’ll come back to you with the best next step.</div>

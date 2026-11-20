@@ -2,12 +2,14 @@
 
 import { Icon } from '@/components/icons'
 import { downloadDriveFiles } from '@/lib/downloadDriveFiles'
-import { useApp } from '@/state/AppState'
+import { useSelected, useSelectionActions } from '@/state/AppState'
 import { useLibrary } from '@/state/Catalog'
 
 export function BulkBar() {
-  const { selected, clearSelected } = useApp()
+  const selected = useSelected()
+  const { clearSelected } = useSelectionActions()
   const { getMedia } = useLibrary()
+  if (selected.size === 0) return null
 
   function downloadSelected() {
     const items = [...selected].flatMap((id) => {

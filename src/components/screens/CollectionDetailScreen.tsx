@@ -1,33 +1,49 @@
 'use client'
 
+import { useState } from 'react'
 import { useParams } from 'next/navigation'
 import { Icon } from '@/components/icons'
+import { InstagramCarousel } from '@/components/collections/InstagramCarousel'
 import { FlowTip } from '@/components/feedback/FlowTip'
 import { MediaCard } from '@/components/media/MediaCard'
 import { downloadDriveFiles } from '@/lib/downloadDriveFiles'
+import { createCollectionShare } from '@/lib/share/actions'
 import { routeParam } from '@/lib/library'
 import { useApp } from '@/state/AppState'
 import { useLibrary } from '@/state/Catalog'
 import type { MediaItem } from '@/data/types'
 
-function UsageCard({ item, kind, channel, copy }: { item: MediaItem; kind: string; channel: string; copy: string }) {
-  return (
-    <div className="usage-card">
-      <img src={item.src} alt="" style={{ objectPosition: item.position }} />
-      <div>
-        <span>
-          {kind} → <b>{channel}</b>
-        </span>
-        <p>{copy}</p>
-      </div>
-    </div>
-  )
+type AssetFilter = 'All' | 'Photography' | 'Video'
+
+const ASSET_FILTERS: AssetFilter[] = ['All', 'Photography', 'Video']
+
+function matchesType(item: MediaItem, filter: AssetFilter): boolean {
+  switch (filter) {
+    case 'All':
+      return true
+    case 'Photography':
+      return item.type === 'Photography'
+    case 'Video':
+      return item.type === 'Video'
+    default: {
+      const unreachable: never = filter
+      return unreachable
+    }
+  }
+}
+
+function slideFor(items: MediaItem[], fileId: string): MediaItem | undefined {
+  return items.find((item) => item.driveFileId === fileId || item.id === `drive-${fileId}`)
 }
 
 export function CollectionDetailScreen() {
   const params = useParams()
-  const { navigate, openGuide, toast } = useApp()
+  const { navigate, toast } = useApp()
   const library = useLibrary()
+  const [assetFilter, setAssetFilter] = useState<AssetFilter>('All')
+  const [newestFirst, setNewestFirst] = useState(true)
+  const [shareUrl, setShareUrl] = useState('')
+  const [sharing, setSharing] = useState(false)
   const collection = library.getCollection(routeParam(params.slug))
   if (!collection) {
     return (
@@ -42,22 +58,33 @@ export function CollectionDetailScreen() {
     )
   }
   const items = library.collectionItems(collection)
-  const covers = collection.cover.flatMap((id) => {
-    const mediaItem = library.getMedia(id)
-    return mediaItem ? [mediaItem] : []
-  })
-  const stripSource = covers.length > 0 ? covers : items
-  const strip = stripSource.slice(0, 5)
-  const lead = items[0]
-  const support = items[1]
-  const hero = items[2]
+  const maps = (collection.maps ?? [])
+    .map((map) => ({
+      description: map.description,
+      slides: map.fileIds.map((fileId) => slideFor(items, fileId)).filter((item): item is MediaItem => Boolean(item)),
+    }))
+    .filter((map) => map.slides.length >= 2)
+  const visible = items.filter((item) => matchesType(item, assetFilter))
+  const ordered = newestFirst ? visible : [...visible].reverse()
+
+  const collectionId = collection.slug
 
   async function share() {
+    if (sharing) return
+    setSharing(true)
+    const result = await createCollectionShare(collectionId)
+    setSharing(false)
+    if (!result.ok) {
+      toast(result.message)
+      return
+    }
+    const url = `${window.location.origin}/share/${result.token}`
+    setShareUrl(url)
     try {
-      await navigator.clipboard.writeText(window.location.href)
-      toast('Collection link copied', 'success')
+      await navigator.clipboard.writeText(url)
+      toast('View-only link copied', 'success')
     } catch {
-      toast('Share link ready', 'success')
+      toast('Copy the view-only link below')
     }
   }
 
@@ -70,13 +97,6 @@ export function CollectionDetailScreen() {
         <span>›</span>
         <b>{collection.title}</b>
       </div>
-      {strip.length > 0 ? (
-        <div className="collection-hero-strip">
-          {strip.map((item, index) => (
-            <img key={`${item.id}-${index}`} src={item.src} alt="" style={{ objectPosition: item.position }} />
-          ))}
-        </div>
-      ) : null}
       <div className="collection-heading">
         <div>
           <div className="eyebrow">Collection</div>
@@ -84,36 +104,31 @@ export function CollectionDetailScreen() {
           <p>
             {collection.count} assets <span>·</span> Updated {collection.date}
           </p>
-          <p className="collection-desc">{collection.description}</p>
+          {collection.description ? <p className="collection-desc">{collection.description}</p> : null}
+          {collection.tags && collection.tags.length > 0 ? (
+            <div className="asset-tag-row">
+              {collection.tags.map((tag) => (
+                <span key={tag} className="tag">
+                  {tag}
+                </span>
+              ))}
+            </div>
+          ) : null}
         </div>
         <div className="collection-actions">
-          <button type="button" className="btn ghost" onClick={() => void share()}>
-            <Icon name="share" /> Share collection
+          <button type="button" className="btn ghost" disabled={sharing} onClick={() => void share()}>
+            <Icon name="share" /> {sharing ? 'Creating link' : 'Share collection'}
           </button>
           <button type="button" className="btn primary" onClick={() => downloadDriveFiles(items)}>
             <Icon name="download" /> Download collection
           </button>
         </div>
       </div>
-      {lead && support && hero ? (
-        <section className="usage-map card">
-          <div className="usage-map-head">
-            <div>
-              <div className="eyebrow">Mini content map</div>
-              <h2>How we imagined this content being used</h2>
-            </div>
-            <button type="button" className="link" onClick={() => openGuide('use-content')}>
-              How this works <Icon name="arrow" />
-            </button>
-          </div>
-          <div className="usage-flow">
-            <UsageCard item={lead} kind="Reel" channel="Instagram" copy="Open with energy and movement." />
-            <span className="usage-arrow">→</span>
-            <UsageCard item={hero} kind="Photo" channel="Website" copy="Use as campaign or page hero imagery." />
-            <span className="usage-arrow">→</span>
-            <UsageCard item={support} kind="Photo" channel="LinkedIn" copy="Support brand story and behind-the-scenes posts." />
-          </div>
-        </section>
+      {shareUrl ? (
+        <label className="share-link">
+          <span>View-only link</span>
+          <input readOnly value={shareUrl} onFocus={(event) => event.currentTarget.select()} />
+        </label>
       ) : null}
       <section className="section">
         <div className="section-head">
@@ -122,20 +137,51 @@ export function CollectionDetailScreen() {
             <h2>{collection.title}</h2>
           </div>
           <div className="inline-controls">
-            <button type="button" className="pill active">
-              All types
-            </button>
-            <button type="button" className="pill">
+            {ASSET_FILTERS.map((filter) => (
+              <button
+                key={filter}
+                type="button"
+                className={assetFilter === filter ? 'pill active' : 'pill'}
+                onClick={() => setAssetFilter(filter)}
+              >
+                {filter === 'All' ? 'All types' : filter}
+              </button>
+            ))}
+            <button type="button" className={newestFirst ? 'pill active' : 'pill'} onClick={() => setNewestFirst(true)}>
               Newest first
+            </button>
+            <button type="button" className={newestFirst ? 'pill' : 'pill active'} onClick={() => setNewestFirst(false)}>
+              Oldest first
             </button>
           </div>
         </div>
+        {ordered.length === 0 ? <p className="collection-empty">No assets match this filter.</p> : null}
         <div className="media-grid collection-assets">
-          {library.collectionGridItems(collection).map((item, index) => (
+          {ordered.map((item, index) => (
             <MediaCard key={`${item.id}-${index}`} item={item} />
           ))}
         </div>
       </section>
+      {maps.length > 0 ? (
+        <section className="section">
+          <div className="section-head">
+            <div>
+              <span className="section-kicker">Mini content map</span>
+              <h2>How this content can run on Instagram</h2>
+            </div>
+          </div>
+          <div className="ig-board">
+            {maps.map((map, index) => (
+              <InstagramCarousel
+                key={`${collection.slug}-map-${index}`}
+                title={collection.title}
+                description={map.description}
+                items={map.slides}
+              />
+            ))}
+          </div>
+        </section>
+      ) : null}
       <FlowTip
         title="Turn these assets into a social plan. Flow can help with copy, scheduling and publishing."
         linkText="Explore social support"

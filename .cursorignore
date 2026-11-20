@@ -1,0 +1,6 @@
+# Bloqueia todos os ficheiros .env e variantes (.env.local, .env.production, etc.)
+.env
+.env.*
+
+# Permite que a IA veja o ficheiro de exemplo (opcional, mas útil)
+!.env.example

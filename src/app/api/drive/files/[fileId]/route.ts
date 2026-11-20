@@ -1,6 +1,8 @@
+import { FieldValue } from 'firebase-admin/firestore'
 import { downloadClientFile } from '@/lib/drive/client'
 import { driveFolderForUser } from '@/lib/drive/resolve'
-import { createClient } from '@/lib/supabase/server'
+import { adminDb } from '@/lib/firebase/admin'
+import { getSessionUser } from '@/lib/firebase/session'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -11,21 +13,20 @@ type RouteContext = {
 
 export async function GET(_request: Request, context: RouteContext) {
   const { fileId } = await context.params
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
+  const user = await getSessionUser()
   if (!user) return new Response('Not found', { status: 404 })
-  const folder = await driveFolderForUser(user.id, user.email)
+  const folder = await driveFolderForUser(user.uid, user.email)
   if (!folder) return new Response('Not found', { status: 404 })
 
   try {
     const file = await downloadClientFile(folder.id, fileId)
-    const saved = await supabase.from('drive_downloads').upsert(
-      { profile_id: user.id, drive_file_id: fileId },
-      { onConflict: 'profile_id,drive_file_id', ignoreDuplicates: true },
-    )
-    if (saved.error) console.error(saved.error.message)
+    try {
+      const saved = adminDb().collection('users').doc(user.uid).collection('drive_downloads').doc(fileId)
+      const existing = await saved.get()
+      if (!existing.exists) await saved.set({ createdAt: FieldValue.serverTimestamp() })
+    } catch (error) {
+      console.error(error instanceof Error ? error.message : 'The download could not be recorded.')
+    }
     return new Response(file.body, {
       headers: {
         'Content-Type': file.mimeType,

@@ -4,7 +4,9 @@ import { JWT } from 'google-auth-library'
 import type { ClientFolder } from './access'
 
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive'
-const GRID_THUMBNAIL_SIZE = 1000
+const GRID_THUMBNAIL_SIZE = 640
+const MEDIA_ACCESS_TTL_MS = 60_000
+const MEDIA_ACCESS_LIMIT = 400
 const WIDE_IMAGE_SIZE = 2000
 const CONTENT_HUB_NAME = 'Content Hub'
 const FOLDER_MIME = 'application/vnd.google-apps.folder'
@@ -28,6 +30,7 @@ type DriveFileResource = {
   size?: string
   modifiedTime?: string
   parents?: string[]
+  trashed?: boolean
   thumbnailLink?: string
   imageMediaMetadata?: { width?: number; height?: number }
   videoMediaMetadata?: { width?: number; height?: number; durationMillis?: string }
@@ -47,6 +50,14 @@ const folderIds = new Map<string, Promise<string>>()
 let contentHub: Promise<string> | undefined
 let jwtClient: JWT | undefined
 
+type MediaAccess = {
+  expires: number
+  meta: DriveFileResource
+}
+
+const mediaAccess = new Map<string, MediaAccess>()
+const mediaAccessInflight = new Map<string, Promise<DriveFileResource>>()
+
 type DriveRequest = {
   method?: 'GET' | 'POST'
   body?: string
@@ -64,6 +75,22 @@ export type DrivePlacedFile = DriveListedFile & {
   collectionName: string | null
 }
 
+export async function listContainedMedia(folderId: string): Promise<DriveListedFile[]> {
+  if (!isDriveFileId(folderId)) return []
+  const files = await listCollectionFiles(folderId)
+  return files.flatMap((file) => {
+    const listed = toListedFile(file)
+    return listed.id ? [listed] : []
+  })
+}
+
+export async function readContainedFolder(folderId: string): Promise<{ name: string; modifiedTime: string } | null> {
+  if (!isDriveFileId(folderId)) return null
+  const folder = await getFile(folderId, 'id,name,mimeType,modifiedTime,trashed')
+  if (!folder.id || folder.mimeType !== FOLDER_MIME || !folder.name || folder.trashed) return null
+  return { name: folder.name, modifiedTime: folder.modifiedTime ?? '' }
+}
+
 export async function listFolderMedia(folderId: string): Promise<DriveListedFile[]> {
   const listed = await listClientFolder(folderId)
   return listed.files
@@ -75,7 +102,7 @@ export async function listClientFolder(folderId: string): Promise<{
 }> {
   const children = await listChildren(folderId)
   const files: DrivePlacedFile[] = []
-  const collections: DriveCollectionFolder[] = []
+  const collectionFolders: DriveFileResource[] = []
   for (const child of children) {
     if (!child.id || !child.name || !child.mimeType) continue
     if (isMediaMime(child.mimeType)) {
@@ -83,10 +110,23 @@ export async function listClientFolder(folderId: string): Promise<{
       continue
     }
     if (child.mimeType !== FOLDER_MIME) continue
-    collections.push({ id: child.id, name: child.name, modifiedTime: child.modifiedTime })
-    const inside = await listCollectionFiles(child.id)
-    for (const file of inside) files.push(placeFile(file, child.id, child.name))
+    collectionFolders.push(child)
   }
+
+  const nested = await Promise.all(
+    collectionFolders.map(async (folder) => ({
+      folder,
+      files: await listCollectionFiles(folder.id ?? ''),
+    })),
+  )
+  const collections: DriveCollectionFolder[] = []
+  for (const entry of nested) {
+    const folder = entry.folder
+    if (!folder.id || !folder.name) continue
+    collections.push({ id: folder.id, name: folder.name, modifiedTime: folder.modifiedTime })
+    for (const file of entry.files) files.push(placeFile(file, folder.id, folder.name))
+  }
+
   files.sort((left, right) => (right.modifiedTime ?? '').localeCompare(left.modifiedTime ?? ''))
   collections.sort((left, right) => (right.modifiedTime ?? '').localeCompare(left.modifiedTime ?? ''))
   return { files, collections }
@@ -216,6 +256,27 @@ function sizedThumbnailUrl(link: string, size: number): string | null {
 
 async function requireMediaFile(folderId: string, fileId: string): Promise<DriveFileResource> {
   if (!isDriveFileId(fileId) || !isDriveFileId(folderId)) throw new Error('That file is not available.')
+  const key = `${folderId}:${fileId}`
+  const cached = mediaAccess.get(key)
+  if (cached && cached.expires > Date.now()) return cached.meta
+  if (cached) mediaAccess.delete(key)
+
+  const inflight = mediaAccessInflight.get(key)
+  if (inflight) return inflight
+
+  const pending = loadMediaFile(folderId, fileId)
+    .then((meta) => {
+      rememberMediaAccess(key, meta)
+      return meta
+    })
+    .finally(() => {
+      mediaAccessInflight.delete(key)
+    })
+  mediaAccessInflight.set(key, pending)
+  return pending
+}
+
+async function loadMediaFile(folderId: string, fileId: string): Promise<DriveFileResource> {
   const meta = await getFile(fileId, FILE_FIELDS)
   if (!meta.id || !meta.mimeType || meta.mimeType === FOLDER_MIME || !isMediaMime(meta.mimeType)) {
     throw new Error('That file is not available.')
@@ -225,26 +286,36 @@ async function requireMediaFile(folderId: string, fileId: string): Promise<Drive
   return meta
 }
 
+function rememberMediaAccess(key: string, meta: DriveFileResource) {
+  if (mediaAccess.size >= MEDIA_ACCESS_LIMIT) {
+    const oldest = mediaAccess.keys().next().value
+    if (oldest) mediaAccess.delete(oldest)
+  }
+  mediaAccess.set(key, { expires: Date.now() + MEDIA_ACCESS_TTL_MS, meta })
+}
+
 async function fileIsInside(file: DriveFileResource, rootId: string): Promise<boolean> {
   const seen = new Set<string>()
   let pending = file.parents ?? []
   for (let depth = 0; depth < 4 && pending.length > 0; depth += 1) {
-    const next: string[] = []
-    for (const parentId of pending) {
-      if (parentId === rootId) return true
-      if (seen.has(parentId)) continue
+    if (pending.includes(rootId)) return true
+    const ids = pending.filter((parentId) => {
+      if (seen.has(parentId)) return false
       seen.add(parentId)
-      const parent = await getFile(parentId, 'id,parents')
-      next.push(...(parent.parents ?? []))
-    }
-    pending = next
+      return true
+    })
+    if (ids.length === 0) return false
+    const parents = await Promise.all(ids.map((parentId) => getFile(parentId, 'id,parents')))
+    pending = parents.flatMap((parent) => parent.parents ?? [])
   }
   return false
 }
 
 async function listCollectionFiles(folderId: string): Promise<DriveFileResource[]> {
+  if (!folderId) return []
   const children = await listChildren(folderId)
   const files: DriveFileResource[] = []
+  const nestedFolderIds: string[] = []
   for (const child of children) {
     if (!child.id || !child.name || !child.mimeType) continue
     if (isMediaMime(child.mimeType)) {
@@ -252,8 +323,11 @@ async function listCollectionFiles(folderId: string): Promise<DriveFileResource[
       continue
     }
     if (child.mimeType !== FOLDER_MIME) continue
-    const nested = await listChildren(child.id)
-    for (const file of nested) {
+    nestedFolderIds.push(child.id)
+  }
+  const nested = await Promise.all(nestedFolderIds.map((id) => listChildren(id)))
+  for (const group of nested) {
+    for (const file of group) {
       if (!file.id || !file.name || !file.mimeType || !isMediaMime(file.mimeType)) continue
       files.push(file)
     }
@@ -472,6 +546,17 @@ function isMediaMime(mimeType: string): boolean {
   return mimeType.startsWith('image/') || mimeType.startsWith('video/')
 }
 
-function isDriveFileId(fileId: string): boolean {
+export function isDriveFileId(fileId: string): boolean {
   return /^[a-zA-Z0-9_-]{10,}$/.test(fileId)
+}
+
+export async function readDirectChildFolder(
+  parentId: string,
+  childId: string,
+): Promise<{ id: string; name: string } | null> {
+  if (!isDriveFileId(parentId) || !isDriveFileId(childId)) return null
+  const folder = await getFile(childId, 'id,name,mimeType,parents')
+  if (!folder.id || !folder.name || folder.mimeType !== FOLDER_MIME) return null
+  if (!(folder.parents ?? []).includes(parentId)) return null
+  return { id: folder.id, name: folder.name }
 }

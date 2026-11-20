@@ -1,18 +1,18 @@
+import type { Metadata } from 'next'
 import { redirect } from 'next/navigation'
-import { createClient } from '@/lib/supabase/server'
+import { LandingScreen } from '@/components/screens/LandingScreen'
+import { readUserProfile } from '@/lib/firebase/profile'
+import { getSessionUser } from '@/lib/firebase/session'
+
+export const metadata: Metadata = {
+  title: 'Flow Content Hub',
+  description: 'A private library for the photos, films and campaign files Flow creates for your brand.',
+}
 
 export default async function IndexPage() {
-  const supabase = await createClient()
-  const {
-    data: { user },
-  } = await supabase.auth.getUser()
-  if (!user) redirect('/login')
+  const user = await getSessionUser()
+  if (!user) return <LandingScreen />
 
-  const { data: profile } = await supabase
-    .from('profiles')
-    .select('onboarding_done')
-    .eq('id', user.id)
-    .maybeSingle()
-
-  redirect(profile?.onboarding_done ? '/home' : '/onboarding')
+  const profile = await readUserProfile(user.uid)
+  redirect(profile?.onboardingDone ? '/home' : '/onboarding')
 }

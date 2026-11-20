@@ -2,32 +2,21 @@
 
 import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
-import type { EmailOtpType } from '@supabase/supabase-js'
+import { confirmPasswordReset, signInWithEmailAndPassword, verifyPasswordResetCode } from 'firebase/auth'
 import { useRouter } from 'next/navigation'
 import { Icon } from '@/components/icons'
 import { AuthShell } from '@/components/shell/AuthShell'
-import { createClient } from '@/lib/supabase/client'
 import { enterPlatform } from '@/components/screens/LoginScreen'
+import { auth } from '@/lib/firebase'
+import { establishSession } from '@/lib/firebase/browser-session'
 
 const invalidLink = 'This reset link is invalid or has expired.'
-
-function isEmailOtpType(value: string): value is EmailOtpType {
-  switch (value) {
-    case 'signup':
-    case 'invite':
-    case 'magiclink':
-    case 'recovery':
-    case 'email_change':
-    case 'email':
-      return true
-    default:
-      return false
-  }
-}
 
 export function ResetPasswordScreen() {
   const router = useRouter()
   const [ready, setReady] = useState(false)
+  const [email, setEmail] = useState('')
+  const [code, setCode] = useState('')
   const [error, setError] = useState('')
   const [pending, setPending] = useState(false)
 
@@ -35,32 +24,22 @@ export function ResetPasswordScreen() {
     let cancelled = false
 
     async function prepare() {
-      const supabase = createClient()
       const params = new URLSearchParams(window.location.search)
-      const hash = new URLSearchParams(window.location.hash.replace(/^#/, ''))
-      if (hash.get('error')) {
+      const oobCode = params.get('oobCode') ?? ''
+      const mode = params.get('mode')
+      if (!oobCode || (mode && mode !== 'resetPassword')) {
         if (!cancelled) setError(invalidLink)
         return
       }
-
-      const tokenHash = params.get('token_hash')
-      const type = params.get('type')
-      const code = params.get('code')
-      const { data: existing } = await supabase.auth.getUser()
-
-      if (!existing.user && tokenHash && type && isEmailOtpType(type)) {
-        await supabase.auth.verifyOtp({ type, token_hash: tokenHash })
-      } else if (!existing.user && code) {
-        await supabase.auth.exchangeCodeForSession(code)
+      try {
+        const accountEmail = await verifyPasswordResetCode(auth(), oobCode)
+        if (cancelled) return
+        setEmail(accountEmail)
+        setCode(oobCode)
+        setReady(true)
+      } catch {
+        if (!cancelled) setError(invalidLink)
       }
-
-      const { data } = await supabase.auth.getUser()
-      if (cancelled) return
-      if (!data.user) {
-        setError(invalidLink)
-        return
-      }
-      setReady(true)
     }
 
     void prepare()
@@ -71,7 +50,7 @@ export function ResetPasswordScreen() {
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
-    if (pending) return
+    if (pending || !code || !email) return
     const form = new FormData(event.currentTarget)
     const password = String(form.get('password') ?? '')
     const confirmation = String(form.get('confirmation') ?? '')
@@ -81,11 +60,13 @@ export function ResetPasswordScreen() {
     }
     setPending(true)
     setError('')
-    const supabase = createClient()
-    const { error: updateError } = await supabase.auth.updateUser({ password })
-    if (updateError) {
+    try {
+      await confirmPasswordReset(auth(), code, password)
+      const credential = await signInWithEmailAndPassword(auth(), email, password)
+      await establishSession(credential.user)
+    } catch {
       setPending(false)
-      setError(updateError.message)
+      setError('The password could not be saved. Request a new reset link and try again.')
       return
     }
     await enterPlatform(router)

@@ -10,7 +10,8 @@ export type MediaItem = {
   size: string
   duration?: string
   src: string
-  channel: MediaChannel
+  channel: string
+  tags?: string[]
   orientation: Orientation
   collection: string
   position: string
@@ -18,12 +19,20 @@ export type MediaItem = {
   driveFileId?: string | null
 }
 
+export type ContentMap = {
+  fileIds: string[]
+  description: string
+}
+
 export type Collection = {
   slug: string
   title: string
   count: number
   date: string
+  updatedAt?: string
   description: string
+  tags?: string[]
+  maps?: ContentMap[]
   ids: string[]
   cover: string[]
   published?: boolean
@@ -42,8 +51,7 @@ export type Guide = {
 export const CONTENT_TYPE_FILTERS = ['All', 'Video', 'Photography', 'Design'] as const
 export type ContentTypeFilter = (typeof CONTENT_TYPE_FILTERS)[number]
 
-export const CHANNEL_FILTERS = ['All', 'Instagram', 'Website', 'Ads'] as const
-export type ChannelFilter = (typeof CHANNEL_FILTERS)[number]
+export type ChannelFilter = string
 
 export const SORT_MODES = ['Newest', 'A\u2013Z'] as const
 export type SortMode = (typeof SORT_MODES)[number]

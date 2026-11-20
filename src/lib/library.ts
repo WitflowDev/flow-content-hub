@@ -1,9 +1,5 @@
 import type { ChannelFilter, Collection, ContentTypeFilter, MediaItem, SortMode } from '@/data/types'
 
-export function findMedia(media: MediaItem[], id: string): MediaItem | null {
-  return media.find((item) => item.id === id) ?? null
-}
-
 export function findCollection(collections: Collection[], slug: string): Collection | null {
   return collections.find((item) => item.slug === slug) ?? null
 }
@@ -21,6 +17,12 @@ export function tagClass(channel: string): string {
   }
 }
 
+export function mediaTags(item: MediaItem): string[] {
+  if (Array.isArray(item.tags)) return item.tags
+  if (item.driveFileId) return []
+  return item.channel ? [item.channel] : []
+}
+
 export function filteredMedia(
   media: MediaItem[],
   options: {
@@ -31,31 +33,29 @@ export function filteredMedia(
   },
 ): MediaItem[] {
   const query = options.search.toLowerCase().trim()
-  let results = [...media]
+  let results = media
   if (query) {
     results = results.filter((item) =>
-      [item.title, item.collection, item.channel, item.type].join(' ').toLowerCase().includes(query),
+      [item.title, item.collection, item.type, ...mediaTags(item)].join(' ').toLowerCase().includes(query),
     )
   }
   if (options.contentType !== 'All') {
     results = results.filter((item) => item.type === options.contentType)
   }
   if (options.channel !== 'All') {
-    results = results.filter((item) => hasDriveFile(item) || item.channel === options.channel)
+    const wanted = options.channel.toLowerCase()
+    results = results.filter((item) => mediaTags(item).some((tag) => tag.toLowerCase() === wanted))
   }
   if (options.sort === 'A\u2013Z') {
-    results.sort((left, right) => left.title.localeCompare(right.title))
+    return [...results].sort((left, right) => left.title.localeCompare(right.title))
   }
   return results
 }
 
-function hasDriveFile(item: MediaItem): boolean {
-  return typeof item.driveFileId === 'string' && item.driveFileId.length > 0
-}
-
 export function collectionItems(media: MediaItem[], collection: Collection): MediaItem[] {
+  const mediaById = new Map(media.map((item) => [item.id, item]))
   return collection.ids.flatMap((id) => {
-    const item = findMedia(media, id)
+    const item = mediaById.get(id)
     return item ? [item] : []
   })
 }

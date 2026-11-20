@@ -1,11 +1,12 @@
 import type { Metadata, Viewport } from 'next'
 import type { ReactNode } from 'react'
+import { SessionKeeper } from '@/components/auth/SessionKeeper'
 import { AppStateProvider } from '@/state/AppState'
 import '../../styles.css'
 
 export const metadata: Metadata = {
   title: 'Flow Content Hub',
-  description: 'Flow Content Hub — client content delivery prototype',
+  description: 'A private library for the photos, films and campaign files Flow creates for your brand.',
 }
 
 export const viewport: Viewport = {
@@ -18,7 +19,10 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" data-scroll-behavior="smooth">
       <body>
-        <AppStateProvider>{children}</AppStateProvider>
+        <AppStateProvider>
+          <SessionKeeper />
+          {children}
+        </AppStateProvider>
       </body>
     </html>
   )

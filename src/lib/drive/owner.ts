@@ -19,7 +19,7 @@ type DriveList = {
 }
 
 type DriveRequest = {
-  method?: 'GET' | 'POST'
+  method?: 'GET' | 'POST' | 'PATCH'
   body?: string
 }
 
@@ -54,6 +54,67 @@ export async function createClientDriveFolder(companyName: string): Promise<{ id
     throw new Error('The client folder could not be created inside Content Hub.')
   }
   return { id: created.id, name: created.name || name }
+}
+
+export async function createOwnedFolder(parentId: string, name: string): Promise<{ id: string; name: string }> {
+  const created = await ownerJson<DriveFile>('files?fields=id,name,parents,owners(emailAddress)', {
+    method: 'POST',
+    body: JSON.stringify({
+      name,
+      mimeType: FOLDER_MIME,
+      parents: [parentId],
+    }),
+  })
+  const ownedByAccount = (created.owners ?? []).some((owner) => owner.emailAddress === OWNER_EMAIL)
+  if (!created.id || !(created.parents ?? []).includes(parentId) || !ownedByAccount) {
+    throw new Error('The collection folder could not be created in Google Drive.')
+  }
+  return { id: created.id, name: created.name || name }
+}
+
+export async function beginOwnedUpload(input: {
+  parentId: string
+  name: string
+  mimeType: string
+  size: number
+}): Promise<string> {
+  const token = await accessToken()
+  const response = await fetch(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': 'application/json; charset=UTF-8',
+        'X-Upload-Content-Type': input.mimeType,
+        'X-Upload-Content-Length': String(input.size),
+      },
+      body: JSON.stringify({
+        name: input.name,
+        parents: [input.parentId],
+      }),
+    },
+  )
+  if (!response.ok) throw new Error(await driveError(response))
+  const location = response.headers.get('location') ?? ''
+  if (!location.startsWith('https://www.googleapis.com/upload/drive/')) {
+    throw new Error('The upload could not be started.')
+  }
+  return location
+}
+
+export async function renameOwnedItem(fileId: string, name: string): Promise<void> {
+  await ownerJson<DriveFile>(`files/${encodeURIComponent(fileId)}?fields=id,name`, {
+    method: 'PATCH',
+    body: JSON.stringify({ name }),
+  })
+}
+
+export async function trashOwnedItem(fileId: string): Promise<void> {
+  await ownerJson<DriveFile>(`files/${encodeURIComponent(fileId)}?fields=id`, {
+    method: 'PATCH',
+    body: JSON.stringify({ trashed: true }),
+  })
 }
 
 async function nextFolderName(parentId: string, base: string): Promise<string> {

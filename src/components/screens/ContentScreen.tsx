@@ -1,15 +1,16 @@
 'use client'
 
-import type { FormEvent } from 'react'
+import { useMemo, type FormEvent } from 'react'
 import { Icon } from '@/components/icons'
 import { FlowTip } from '@/components/feedback/FlowTip'
 import { TutorialImage } from '@/components/guides/TutorialImage'
 import { BulkBar, EmptyState } from '@/components/media/BulkBar'
 import { MediaCard } from '@/components/media/MediaCard'
 import { MediaListRow } from '@/components/media/MediaListRow'
-import { CHANNEL_FILTERS, CONTENT_TYPE_FILTERS, SORT_MODES } from '@/data/types'
+import { CONTENT_TYPE_FILTERS, SORT_MODES } from '@/data/types'
 import type { SortMode } from '@/data/types'
-import { useApp } from '@/state/AppState'
+import { mediaTags } from '@/lib/library'
+import { useApp, useSelectionActions } from '@/state/AppState'
 import { useLibrary } from '@/state/Catalog'
 
 function isSortMode(value: string): value is SortMode {
@@ -28,15 +29,24 @@ export function ContentScreen() {
     setSort,
     view,
     setView,
-    selected,
-    clearSelected,
     tipVisible,
     mounted,
     dismissTip,
   } = useApp()
-  const { filteredMedia } = useLibrary()
+  const { clearSelected } = useSelectionActions()
+  const { media, filteredMedia: applyFilters } = useLibrary()
+  const tagFilters = useMemo(() => {
+    const names = new Set<string>()
+    for (const item of media) {
+      for (const tag of mediaTags(item)) names.add(tag)
+    }
+    return ['All', ...[...names].sort((left, right) => left.localeCompare(right))]
+  }, [media])
 
-  const results = filteredMedia({ search, contentType, channel, sort })
+  const results = useMemo(
+    () => applyFilters({ search, contentType, channel, sort }),
+    [applyFilters, search, contentType, channel, sort],
+  )
   const filtering = Boolean(search) || contentType !== 'All' || channel !== 'All'
 
   function clearFilters() {
@@ -65,7 +75,7 @@ export function ContentScreen() {
       <section className="library-toolbar card">
         <form id="content-search-form" className="content-search" onSubmit={onSearch}>
           <Icon name="search" />
-          <input key={search} name="q" defaultValue={search} placeholder="Search by title, collection or channel…" />
+          <input key={search} name="q" defaultValue={search} placeholder="Search by title, collection or tag…" />
           <button type="submit" className="search-submit">
             Search
           </button>
@@ -87,22 +97,24 @@ export function ContentScreen() {
               </button>
             ))}
           </div>
-          <div className="filter-group">
-            <span className="filter-label">Use</span>
-            {CHANNEL_FILTERS.map((item) => (
-              <button
-                key={item}
-                type="button"
-                className={channel === item ? 'pill active' : 'pill'}
-                onClick={() => {
-                  setChannel(item)
-                  clearSelected()
-                }}
-              >
-                {item}
-              </button>
-            ))}
-          </div>
+          {tagFilters.length > 1 ? (
+            <div className="filter-group">
+              <span className="filter-label">Tags</span>
+              {tagFilters.map((item) => (
+                <button
+                  key={item}
+                  type="button"
+                  className={channel === item ? 'pill active' : 'pill'}
+                  onClick={() => {
+                    setChannel(item)
+                    clearSelected()
+                  }}
+                >
+                  {item}
+                </button>
+              ))}
+            </div>
+          ) : null}
           <div className="toolbar-spacer" />
           <select
             className="sort-select"
@@ -143,7 +155,7 @@ export function ContentScreen() {
           </button>
         </section>
       ) : null}
-      {selected.size > 0 ? <BulkBar /> : null}
+      <BulkBar />
       <div className="results-head">
         <span>
           <b>{results.length}</b> {results.length === 1 ? 'asset' : 'assets'}

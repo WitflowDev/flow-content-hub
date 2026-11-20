@@ -1,16 +1,24 @@
 'use client'
 
-import type { MouseEvent } from 'react'
+import { memo, type MouseEvent } from 'react'
 import { Icon } from '@/components/icons'
-import { DriveVideoFrame } from '@/components/media/DriveVideoFrame'
 import { MediaActions } from '@/components/media/MediaActions'
-import { tagClass } from '@/lib/library'
+import { SelectBox } from '@/components/media/SelectBox'
+import { AssetTags } from '@/components/media/AssetTags'
+import { MediaThumb } from '@/components/media/MediaThumb'
 import { useApp } from '@/state/AppState'
 import type { MediaItem } from '@/data/types'
 
-export function MediaCard({ item, selectable = false }: { item: MediaItem; selectable?: boolean }) {
-  const { selected, toggleSelected, navigate } = useApp()
-  const isSelected = selected.has(item.id)
+export const MediaCard = memo(function MediaCard({
+  item,
+  selectable = false,
+  eager = false,
+}: {
+  item: MediaItem
+  selectable?: boolean
+  eager?: boolean
+}) {
+  const { navigate } = useApp()
 
   function openAsset(event: MouseEvent<HTMLElement>) {
     const target = event.target
@@ -19,38 +27,16 @@ export function MediaCard({ item, selectable = false }: { item: MediaItem; selec
   }
 
   return (
-    <article className={isSelected ? 'media-card selected' : 'media-card'} onClick={openAsset}>
+    <article className="media-card" onClick={openAsset}>
       <div className="thumb">
-        {item.type === 'Video' && item.driveFileId ? (
-          <DriveVideoFrame
-            fileId={item.driveFileId}
-            fallbackSrc={item.src}
-            position={item.position || '50% 50%'}
-            alt={item.title}
-          />
-        ) : (
-          <img src={item.src} alt={item.title} style={{ objectPosition: item.position || '50% 50%' }} />
-        )}
+        <MediaThumb item={item} eager={eager} />
         {item.duration ? (
           <span className="duration">
             <Icon name="play" />
             {item.duration}
           </span>
         ) : null}
-        {selectable ? (
-          <button
-            type="button"
-            className={isSelected ? 'select-box on' : 'select-box'}
-            data-select={item.id}
-            aria-label={`Select ${item.title}`}
-            onClick={(event) => {
-              event.stopPropagation()
-              toggleSelected(item.id)
-            }}
-          >
-            {isSelected ? <Icon name="check" /> : null}
-          </button>
-        ) : null}
+        {selectable ? <SelectBox id={item.id} title={item.title} /> : null}
         <span className="asset-type-badge">{item.type === 'Photography' ? 'Photo' : item.type}</span>
       </div>
       <div className="media-card-meta">
@@ -59,10 +45,10 @@ export function MediaCard({ item, selectable = false }: { item: MediaItem; selec
           <div className="media-card-sub">
             {item.file} <span>·</span> {item.size}
           </div>
-          <span className={tagClass(item.channel) ? `tag ${tagClass(item.channel)}` : 'tag'}>{item.channel}</span>
+          <AssetTags item={item} />
         </div>
         <MediaActions item={item} />
       </div>
     </article>
   )
-}
+})

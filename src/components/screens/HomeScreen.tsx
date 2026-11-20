@@ -42,7 +42,7 @@ export function HomeScreen() {
         </div>
         <div className="media-grid home-media">
           {media.slice(0, 4).map((item) => (
-            <MediaCard key={item.id} item={item} />
+            <MediaCard key={item.id} item={item} eager />
           ))}
         </div>
       </section>

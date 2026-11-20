@@ -1,5 +1,10 @@
 import { LoginScreen } from '@/components/screens/LoginScreen'
 
-export default function LoginPage() {
-  return <LoginScreen />
+type LoginPageProps = {
+  searchParams: Promise<{ mode?: string }>
+}
+
+export default async function LoginPage({ searchParams }: LoginPageProps) {
+  const params = await searchParams
+  return <LoginScreen initialMode={params.mode === 'signup' ? 'signup' : 'login'} />
 }
