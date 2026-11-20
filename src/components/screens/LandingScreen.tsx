@@ -372,7 +372,7 @@ export function LandingScreen() {
         </section>
       </main>
 
-      <footer className="landing-foot">
+      <footer className="landing-foot container">
         <div className="landing-foot-grid">
           <Logo />
           <div>
@@ -412,11 +412,11 @@ export function LandingScreen() {
             </div>
           </div>
         </div>
-        <img className="landing-signature" src="/assets/Barras%20de%20Assinaturas%20Algarve2030_Positivo.svg" alt="Algarve 2030 programme signature bars for co-financing" />
-        <div className="landing-legal">
+        <div className="landing-marks">
           <p>
             Flow Productions is duly recognised as a startup as of 1 April 2026, having demonstrated compliance with the requirements set out in Article 2 of Law No. 21/2023 of 25 May.
           </p>
+          <img className="landing-signature" src="/assets/Barras%20de%20Assinaturas%20Algarve2030_Positivo.svg" alt="Algarve 2030 programme signature bars for co-financing" />
           <p>Flow Productions ©. All Rights Reserved.</p>
         </div>
       </footer>
