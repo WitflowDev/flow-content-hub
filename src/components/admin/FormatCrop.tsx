@@ -40,7 +40,8 @@ export function FormatCrop({
     const image = imageRef.current
     const canvas = canvasRef.current
     if (!image || !canvas || image.naturalWidth === 0) return
-    const boxHeight = Math.min(220, Math.round(320 * (height / width)))
+    const maxWidth = 460
+    const boxHeight = Math.min(300, Math.round(maxWidth * (height / width)))
     const boxWidth = Math.round(boxHeight * (width / height))
     canvas.width = boxWidth
     canvas.height = boxHeight

@@ -116,6 +116,7 @@ export function AssetScreen() {
   const item = getMedia(routeParam(params.id))
   const [chosen, setChosen] = useState('')
   const [cropUrl, setCropUrl] = useState<string | null>(null)
+  const [naturalRatio, setNaturalRatio] = useState<number | null>(null)
   const previewSrc = item?.src.includes('/thumbnail') ? item.src.replace('/thumbnail', '/preview') : (item?.src ?? '')
   const customSelected = item?.customVariants?.find((variant) => variant.id === chosen) ?? null
   const selected = item?.type === 'Photography' && (item.exports ?? []).includes(chosen) ? exportFormat(chosen) : null
@@ -126,6 +127,10 @@ export function AssetScreen() {
   useEffect(() => {
     setChosen('')
   }, [item?.id])
+
+  useEffect(() => {
+    setNaturalRatio(null)
+  }, [previewSrc, variantSrc, cropUrl])
 
   useEffect(() => {
     if (!previewSrc || !selectedSize || variantSrc) return
@@ -178,11 +183,19 @@ export function AssetScreen() {
     return format ? [format] : []
   })
   const customVariants = item.customVariants ?? []
+  const formatRatio = selected
+    ? selected.width / selected.height
+    : customSelected?.width && customSelected.height
+      ? customSelected.width / customSelected.height
+      : naturalRatio
+  const shaped = item.type === 'Photography' && chosen !== '' && Boolean(formatRatio)
   const formatLabel = selected
     ? `${selected.width} × ${selected.height}`
-    : customSelected
-      ? customSelected.label
-      : assetFormat(item.orientation)
+    : customSelected?.width && customSelected.height
+      ? `${customSelected.label} · ${customSelected.width} × ${customSelected.height}`
+      : customSelected
+        ? customSelected.label
+        : assetFormat(item.orientation)
   const downloadHref = fileVariant
     ? `/api/drive/files/${fileVariant.fileId}`
     : (cropUrl ?? (item.driveFileId ? `/api/drive/files/${item.driveFileId}` : item.src))
@@ -210,7 +223,10 @@ export function AssetScreen() {
       </div>
       <div className="asset-layout">
         <div className="asset-stage">
-        <section className={item.type === 'Video' ? 'asset-preview card video' : variantSrc || cropUrl ? 'asset-preview card cropped' : 'asset-preview card'}>
+        <section
+          className={item.type === 'Video' ? 'asset-preview card video' : shaped ? 'asset-preview card shaped' : 'asset-preview card'}
+          style={shaped && formatRatio ? { ['--frame-ratio' as string]: String(formatRatio) } : undefined}
+        >
           {driveVideo ? (
             <video
               controls
@@ -221,7 +237,15 @@ export function AssetScreen() {
               aria-label={item.title}
             />
           ) : (
-            <img src={shownSrc} alt={item.title} style={variantSrc || cropUrl ? undefined : { objectPosition: item.position }} />
+            <img
+              src={shownSrc}
+              alt={item.title}
+              style={shaped || variantSrc || cropUrl ? undefined : { objectPosition: item.position }}
+              onLoad={(event) => {
+                const image = event.currentTarget
+                if (image.naturalWidth > 0 && image.naturalHeight > 0) setNaturalRatio(image.naturalWidth / image.naturalHeight)
+              }}
+            />
           )}
           {item.type === 'Video' && !item.driveFileId ? (
             <>

@@ -1,5 +1,5 @@
 import 'server-only'
-import { isCustomFormatId, parseExportIds, type ExportId } from '@/data/exports'
+import { isCustomFormatId, parseExportIds, pixelSize, type ExportId } from '@/data/exports'
 import { parseRole } from '@/lib/auth'
 import { sealUploadTicket } from '@/lib/admin/upload-ticket'
 import { parseTags } from '@/lib/tags'
@@ -44,6 +44,8 @@ export async function openAdminUpload(
     variantFormat: ExportId | null
     variantCustomId: string
     variantCustomLabel: string
+    variantCustomWidth: number
+    variantCustomHeight: number
   },
 ): Promise<UploadSession> {
   const fileName = cleanedFileName(input.fileName)
@@ -55,8 +57,11 @@ export async function openAdminUpload(
   }
   const customId = isCustomFormatId(input.variantCustomId) ? input.variantCustomId : ''
   const customLabel = input.variantCustomLabel.trim().slice(0, 40)
+  const customWidth = pixelSize(input.variantCustomWidth) ?? 0
+  const customHeight = pixelSize(input.variantCustomHeight) ?? 0
   if (input.variantFormat && customId) throw new Error('Choose one format for this photo.')
   if (customId && !customLabel) throw new Error('Name this format.')
+  if (customId && (!customWidth || !customHeight)) throw new Error('Enter the width and height for this format.')
   const linked = Boolean(input.variantFormat || customId)
   if (input.variantParentId && !isDriveFileId(input.variantParentId)) throw new Error('The default photo could not be found.')
   if (Boolean(input.variantParentId) !== linked) throw new Error('Choose a format for this photo.')
@@ -98,6 +103,8 @@ export async function openAdminUpload(
       variantFormat: input.variantFormat,
       variantCustomId: input.variantFormat ? '' : customId,
       variantCustomLabel: input.variantFormat ? '' : customLabel,
+      variantCustomWidth: input.variantFormat ? 0 : customWidth,
+      variantCustomHeight: input.variantFormat ? 0 : customHeight,
     }),
     destinationId: parentId,
   }

@@ -38,7 +38,7 @@
 .day-landing .hero-actions {display:flex;align-items:center;gap:9px;flex-wrap:wrap}
 .day-landing .hero-meta {margin-top:22px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;font-size:10.8px;color:#8a8b99;font-weight:650}
 .day-landing .hero-meta span {color:#bab8c5}
-.day-landing .browser-frame {border:1px solid var(--line);border-radius:18px;overflow:hidden;background:#fff;box-shadow:var(--shadow)}
+.day-landing .browser-frame {border:1px solid var(--line);border-radius:18px;overflow:hidden;background:#fff;box-shadow:var(--shadow);container-type:inline-size}
 .day-landing .frame-top {height:42px;padding:0 15px;display:flex;justify-content:space-between;align-items:center;gap:12px;border-bottom:1px solid var(--line)}
 .day-landing .frame-label {display:inline-flex;align-items:center;gap:11px;color:#77788b;font-size:10px;font-weight:650}
 .day-landing .frame-dots {display:inline-flex;align-items:center;gap:5px}
@@ -48,35 +48,118 @@
 .day-landing .frame-expand .icon {width:14px;height:14px}
 .day-landing .frame-expand:hover {color:var(--flow)}
 .day-landing .frame-live {color:#77788b;font-size:10px;font-weight:700}
-.day-landing .hub-preview {display:grid;grid-template-columns:112px minmax(0,1fr);height:440px;background:#f6f5fa;color:#17171c;text-align:left}
-.day-landing .hub-rail {display:flex;flex-direction:column;gap:4px;padding:12px 8px;background:#fff;border-right:1px solid var(--line)}
-.day-landing .hub-rail > span {padding:4px 8px 10px;font-size:10px;font-weight:800;letter-spacing:.08em;text-transform:uppercase;color:#8a8b99}
-.day-landing .hub-rail button {border:0;background:transparent;text-align:left;border-radius:8px;padding:8px;font-size:12px;font-weight:700;color:#5c5e70}
-.day-landing .hub-rail button.on {background:#f3efff;color:var(--flow)}
-.day-landing .hub-main {min-width:0;min-height:0;display:flex;flex-direction:column}
-.day-landing .hub-tools {display:flex;flex-wrap:wrap;gap:6px;align-items:center;padding:10px;background:#fff;border-bottom:1px solid var(--line)}
-.day-landing .hub-tools input {flex:1;min-width:0;height:32px;border:1px solid var(--line);border-radius:8px;padding:0 10px;font-size:12px;background:#fff}
-.day-landing .hub-tools button {height:32px;border:1px solid var(--line);background:#fff;border-radius:999px;padding:0 10px;font-size:11px;font-weight:700;color:#3c3d4a}
-.day-landing .hub-tools button.on {background:#17171c;color:#fff;border-color:#17171c}
-.day-landing .hub-filter {margin:8px 12px 0;align-self:flex-start;border:0;background:#f3efff;color:var(--flow);border-radius:999px;padding:6px 10px;font-size:11px;font-weight:700}
-.day-landing .hub-grid {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding:12px;overflow:auto}
-.day-landing .hub-card {border:1px solid var(--line);padding:0;background:#fff;border-radius:10px;overflow:hidden;text-align:left;cursor:pointer}
-.day-landing .hub-card img {width:100%;height:92px;object-fit:cover;display:block;background:#eee}
-.day-landing .hub-card span {display:block;padding:7px 8px 0;font-size:11px;font-weight:750}
-.day-landing .hub-card small {display:block;padding:2px 8px 8px;color:#8a8b99;font-size:10px}
-.day-landing .hub-empty {grid-column:1 / -1;margin:12px 0;color:#8a8b99;font-size:12px}
-.day-landing .hub-detail {display:grid;grid-template-columns:minmax(0,1.15fr) minmax(150px,.85fr);min-height:0;height:100%;background:#fff}
-.day-landing .hub-detail img {width:100%;height:100%;object-fit:cover}
-.day-landing .hub-detail aside {padding:16px;overflow:auto}
-.day-landing .hub-back {border:0;background:transparent;padding:0 0 12px;color:var(--flow);font-size:12px;font-weight:750}
-.day-landing .hub-detail h3 {margin:0 0 4px;font-size:18px;letter-spacing:-.03em}
-.day-landing .hub-detail p {margin:0 0 14px;color:#8a8b99;font-size:12px}
-.day-landing .hub-detail dl {margin:0 0 14px}
-.day-landing .hub-detail dl div {display:flex;justify-content:space-between;gap:12px;padding:7px 0;border-top:1px solid var(--line);font-size:12px}
-.day-landing .hub-detail dt {color:#8a8b99}
-.day-landing .hub-detail dd {margin:0;font-weight:750}
-.day-landing .hub-download {width:100%;min-height:36px;border:0;border-radius:10px;background:var(--flow);color:#fff;font-weight:750;font-size:12px}
-.day-landing .hub-detail small {display:block;margin-top:8px;color:#8a8b99;font-size:11px;line-height:1.4}
+.day-landing .hub-preview {display:grid;grid-template-columns:156px minmax(0,1fr);height:520px;background:#f7f7fa;color:#17171c;text-align:left}
+.day-landing .hub-rail {display:flex;flex-direction:column;min-height:0;padding:14px 10px 12px;background:linear-gradient(180deg,#fff 0%,#fcfcfe 100%);border-right:1px solid var(--line)}
+.day-landing .hub-brand {border:0;background:none;padding:0 6px 4px;width:118px;text-align:left}
+.day-landing .hub-brand .flow-logo {width:100%}
+.day-landing .hub-nav {display:flex;flex-direction:column;gap:2px;margin-top:10px;min-height:0}
+.day-landing .hub-nav button {display:flex;align-items:center;gap:8px;border:0;background:transparent;border-radius:9px;padding:7px 8px;text-align:left;font-size:12px;color:#2b2b32}
+.day-landing .hub-nav button .svg {width:15px;height:15px}
+.day-landing .hub-nav button.on {background:linear-gradient(90deg,#f0ebff,#f7f4ff);color:var(--flow);font-weight:750}
+.day-landing .hub-talk {margin-top:auto;background:#F3F1EA;border-radius:10px;padding:10px}
+.day-landing .hub-talk p {margin:0 0 8px;font-size:11px;line-height:1.35}
+.day-landing .hub-talk a {display:block;background:#1f1f1f;color:#fff;text-align:center;border-radius:7px;padding:6px 8px;font-size:11px}
+.day-landing .hub-stage {min-width:0;min-height:0;display:flex;flex-direction:column;background:#f7f7fa}
+.day-landing .hub-menu,.day-landing .hub-scrim {display:none}
+.day-landing .hub-top {height:44px;flex:none;display:flex;align-items:center;gap:8px;padding:0 10px;background:rgba(255,255,255,.96);border-bottom:1px solid var(--line)}
+.day-landing .hub-top form {flex:1;min-width:0;height:30px;display:flex;align-items:center;gap:6px;border:1px solid #eeeef3;background:#f8f8fa;border-radius:9px;padding:0 8px;color:#8a8b99}
+.day-landing .hub-top .svg,.day-landing .hub-icon .svg {width:14px;height:14px}
+.day-landing .hub-top input {flex:1;min-width:0;border:0;outline:0;background:none;font-size:12px;color:#17171c}
+.day-landing .hub-icon {width:28px;height:28px;border:0;border-radius:8px;background:transparent;color:#3c3d4a;display:grid;place-items:center;flex:none}
+.day-landing .hub-avatar {width:26px;height:26px;border-radius:50%;background:#efeaff;color:var(--flow);font-size:11px;font-weight:800;display:grid;place-items:center;flex:none}
+.day-landing .hub-page {min-height:0;overflow:auto;padding:14px 14px 18px}
+.day-landing .hub-page h2 {margin:2px 0 4px;font-size:22px;letter-spacing:-.04em;line-height:1.05}
+.day-landing .hub-kicker {margin:0;font-size:9px;letter-spacing:.12em;text-transform:uppercase;color:#8a8b99;font-weight:800}
+.day-landing .hub-lead {margin:0 0 12px;color:#8a8b99;font-size:11px;line-height:1.45}
+.day-landing .hub-section-head {display:flex;justify-content:space-between;align-items:flex-end;gap:8px;margin:12px 0 8px}
+.day-landing .hub-section-head span {display:block;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#8a8b99;font-weight:800}
+.day-landing .hub-section-head strong {display:block;font-size:13px;margin-top:2px}
+.day-landing .hub-section-head button,.day-landing .hub-back {border:0;background:none;color:var(--flow);font-size:11px;font-weight:750;padding:0}
+.day-landing .hub-back {display:inline-block;margin-bottom:8px}
+.day-landing .hub-offer {width:100%;display:flex;flex-direction:column;align-items:flex-start;gap:2px;border:1px solid var(--line);background:#fff;border-radius:12px;padding:10px 12px;margin-bottom:4px;text-align:left}
+.day-landing .hub-offer span {font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:var(--flow);font-weight:800}
+.day-landing .hub-offer b {font-size:13px}
+.day-landing .hub-grid {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px 10px}
+.day-landing .hub-card {border:0;background:transparent;padding:0;text-align:left;min-width:0}
+.day-landing .hub-thumb {position:relative;display:block;aspect-ratio:1.7/1;border-radius:10px;overflow:hidden;border:1px solid #eeeef2;background:#f2f2f5}
+.day-landing .hub-thumb img {width:100%;height:100%;object-fit:cover}
+.day-landing .hub-thumb em,.day-landing .hub-guide em {position:absolute;left:6px;bottom:6px;display:inline-flex;align-items:center;gap:4px;height:20px;padding:0 6px;border-radius:6px;background:rgba(16,16,20,.78);color:#fff;font-size:10px;font-style:normal}
+.day-landing .hub-thumb em .svg,.day-landing .hub-guide em .svg {width:11px;height:11px}
+.day-landing .hub-thumb i {position:absolute;right:6px;top:6px;padding:3px 6px;border-radius:6px;background:rgba(255,255,255,.9);font-size:8px;font-weight:800;font-style:normal;color:#474750}
+.day-landing .hub-card b,.day-landing .hub-row b {display:block;margin-top:6px;font-size:12px}
+.day-landing .hub-card small,.day-landing .hub-row small {display:block;color:#8a8b99;font-size:10px}
+.day-landing .hub-tag {display:inline-block;margin-top:4px;background:#ececf1;color:#3a3a44;border-radius:6px;padding:2px 6px;font-size:9px;font-weight:750}
+.day-landing .hub-feature {width:100%;margin-top:14px;display:flex;align-items:center;gap:12px;border:1px solid var(--line);background:#fff;border-radius:14px;padding:10px;text-align:left}
+.day-landing .hub-stack {display:flex;align-items:center;flex:none}
+.day-landing .hub-stack img {width:54px;height:42px;object-fit:cover;border-radius:8px;border:2px solid #fff;margin-left:-12px;box-shadow:0 4px 10px rgba(25,20,56,.08)}
+.day-landing .hub-stack img:first-child {margin-left:0}
+.day-landing .hub-feature i {display:block;font-style:normal;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#8a8b99;font-weight:800}
+.day-landing .hub-feature b {display:block;font-size:16px;letter-spacing:-.03em;margin:2px 0}
+.day-landing .hub-feature small {color:#8a8b99;font-size:11px}
+.day-landing .hub-toolbar {display:flex;flex-wrap:wrap;gap:8px;align-items:center;justify-content:space-between;margin-bottom:12px}
+.day-landing .hub-pills,.day-landing .hub-toolbar-end,.day-landing .hub-view {display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.day-landing .hub-pills button,.day-landing .hub-chip {height:26px;border-radius:99px;border:1px solid #ebeaf0;background:#fff;padding:0 10px;font-size:11px;color:#4e4f5a}
+.day-landing .hub-pills button.on,.day-landing .hub-chip {background:#f4f0ff;color:var(--flow);border-color:#e6ddff;font-weight:750}
+.day-landing .hub-toolbar select {height:26px;border:1px solid var(--line);border-radius:8px;background:#fff;font-size:11px;padding:0 6px}
+.day-landing .hub-view {border:1px solid var(--line);border-radius:8px;overflow:hidden;background:#fff}
+.day-landing .hub-view button {width:26px;height:24px;border:0;background:#fff;color:#5c5e70;display:grid;place-items:center}
+.day-landing .hub-view button .svg {width:13px;height:13px}
+.day-landing .hub-view button.on {background:#f4f0ff;color:var(--flow)}
+.day-landing .hub-list {display:flex;flex-direction:column;gap:6px}
+.day-landing .hub-row {display:grid;grid-template-columns:64px minmax(0,1fr) auto;gap:8px;align-items:center;border:1px solid var(--line);background:#fff;border-radius:10px;padding:6px;text-align:left}
+.day-landing .hub-row img {width:64px;height:42px;object-fit:cover;border-radius:7px}
+.day-landing .hub-row b {margin:0}
+.day-landing .hub-row em {font-style:normal;font-size:10px;font-weight:750;color:#5c5e70}
+.day-landing .hub-empty,.day-landing .hub-note {margin:8px 0 0;color:#8a8b99;font-size:11px;line-height:1.4}
+.day-landing .hub-collections,.day-landing .hub-guides {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.day-landing .hub-collection,.day-landing .hub-guide {border:1px solid var(--line);background:#fff;border-radius:12px;padding:0 0 8px;text-align:left;overflow:hidden;min-width:0}
+.day-landing .hub-mosaic,.day-landing .hub-guide > span {position:relative;display:grid;aspect-ratio:1.5/1;background:#f2f2f5}
+.day-landing .hub-mosaic img,.day-landing .hub-guide img {width:100%;height:100%;object-fit:cover}
+.day-landing .hub-mosaic.mosaic-2,.day-landing .hub-mosaic.mosaic-4 {grid-template-columns:1fr 1fr}
+.day-landing .hub-mosaic.mosaic-3 {grid-template-columns:1.3fr 1fr}
+.day-landing .hub-mosaic.mosaic-3 img:first-child {grid-row:span 2}
+.day-landing .hub-mosaic b {position:absolute;right:6px;bottom:6px;min-width:22px;height:22px;padding:0 6px;border-radius:7px;background:rgba(18,18,23,.76);color:#fff;display:grid;place-items:center;font-size:11px}
+.day-landing .hub-collection strong,.day-landing .hub-guide strong {display:block;padding:8px 8px 0;font-size:12px}
+.day-landing .hub-collection small,.day-landing .hub-guide small {display:block;padding:2px 8px 0;color:#8a8b99;font-size:10px;line-height:1.35}
+.day-landing .hub-day {list-style:none;margin:0;padding:0;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.day-landing .hub-day li {background:#fff;border:1px solid var(--line);border-radius:12px;padding:12px}
+.day-landing .hub-day b {display:block;font-size:13px;margin-bottom:4px}
+.day-landing .hub-day span {color:#8a8b99;font-size:11px}
+.day-landing .hub-asset {display:grid;grid-template-columns:minmax(0,1.25fr) minmax(150px,.75fr);gap:14px;align-items:start}
+.day-landing .hub-frame {background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden}
+.day-landing .hub-frame.is-default,.day-landing .hub-frame:not(.is-shaped) {aspect-ratio:1.55/1}
+.day-landing .hub-frame.is-shaped {width:min(100%,calc(230px * var(--frame-ratio,1)));aspect-ratio:var(--frame-ratio,1);max-height:280px}
+.day-landing .hub-frame img,.day-landing .hub-frame video {width:100%;height:100%;object-fit:cover;display:block;background:#f4f4f6}
+.day-landing .hub-notes {display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.day-landing .hub-notes span {display:block;font-size:9px;letter-spacing:.1em;text-transform:uppercase;color:#8a8b99;font-weight:800;margin-bottom:3px}
+.day-landing .hub-notes p {display:flex;flex-wrap:wrap;gap:4px;margin:0}
+.day-landing .hub-notes i {font-style:normal;background:#f4f0ff;color:#3a315c;border-radius:99px;padding:2px 7px;font-size:10px}
+.day-landing .hub-notes small {color:#3c3d4a;font-size:11px;line-height:1.4}
+.day-landing .hub-asset dl {margin:0 0 10px}
+.day-landing .hub-asset dl div {display:flex;justify-content:space-between;gap:8px;padding:6px 0;border-top:1px solid var(--line);font-size:11px}
+.day-landing .hub-asset dt {color:#8a8b99}
+.day-landing .hub-asset dd {margin:0;font-weight:750}
+.day-landing .hub-download {width:100%;min-height:34px;border:0;border-radius:10px;background:var(--flow);color:#fff;font-weight:750;font-size:12px;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.day-landing .hub-download .svg {width:14px;height:14px}
+.day-landing .hub-guide-open img {width:100%;height:160px;object-fit:cover;border-radius:12px;margin-bottom:10px}
+.day-landing .hub-guide-open ol {margin:0;padding-left:18px}
+.day-landing .hub-guide-open li {margin:6px 0;font-size:12px;line-height:1.4}
+@container (max-width:640px) {
+  .day-landing .hub-preview {display:block;position:relative;height:480px;overflow:hidden}
+  .day-landing .hub-stage {height:100%}
+  .day-landing .hub-menu {display:grid;place-items:center;width:28px;height:28px;flex:none;border:0;background:transparent;font-size:16px;line-height:1;color:#2b2b32}
+  .day-landing .hub-rail {position:absolute;z-index:4;top:0;bottom:0;left:0;width:210px;transform:translateX(-105%);transition:transform .2s ease;flex-direction:column;align-items:stretch;overflow:auto;padding:14px 10px 12px;border-right:1px solid var(--line);border-bottom:0;box-shadow:16px 0 40px rgba(20,18,36,.12)}
+  .day-landing .hub-preview.menu-open .hub-rail {transform:none}
+  .day-landing .hub-scrim {position:absolute;inset:0;z-index:3;border:0;padding:0;background:rgba(20,20,28,.28)}
+  .day-landing .hub-preview.menu-open .hub-scrim {display:block}
+  .day-landing .hub-brand {width:118px;padding:0 6px 4px}
+  .day-landing .hub-nav {flex-direction:column;margin-top:10px}
+  .day-landing .hub-nav button {position:static;padding:7px 8px}
+  .day-landing .hub-nav button span {position:static;width:auto;height:auto;margin:0;overflow:visible;clip:auto}
+  .day-landing .hub-talk {display:block}
+  .day-landing .hub-collections,.day-landing .hub-guides,.day-landing .hub-asset,.day-landing .hub-day {grid-template-columns:1fr}
+  .day-landing .hub-frame.is-shaped {align-self:center;margin-inline:auto;max-height:220px}
+}
 .day-landing .feature-grid {display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:16px}
 .day-landing .feature-card {padding:0;border:1px solid var(--line);border-radius:16px;background:#fff;overflow:hidden;min-width:0;text-align:left;transition:transform .15s ease,box-shadow .15s ease}
 .day-landing .feature-card:hover {transform:translateY(-2px);box-shadow:var(--shadow-sm)}
@@ -198,6 +281,7 @@
 }
 @media (max-width:850px) {
   .day-landing .container,.day-landing .landing-foot {width:min(calc(100% - 40px),720px)}
+  .day-landing .landing-foot-grid {grid-template-columns:1fr;gap:28px}
   .day-landing .header-nav {gap:17px}
   .day-landing .hero {grid-template-columns:1fr;gap:25px;padding-top:32px}
   .day-landing .hero h1 {font-size:48px}
@@ -212,6 +296,9 @@
   .day-landing .landing-marks p,.day-landing .landing-marks p:last-child {text-align:center;max-width:520px}
   .day-landing .plan-card {padding:19px 17px}
   .day-landing .price strong {font-size:32px}
+}
+@media (min-width:2200px) {
+  .day-landing:not(.content-day-embed) {zoom:1.2}
 }
 @media (max-width:650px) {
   .day-landing {--header:66px}
@@ -234,14 +321,12 @@
   .day-landing .plan-top,.day-landing .plan-cadence,.day-landing .plan-value {min-height:0}
   .day-landing .package-intro {flex-basis:100%}
   .day-landing .calendar-card,.day-landing .booking-card {padding:16px}
+  .day-landing .field-row {grid-template-columns:1fr}
   .day-landing .footer-inner {flex-wrap:wrap}
   .day-landing .footer-inner span {flex-basis:100%}
 }
 @media (max-width:850px) {
-  .day-landing .hub-preview {height:380px;grid-template-columns:88px minmax(0,1fr)}
-  .day-landing .hub-grid {grid-template-columns:repeat(2,minmax(0,1fr))}
-  .day-landing .hub-detail {grid-template-columns:1fr}
-  .day-landing .hub-detail img {height:180px}
+  .day-landing .hub-preview {height:480px}
 }
 @media (max-width:370px) {
   .day-landing .field-row {grid-template-columns:1fr}

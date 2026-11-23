@@ -1,7 +1,7 @@
 import 'server-only'
 import { isDriveFileId } from '@/lib/drive/client'
 import { adminDb } from '@/lib/firebase/admin'
-import { EXPORT_IDS, isCustomFormatId, parseExportIds, type ExportId } from '@/data/exports'
+import { EXPORT_IDS, isCustomFormatId, parseExportIds, pixelSize, type ExportId } from '@/data/exports'
 import { parseTags } from '@/lib/tags'
 
 const READ_BATCH = 100
@@ -16,6 +16,8 @@ export type AssetVariant = {
 export type StoredCustomVariant = AssetVariant & {
   id: string
   label: string
+  width?: number
+  height?: number
 }
 
 export type AssetCopy = {
@@ -116,6 +118,7 @@ export async function attachCustomVariant(
   formatId: string,
   label: string,
   variant: AssetVariant,
+  size?: { width: number; height: number },
 ): Promise<void> {
   if (!isDriveFileId(parentId) || !isDriveFileId(variant.fileId) || !isCustomFormatId(formatId)) return
   const name = label.trim().slice(0, 40)
@@ -124,6 +127,8 @@ export async function attachCustomVariant(
   await adminDb().runTransaction(async (transaction) => {
     const snap = await transaction.get(ref)
     const current = parseCustomVariants(snap.get('customVariants')).filter((item) => item.id !== formatId)
+    const width = size ? pixelSize(size.width) : null
+    const height = size ? pixelSize(size.height) : null
     current.push({
       id: formatId,
       label: name,
@@ -131,6 +136,7 @@ export async function attachCustomVariant(
       name: variant.name.slice(0, 180),
       bytes: variant.bytes,
       mimeType: variant.mimeType.slice(0, 120),
+      ...(width && height ? { width, height } : {}),
     })
     transaction.set(
       ref,
@@ -172,7 +178,9 @@ function parseCustomVariants(value: unknown): StoredCustomVariant[] {
     if (!label) continue
     const file = readVariant(row)
     if (!file || items.some((item) => item.id === row.id)) continue
-    items.push({ id: row.id, label, ...file })
+    const width = pixelSize(row.width)
+    const height = pixelSize(row.height)
+    items.push({ id: row.id, label, ...file, ...(width && height ? { width, height } : {}) })
   }
   return items.slice(0, 8)
 }

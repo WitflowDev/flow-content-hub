@@ -10,6 +10,8 @@ export type PhotoVariant = {
 export type CustomVariant = PhotoVariant & {
   id: string
   label: string
+  width?: number
+  height?: number
 }
 
 export type MediaType = 'Video' | 'Photography' | 'Design'

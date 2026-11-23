@@ -59,6 +59,12 @@ export function parseExportIds(value: unknown): ExportId[] {
 
 const VARIANT_MARK = '__flowsize__'
 
+export function pixelSize(value: unknown): number | null {
+  const size = typeof value === 'number' ? value : typeof value === 'string' && /^\d+$/.test(value.trim()) ? Number(value.trim()) : Number.NaN
+  if (!Number.isInteger(size) || size < 32 || size > 4096) return null
+  return size
+}
+
 export function isCustomFormatId(id: string): boolean {
   return /^custom-[a-z0-9-]{1,32}$/.test(id)
 }

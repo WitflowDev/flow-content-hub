@@ -49,7 +49,7 @@ export async function libraryThumb(folderId: string, fileId: string): Promise<Li
 }
 
 function readCachedSnapshot(folderId: string): Promise<LibrarySnapshot> {
-  return unstable_cache(() => buildSnapshot(folderId), ['drive-library-v6', folderId], {
+  return unstable_cache(() => buildSnapshot(folderId), ['drive-library-v7', folderId], {
     revalidate: LIBRARY_CACHE_SECONDS,
     tags: [libraryTag(folderId)],
   })()
