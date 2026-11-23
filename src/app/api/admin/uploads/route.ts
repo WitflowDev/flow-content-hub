@@ -1,11 +1,11 @@
 import { NextResponse } from 'next/server'
-import { exportFormat, parseExportIds, type ExportId } from '@/data/exports'
+import { exportFormat, isCustomFormatId, parseExportIds, type ExportId } from '@/data/exports'
 import { openAdminUpload } from '@/lib/admin/uploads'
 import { openUploadTicket } from '@/lib/admin/upload-ticket'
 import { requireAdmin } from '@/lib/auth/admin'
 import { invalidateLibrary } from '@/lib/drive/cache'
 import { isDriveFileId } from '@/lib/drive/client'
-import { attachAssetVariant, saveAssetCopy } from '@/lib/drive/tags'
+import { attachAssetVariant, attachCustomVariant, saveAssetCopy } from '@/lib/drive/tags'
 import { readUserProfile } from '@/lib/firebase/profile'
 import { syncAccountNotices } from '@/lib/notifications/sync'
 
@@ -25,6 +25,8 @@ type UploadRequest = {
   formats: ReturnType<typeof parseExportIds>
   variantParentId: string
   variantFormat: ExportId | null
+  variantCustomId: string
+  variantCustomLabel: string
 }
 
 export async function POST(request: Request) {
@@ -79,12 +81,20 @@ export async function PUT(request: Request) {
   }
   const fileId = await savedFileId(saved)
   const variantUpload = Boolean(ticket.variantParentId)
-  if (variantUpload && (!ticket.variantFormat || !fileId)) {
+  const customUpload = Boolean(ticket.variantCustomId && ticket.variantCustomLabel)
+  if (variantUpload && ((!ticket.variantFormat && !customUpload) || !fileId)) {
     return NextResponse.json({ error: 'The extra format could not be saved.' }, { status: 400 })
   }
   try {
     if (variantUpload && ticket.variantFormat && fileId) {
       await attachAssetVariant(ticket.variantParentId, ticket.accountId, ticket.variantFormat, {
+        fileId,
+        name: ticket.fileName,
+        bytes: ticket.size,
+        mimeType: ticket.mimeType,
+      })
+    } else if (variantUpload && customUpload && fileId) {
+      await attachCustomVariant(ticket.variantParentId, ticket.accountId, ticket.variantCustomId, ticket.variantCustomLabel, {
         fileId,
         name: ticket.fileName,
         bytes: ticket.size,
@@ -151,15 +161,22 @@ function readUploadRequest(value: unknown): UploadRequest | null {
     formats: parseExportIds(body.formats),
     variantParentId: variant.parentId,
     variantFormat: variant.format,
+    variantCustomId: variant.customId,
+    variantCustomLabel: variant.customLabel,
   }
 }
 
-function readVariantLink(body: Record<string, unknown>): { parentId: string; format: ExportId | null } | null {
+function readVariantLink(
+  body: Record<string, unknown>,
+): { parentId: string; format: ExportId | null; customId: string; customLabel: string } | null {
   const parentId = typeof body.variantParentId === 'string' ? body.variantParentId : ''
   const format = typeof body.variantFormat === 'string' ? (exportFormat(body.variantFormat)?.id ?? null) : null
-  if (!parentId && !format) return { parentId: '', format: null }
-  if (!parentId || !format || !isDriveFileId(parentId)) return null
-  return { parentId, format }
+  const customId = typeof body.variantCustomId === 'string' && isCustomFormatId(body.variantCustomId) ? body.variantCustomId : ''
+  const customLabel = typeof body.variantCustomLabel === 'string' ? body.variantCustomLabel.trim().slice(0, 40) : ''
+  const linked = Boolean(format || (customId && customLabel))
+  if (!parentId && !linked) return { parentId: '', format: null, customId: '', customLabel: '' }
+  if (!parentId || !isDriveFileId(parentId) || !linked || (format && customId)) return null
+  return { parentId, format, customId: format ? '' : customId, customLabel: format ? '' : customLabel }
 }
 
 function publicMessage(error: unknown, fallback: string): string {

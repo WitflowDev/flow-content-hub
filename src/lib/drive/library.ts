@@ -49,7 +49,7 @@ export async function libraryThumb(folderId: string, fileId: string): Promise<Li
 }
 
 function readCachedSnapshot(folderId: string): Promise<LibrarySnapshot> {
-  return unstable_cache(() => buildSnapshot(folderId), ['drive-library-v5', folderId], {
+  return unstable_cache(() => buildSnapshot(folderId), ['drive-library-v6', folderId], {
     revalidate: LIBRARY_CACHE_SECONDS,
     tags: [libraryTag(folderId)],
   })()
@@ -129,6 +129,7 @@ function toMediaItem(file: DrivePlacedFile, collection: string, copy: AssetCopy 
     bytes: byteCount(file.size),
     exports: type === 'Photography' ? (copy?.exports ?? []) : [],
     variants: type === 'Photography' ? copy?.variants : undefined,
+    customVariants: type === 'Photography' && copy && copy.customVariants.length > 0 ? copy.customVariants : undefined,
   }
 }
 

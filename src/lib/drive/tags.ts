@@ -1,7 +1,7 @@
 import 'server-only'
 import { isDriveFileId } from '@/lib/drive/client'
 import { adminDb } from '@/lib/firebase/admin'
-import { EXPORT_IDS, parseExportIds, type ExportId } from '@/data/exports'
+import { EXPORT_IDS, isCustomFormatId, parseExportIds, type ExportId } from '@/data/exports'
 import { parseTags } from '@/lib/tags'
 
 const READ_BATCH = 100
@@ -13,11 +13,17 @@ export type AssetVariant = {
   mimeType: string
 }
 
+export type StoredCustomVariant = AssetVariant & {
+  id: string
+  label: string
+}
+
 export type AssetCopy = {
   tags: string[]
   suggestedUse: string
   exports: ExportId[]
   variants: Partial<Record<ExportId, AssetVariant>>
+  customVariants: StoredCustomVariant[]
 }
 
 export async function readAssetCopy(fileIds: string[]): Promise<Map<string, AssetCopy>> {
@@ -35,10 +41,11 @@ export async function readAssetCopy(fileIds: string[]): Promise<Map<string, Asse
         : []
       const suggestedUse = cleanUse(snap.get('suggestedUse'))
       const variants = parseVariants(snap.get('variants'))
+      const customVariants = parseCustomVariants(snap.get('customVariants'))
       const savedFormats = parseExportIds(snap.get('formats'))
       const exports = EXPORT_IDS.filter((id) => savedFormats.includes(id) || variants[id])
-      if (tags.length === 0 && !suggestedUse && exports.length === 0) continue
-      copy.set(snap.id, { tags, suggestedUse, exports, variants })
+      if (tags.length === 0 && !suggestedUse && exports.length === 0 && customVariants.length === 0) continue
+      copy.set(snap.id, { tags, suggestedUse, exports, variants, customVariants })
     }
   }
   return copy
@@ -103,6 +110,40 @@ export async function attachAssetVariant(
   })
 }
 
+export async function attachCustomVariant(
+  parentId: string,
+  accountId: string,
+  formatId: string,
+  label: string,
+  variant: AssetVariant,
+): Promise<void> {
+  if (!isDriveFileId(parentId) || !isDriveFileId(variant.fileId) || !isCustomFormatId(formatId)) return
+  const name = label.trim().slice(0, 40)
+  if (!name) return
+  const ref = adminDb().collection('assets').doc(parentId)
+  await adminDb().runTransaction(async (transaction) => {
+    const snap = await transaction.get(ref)
+    const current = parseCustomVariants(snap.get('customVariants')).filter((item) => item.id !== formatId)
+    current.push({
+      id: formatId,
+      label: name,
+      fileId: variant.fileId,
+      name: variant.name.slice(0, 180),
+      bytes: variant.bytes,
+      mimeType: variant.mimeType.slice(0, 120),
+    })
+    transaction.set(
+      ref,
+      {
+        profileId: accountId,
+        driveFileId: parentId,
+        customVariants: current.slice(0, 8),
+      },
+      { merge: true },
+    )
+  })
+}
+
 export async function deleteAssetCopy(fileId: string): Promise<void> {
   if (!isDriveFileId(fileId)) return
   await adminDb().collection('assets').doc(fileId).delete()
@@ -117,6 +158,23 @@ function parseVariants(value: unknown): Partial<Record<ExportId, AssetVariant>> 
     if (variant) variants[id] = variant
   }
   return variants
+}
+
+function parseCustomVariants(value: unknown): StoredCustomVariant[] {
+  if (!Array.isArray(value)) return []
+  const items: StoredCustomVariant[] = []
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object') continue
+    const row = entry as Record<string, unknown>
+    if (typeof row.id !== 'string' || !isCustomFormatId(row.id)) continue
+    if (typeof row.label !== 'string') continue
+    const label = row.label.trim().slice(0, 40)
+    if (!label) continue
+    const file = readVariant(row)
+    if (!file || items.some((item) => item.id === row.id)) continue
+    items.push({ id: row.id, label, ...file })
+  }
+  return items.slice(0, 8)
 }
 
 function readVariant(value: unknown): AssetVariant | null {

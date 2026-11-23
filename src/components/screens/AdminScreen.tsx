@@ -1,11 +1,12 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
-import type { FormEvent, MouseEvent } from 'react'
+import type { FormEvent, MouseEvent, ReactNode } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { FormatCrop } from '@/components/admin/FormatCrop'
 import { Icon } from '@/components/icons'
-import { EXPORT_FORMATS, variantFileName, type ExportId } from '@/data/exports'
+import { CENTER_CROP, customFormatId, EXPORT_FORMATS, renderCrop, variantFileName, type CropFrame, type ExportId } from '@/data/exports'
 import { AdminCollectionBoard } from '@/components/screens/AdminCollectionBoard'
 import { UploadMaps, type DraftMap } from '@/components/screens/UploadMaps'
 import { confirmContentDay } from '@/lib/admin/content-day'
@@ -375,14 +376,31 @@ function UploadDialog({
   const [picked, setPicked] = useState<File[]>([])
   const [maps, setMaps] = useState<DraftMap[]>([])
   const [formatMode, setFormatMode] = useState<'single' | 'several'>('single')
+  const [severalMode, setSeveralMode] = useState<'ready' | 'make'>('ready')
   const [defaultPhoto, setDefaultPhoto] = useState<File | null>(null)
   const [variantFiles, setVariantFiles] = useState<Partial<Record<ExportId, File | null>>>({})
+  const [customRows, setCustomRows] = useState<CustomDraft[]>([])
+  const [makeFormats, setMakeFormats] = useState<ExportId[]>([])
+  const [cropFrames, setCropFrames] = useState<Partial<Record<ExportId, CropFrame>>>({})
+  const [sourceUrl, setSourceUrl] = useState('')
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState('')
   const [error, setError] = useState('')
   const { toast } = useApp()
   const destinations = collections.filter((collection) => collection.accountId === accountId)
   const canMap = formatMode === 'single' && destination !== '' && picked.length > 1
+
+  useEffect(() => {
+    if (!defaultPhoto) {
+      setSourceUrl('')
+      return
+    }
+    const url = URL.createObjectURL(defaultPhoto)
+    setSourceUrl(url)
+    return () => {
+      URL.revokeObjectURL(url)
+    }
+  }, [defaultPhoto])
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -464,10 +482,40 @@ function UploadDialog({
       setError('Choose the default photo.')
       return
     }
-    for (const format of EXPORT_FORMATS) {
-      const extra = variantFiles[format.id]
-      if (extra && !isImageFile(extra)) {
-        setError(`${format.label} needs to be a photo.`)
+    const namedRows = customRows.filter((row) => row.name.trim() || row.file)
+    for (const row of namedRows) {
+      if (!row.name.trim()) {
+        setError('Name each extra format.')
+        return
+      }
+      if (!row.file || !isImageFile(row.file)) {
+        setError(`${row.name.trim()} needs to be a photo.`)
+        return
+      }
+    }
+    switch (severalMode) {
+      case 'ready':
+        for (const format of EXPORT_FORMATS) {
+          const extra = variantFiles[format.id]
+          if (extra && !isImageFile(extra)) {
+            setError(`${format.label} needs to be a photo.`)
+            return
+          }
+        }
+        break
+      case 'make':
+        if (makeFormats.length === 0 && namedRows.length === 0) {
+          setError('Choose a format to make, or add a named photo.')
+          return
+        }
+        if (!sourceUrl && makeFormats.length > 0) {
+          setError('The photo could not be prepared.')
+          return
+        }
+        break
+      default: {
+        const unreachable: never = severalMode
+        setError(unreachable)
         return
       }
     }
@@ -494,28 +542,121 @@ function UploadDialog({
       )
       if (!saved.fileId) throw new Error('The default photo could not be saved to Drive.')
       destinationId = saved.destinationId
-      for (const format of EXPORT_FORMATS) {
-        const extra = variantFiles[format.id]
-        if (!extra) continue
-        setProgress(`Uploading ${format.label}`)
-        await uploadOne(
-          extra,
-          variantFileName(defaultName, format.id),
-          accountId,
-          destinationId,
-          '',
-          '',
-          '',
-          '',
-          [],
-          { parentId: saved.fileId, format: format.id },
-        )
+      switch (severalMode) {
+        case 'ready':
+          for (const format of EXPORT_FORMATS) {
+            const extra = variantFiles[format.id]
+            if (!extra) continue
+            setProgress(`Uploading ${format.label}`)
+            await uploadOne(extra, variantFileName(defaultName, format.id), accountId, destinationId, '', '', '', '', [], {
+              parentId: saved.fileId,
+              format: format.id,
+            })
+          }
+          break
+        case 'make':
+          for (const format of EXPORT_FORMATS) {
+            if (!makeFormats.includes(format.id) || !sourceUrl) continue
+            setProgress(`Preparing ${format.label}`)
+            const blob = await renderCrop(sourceUrl, format.width, format.height, cropFrames[format.id] ?? CENTER_CROP)
+            const file = new File([blob], jpegVariantName(defaultName, format.id), { type: 'image/jpeg' })
+            await uploadOne(file, file.name, accountId, destinationId, '', '', '', '', [], {
+              parentId: saved.fileId,
+              format: format.id,
+            })
+          }
+          break
+        default: {
+          const unreachable: never = severalMode
+          throw new Error(unreachable)
+        }
+      }
+      for (let index = 0; index < namedRows.length; index += 1) {
+        const row = namedRows[index]
+        if (!row?.file) continue
+        const label = row.name.trim()
+        setProgress(`Uploading ${label}`)
+        await uploadOne(row.file, variantFileName(defaultName, customFormatId(label, index)), accountId, destinationId, '', '', '', '', [], {
+          parentId: saved.fileId,
+          customId: customFormatId(label, index),
+          customLabel: label,
+        })
       }
       onUploaded()
     } catch (uploadError) {
       setUploading(false)
       setProgress('')
       setError(uploadError instanceof Error ? uploadError.message : 'The file could not be saved to Drive.')
+    }
+  }
+
+  function renderSeveralMode(): ReactNode {
+    switch (severalMode) {
+      case 'ready':
+        return (
+          <>
+            <p>Upload each format already at the right size.</p>
+            {EXPORT_FORMATS.map((format) => (
+              <label key={format.id} className="format-upload">
+                <span>
+                  <b>{format.label}</b>
+                  <small>{format.note}</small>
+                </span>
+                <input
+                  type="file"
+                  accept="image/*"
+                  disabled={uploading}
+                  onChange={(event) =>
+                    setVariantFiles((current) => ({
+                      ...current,
+                      [format.id]: event.target.files?.[0] ?? null,
+                    }))
+                  }
+                />
+              </label>
+            ))}
+          </>
+        )
+      case 'make':
+        return (
+          <>
+            <p>Choose the formats to make from this photo. Drag each preview until the crop looks right.</p>
+            <div className="format-choice">
+              {EXPORT_FORMATS.map((format) => (
+                <label key={format.id}>
+                  <input
+                    type="checkbox"
+                    checked={makeFormats.includes(format.id)}
+                    disabled={uploading}
+                    onChange={() =>
+                      setMakeFormats((current) =>
+                        current.includes(format.id) ? current.filter((id) => id !== format.id) : [...current, format.id],
+                      )
+                    }
+                  />
+                  <span>{format.label}</span>
+                </label>
+              ))}
+            </div>
+            {sourceUrl
+              ? EXPORT_FORMATS.filter((format) => makeFormats.includes(format.id)).map((format) => (
+                  <FormatCrop
+                    key={format.id}
+                    src={sourceUrl}
+                    width={format.width}
+                    height={format.height}
+                    label={format.label}
+                    frame={cropFrames[format.id] ?? CENTER_CROP}
+                    onChange={(frame) => setCropFrames((current) => ({ ...current, [format.id]: frame }))}
+                  />
+                ))
+              : null}
+          </>
+        )
+      default: {
+        const unreachable: never = severalMode
+        return unreachable
+      }
     }
   }
 
@@ -706,9 +847,27 @@ function UploadDialog({
         ) : null}
         {formatMode === 'several' ? (
           <div className="format-uploads">
-            <p>Upload the photo people see in the library. Add a file under each other format when that size already exists.</p>
+            <p>Upload the photo people see in the library, then add the other formats.</p>
+            <div className="inline-controls">
+              <button
+                type="button"
+                className={severalMode === 'ready' ? 'pill active' : 'pill'}
+                disabled={uploading}
+                onClick={() => setSeveralMode('ready')}
+              >
+                Upload finished files
+              </button>
+              <button
+                type="button"
+                className={severalMode === 'make' ? 'pill active' : 'pill'}
+                disabled={uploading}
+                onClick={() => setSeveralMode('make')}
+              >
+                Make formats here
+              </button>
+            </div>
             <label className="field">
-              <span>Default photo</span>
+              <span>{severalMode === 'make' ? 'Source photo' : 'Default photo'}</span>
               <input
                 type="file"
                 accept="image/*"
@@ -717,25 +876,52 @@ function UploadDialog({
                 onChange={(event) => setDefaultPhoto(event.target.files?.[0] ?? null)}
               />
             </label>
-            {EXPORT_FORMATS.map((format) => (
-              <label key={format.id} className="format-upload">
-                <span>
-                  <b>{format.label}</b>
-                  <small>{format.note}</small>
-                </span>
-                <input
-                  type="file"
-                  accept="image/*"
+            {renderSeveralMode()}
+            <p>Add a photo that keeps its own size, and name that format. You can add more than one.</p>
+            {customRows.map((row) => (
+              <div key={row.key} className="custom-format">
+                <label className="field">
+                  <span>Format name</span>
+                  <input
+                    value={row.name}
+                    disabled={uploading}
+                    maxLength={40}
+                    placeholder="Lookbook"
+                    onChange={(event) =>
+                      setCustomRows((current) => current.map((item) => (item.key === row.key ? { ...item, name: event.target.value } : item)))
+                    }
+                  />
+                </label>
+                <label className="field">
+                  <span>Photo</span>
+                  <input
+                    type="file"
+                    accept="image/*"
+                    disabled={uploading}
+                    onChange={(event) => {
+                      const file = event.target.files?.[0] ?? null
+                      setCustomRows((current) => current.map((item) => (item.key === row.key ? { ...item, file } : item)))
+                    }}
+                  />
+                </label>
+                <button
+                  type="button"
+                  className="text-btn"
                   disabled={uploading}
-                  onChange={(event) =>
-                    setVariantFiles((current) => ({
-                      ...current,
-                      [format.id]: event.target.files?.[0] ?? null,
-                    }))
-                  }
-                />
-              </label>
+                  onClick={() => setCustomRows((current) => current.filter((item) => item.key !== row.key))}
+                >
+                  Remove
+                </button>
+              </div>
             ))}
+            <button
+              type="button"
+              className="btn soft"
+              disabled={uploading || customRows.length >= 6}
+              onClick={() => setCustomRows((current) => [...current, { key: `${Date.now()}-${current.length}`, name: '', file: null }])}
+            >
+              Add a named format
+            </button>
           </div>
         ) : null}
         {formatMode === 'single' && picked.length > 0 || formatMode === 'several' && defaultPhoto ? (
@@ -803,6 +989,18 @@ function fileExtension(file: File): string {
   }
 }
 
+type CustomDraft = {
+  key: string
+  name: string
+  file: File | null
+}
+
+function jpegVariantName(fileName: string, formatId: string): string {
+  const named = variantFileName(fileName, formatId)
+  const stem = named.replace(/\.[^.]+$/i, '')
+  return `${stem}.jpg`
+}
+
 function isImageFile(file: File): boolean {
   if (file.type.startsWith('image/')) return true
   return /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(file.name)
@@ -818,7 +1016,7 @@ async function uploadOne(
   tags: string,
   suggestedUse: string,
   formats: ExportId[],
-  variant?: { parentId: string; format: ExportId },
+  variant?: { parentId: string; format?: ExportId; customId?: string; customLabel?: string },
 ): Promise<{ destinationId: string; fileId: string }> {
   const started = await fetch('/api/admin/uploads', {
     method: 'POST',
@@ -836,6 +1034,8 @@ async function uploadOne(
       formats,
       variantParentId: variant?.parentId ?? '',
       variantFormat: variant?.format ?? null,
+      variantCustomId: variant?.customId ?? '',
+      variantCustomLabel: variant?.customLabel ?? '',
     }),
   })
   const startedBody: unknown = await started.json().catch(() => null)

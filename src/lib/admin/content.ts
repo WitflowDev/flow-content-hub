@@ -303,6 +303,9 @@ async function linkedVariantIds(fileIds: string[]): Promise<string[]> {
     for (const variant of Object.values(item.variants)) {
       if (variant && isDriveFileId(variant.fileId)) ids.push(variant.fileId)
     }
+    for (const variant of item.customVariants) {
+      if (isDriveFileId(variant.fileId)) ids.push(variant.fileId)
+    }
   }
   return ids
 }

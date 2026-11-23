@@ -7,6 +7,11 @@ export type PhotoVariant = {
   mimeType: string
 }
 
+export type CustomVariant = PhotoVariant & {
+  id: string
+  label: string
+}
+
 export type MediaType = 'Video' | 'Photography' | 'Design'
 export type MediaChannel = 'Instagram' | 'Website' | 'Ads' | 'Design'
 export type Orientation = 'Vertical' | 'Portrait' | 'Landscape' | 'Square'
@@ -29,6 +34,7 @@ export type MediaItem = {
   bytes?: number
   exports?: string[]
   variants?: Partial<Record<ExportId, PhotoVariant>>
+  customVariants?: CustomVariant[]
 }
 
 export type ContentMap = {

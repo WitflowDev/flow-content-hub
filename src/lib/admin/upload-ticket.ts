@@ -1,6 +1,6 @@
 import 'server-only'
 import { createHmac, timingSafeEqual } from 'node:crypto'
-import { exportFormat, parseExportIds, type ExportId } from '@/data/exports'
+import { exportFormat, isCustomFormatId, parseExportIds, type ExportId } from '@/data/exports'
 
 const TICKET_TTL_MS = 20 * 60 * 1000
 
@@ -16,6 +16,8 @@ type UploadTicket = {
   fileName: string
   variantParentId: string
   variantFormat: ExportId | null
+  variantCustomId: string
+  variantCustomLabel: string
   exp: number
 }
 
@@ -31,6 +33,8 @@ export function sealUploadTicket(input: {
   fileName: string
   variantParentId: string
   variantFormat: ExportId | null
+  variantCustomId: string
+  variantCustomLabel: string
 }): string {
   const ticket: UploadTicket = { ...input, exp: Date.now() + TICKET_TTL_MS }
   const body = Buffer.from(JSON.stringify(ticket)).toString('base64url')
@@ -60,6 +64,8 @@ export function openUploadTicket(token: string, adminUid: string): UploadTicket 
     fileName: typeof parsed.fileName === 'string' ? parsed.fileName.slice(0, 180) : 'photo',
     variantParentId: typeof parsed.variantParentId === 'string' ? parsed.variantParentId : '',
     variantFormat: typeof parsed.variantFormat === 'string' ? (exportFormat(parsed.variantFormat)?.id ?? null) : null,
+    variantCustomId: typeof parsed.variantCustomId === 'string' && isCustomFormatId(parsed.variantCustomId) ? parsed.variantCustomId : '',
+    variantCustomLabel: typeof parsed.variantCustomLabel === 'string' ? parsed.variantCustomLabel.trim().slice(0, 40) : '',
   }
 }
 
@@ -87,7 +93,9 @@ function isTicket(value: unknown): value is UploadTicket {
     (ticket.formats === undefined || Array.isArray(ticket.formats)) &&
     (ticket.fileName === undefined || typeof ticket.fileName === 'string') &&
     (ticket.variantParentId === undefined || typeof ticket.variantParentId === 'string') &&
-    (ticket.variantFormat === undefined || ticket.variantFormat === null || typeof ticket.variantFormat === 'string')
+    (ticket.variantFormat === undefined || ticket.variantFormat === null || typeof ticket.variantFormat === 'string') &&
+    (ticket.variantCustomId === undefined || typeof ticket.variantCustomId === 'string') &&
+    (ticket.variantCustomLabel === undefined || typeof ticket.variantCustomLabel === 'string')
   )
 }
 

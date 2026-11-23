@@ -3,6 +3,7 @@
 import { useEffect, useState } from 'react'
 import Link from 'next/link'
 import { ContentDayBooking } from '@/components/content-day/ContentDayBooking'
+import { HubPreview } from '@/components/screens/HubPreview'
 import { LOGO_BLACK, Logo } from '@/components/shell/Logo'
 import { contentDayPlans as plans, type ContentDayPlanId as PlanId } from '@/lib/content-day'
 
@@ -32,7 +33,6 @@ const socials = [
 ]
 
 const shots = {
-  library: { src: '/assets/tutorials/photos.png', title: 'Content library' },
   filters: { src: '/assets/tutorials/filters.png', title: 'Content library' },
   collections: { src: '/assets/tutorials/collections.png', title: 'Collections by project' },
   guides: { src: '/assets/tutorials/reels.png', title: 'Guides and tips' },
@@ -143,13 +143,9 @@ export function LandingScreen() {
                   </span>
                   <span>Flow Content Hub</span>
                 </div>
-                <button type="button" className="frame-expand" onClick={() => setLightbox(shots.library)}>
-                  <span>Enlarge</span>
-                </button>
+                <span className="frame-live">Preview</span>
               </div>
-              <button type="button" className="hero-shot" onClick={() => setLightbox(shots.library)} aria-label="Enlarge the Content Hub library">
-                <img src={shots.library.src} alt="Flow Content Hub library with videos and photographs." />
-              </button>
+              <HubPreview />
             </div>
           </div>
         </section>
