@@ -4,13 +4,14 @@ import { useEffect, useRef, useState } from 'react'
 import type { FormEvent, MouseEvent } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import { AdminUsers } from '@/components/admin/AdminUsers'
 import { blankPhoto, PhotoRail, readCustomSize, type PhotoDraft, type ReadyCustomSize } from '@/components/admin/PhotoFormats'
 import { Icon } from '@/components/icons'
 import { CENTER_CROP, customFormatId, EXPORT_FORMATS, renderCrop, variantFileName, type ExportId } from '@/data/exports'
 import { AdminCollectionBoard } from '@/components/screens/AdminCollectionBoard'
 import { UploadMaps, type DraftMap } from '@/components/screens/UploadMaps'
 import { confirmContentDay } from '@/lib/admin/content-day'
-import { nextStandardNames, saveCollectionMaps } from '@/lib/admin/content'
+import { deleteAdminCollection, nextStandardNames, saveCollectionMaps, setCollectionCover } from '@/lib/admin/content'
 import { setCollectionPublished, setRequestStatus } from '@/lib/admin/actions'
 import { contentDayPlans, formatContentDay, parseDateKey, type ContentDayRequest } from '@/lib/content-day'
 import type { AdminAccount, AdminCollectionRow, ServiceRequestRow, ServiceRequestStatus } from '@/lib/admin/types'
@@ -105,6 +106,16 @@ export function AdminScreen({
       return
     }
     toast(published ? 'Collection published' : 'Collection moved to draft', 'success')
+    router.refresh()
+  }
+
+  async function onDeleteCollection(row: AdminCollectionRow) {
+    const result = await deleteAdminCollection({ accountId: row.accountId, folderId: row.id })
+    if (!result.ok) {
+      toast(result.message)
+      return
+    }
+    toast('Collection deleted', 'success')
     router.refresh()
   }
 
@@ -220,7 +231,11 @@ export function AdminScreen({
                 </small>
               </div>
               <span className={collection.published ? 'status published' : 'status'}>{collection.published ? 'Published' : 'Draft'}</span>
-              <CollectionMenu collection={collection} onPublished={(published) => onPublished(collection, published)} />
+              <CollectionMenu
+                collection={collection}
+                onPublished={(published) => onPublished(collection, published)}
+                onDelete={() => onDeleteCollection(collection)}
+              />
             </div>
           ))}
         </section>
@@ -277,6 +292,7 @@ export function AdminScreen({
           ))}
         </section>
       </div>
+      <AdminUsers />
       </>
       )}
       {uploadOpen ? (
@@ -353,6 +369,41 @@ function PromotionPanel({ accounts }: { accounts: AdminAccount[] }) {
   )
 }
 
+function CoverChoices({
+  items,
+  selected,
+  disabled,
+  onSelect,
+}: {
+  items: Array<{ key: string; label: string; url: string; video: boolean }>
+  selected: number
+  disabled: boolean
+  onSelect: (index: number) => void
+}) {
+  if (items.length === 0) return null
+  const current = selected >= 0 && selected < items.length ? selected : 0
+  return (
+    <div className="field">
+      <label>Cover</label>
+      <div className="cover-choices">
+        {items.map((item, index) => (
+          <button
+            key={item.key}
+            type="button"
+            className={index === current ? 'cover-choice on' : 'cover-choice'}
+            disabled={disabled}
+            aria-pressed={index === current}
+            onClick={() => onSelect(index)}
+          >
+            {item.video ? <video src={item.url} muted /> : <img src={item.url} alt="" />}
+            <span>{item.label}</span>
+          </button>
+        ))}
+      </div>
+    </div>
+  )
+}
+
 function UploadDialog({
   accounts,
   collections,
@@ -378,6 +429,8 @@ function UploadDialog({
   const [formatMode, setFormatMode] = useState<'single' | 'several'>('single')
   const [severalMode, setSeveralMode] = useState<'ready' | 'make'>('ready')
   const [photos, setPhotos] = useState<PhotoDraft[]>([])
+  const [coverIndex, setCoverIndex] = useState(0)
+  const [coverPreviews, setCoverPreviews] = useState<Array<{ url: string; video: boolean }>>([])
   const photosRef = useRef<PhotoDraft[]>([])
   photosRef.current = photos
   const [uploading, setUploading] = useState(false)
@@ -392,6 +445,17 @@ function UploadDialog({
       for (const photo of photosRef.current) URL.revokeObjectURL(photo.url)
     }
   }, [])
+
+  useEffect(() => {
+    const next = picked.map((file) => ({
+      url: URL.createObjectURL(file),
+      video: file.type.startsWith('video/'),
+    }))
+    setCoverPreviews(next)
+    return () => {
+      for (const item of next) URL.revokeObjectURL(item.url)
+    }
+  }, [picked])
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -443,6 +507,13 @@ function UploadDialog({
         )
         destinationId = saved.destinationId
         fileIds.push(saved.fileId)
+      }
+      if (destination === 'new' && destinationId && fileIds.length > 0) {
+        const coverId = fileIds[coverIndex] ?? fileIds[0]
+        if (coverId) {
+          const savedCover = await setCollectionCover({ accountId, folderId: destinationId, fileId: coverId })
+          if (!savedCover.ok) toast(savedCover.message)
+        }
       }
       if (canMap && destinationId) {
         const ready = maps
@@ -522,6 +593,7 @@ function UploadDialog({
     setError('')
     let destinationId = destination === 'new' ? '' : destination
     const namedCollection = destination === 'new' ? collectionName : ''
+    const fileIds: string[] = []
     try {
       const names = standardNames
         ? await standardFileNames(prepared.map((item) => item.photo.file), accountId, destination === 'new' ? '' : destination, destination === 'new' ? collectionName : '')
@@ -544,6 +616,7 @@ function UploadDialog({
         )
         if (!saved.fileId) throw new Error('The photo could not be saved to Drive.')
         destinationId = saved.destinationId
+        fileIds.push(saved.fileId)
         switch (severalMode) {
           case 'ready':
             for (const format of EXPORT_FORMATS) {
@@ -587,6 +660,13 @@ function UploadDialog({
             const unreachable: never = severalMode
             throw new Error(unreachable)
           }
+        }
+      }
+      if (destination === 'new' && destinationId && fileIds.length > 0) {
+        const coverId = fileIds[coverIndex] ?? fileIds[0]
+        if (coverId) {
+          const savedCover = await setCollectionCover({ accountId, folderId: destinationId, fileId: coverId })
+          if (!savedCover.ok) toast(savedCover.message)
         }
       }
       onUploaded()
@@ -673,6 +753,23 @@ function UploadDialog({
               onChange={(event) => setCollectionDescription(event.target.value)}
             />
           </div>
+        ) : null}
+        {destination === 'new' ? (
+          <CoverChoices
+            items={
+              formatMode === 'several'
+                ? photos.map((photo) => ({ key: photo.key, label: photo.file.name, url: photo.url, video: false }))
+                : coverPreviews.map((item, index) => ({
+                    key: `${item.url}-${index}`,
+                    label: picked[index]?.name ?? 'File',
+                    url: item.url,
+                    video: item.video,
+                  }))
+            }
+            selected={coverIndex}
+            disabled={uploading}
+            onSelect={setCoverIndex}
+          />
         ) : null}
         <div className="field">
           <label htmlFor="upload-tags">Tags</label>
@@ -979,14 +1076,17 @@ function messageFrom(value: unknown, fallback: string): string {
 function CollectionMenu({
   collection,
   onPublished,
+  onDelete,
 }: {
   collection: AdminCollectionRow
   onPublished: (published: boolean) => Promise<void>
+  onDelete: () => Promise<void>
 }) {
   const buttonRef = useRef<HTMLButtonElement>(null)
   const [open, setOpen] = useState(false)
   const [place, setPlace] = useState<{ top: number; left: number; above: boolean } | null>(null)
   const [pending, setPending] = useState(false)
+  const [confirmDelete, setConfirmDelete] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -995,9 +1095,13 @@ function CollectionMenu({
       const wrap = buttonRef.current?.parentElement
       if (target instanceof Node && wrap?.contains(target)) return
       setOpen(false)
+      setConfirmDelete(false)
     }
     function closeOnKey(event: KeyboardEvent) {
-      if (event.key === 'Escape') setOpen(false)
+      if (event.key === 'Escape') {
+        setOpen(false)
+        setConfirmDelete(false)
+      }
     }
     document.addEventListener('pointerdown', closeOnOutside)
     document.addEventListener('keydown', closeOnKey)
@@ -1009,7 +1113,7 @@ function CollectionMenu({
 
   function toggle(event: MouseEvent<HTMLButtonElement>) {
     const rect = event.currentTarget.getBoundingClientRect()
-    const above = window.innerHeight - rect.bottom < 72
+    const above = window.innerHeight - rect.bottom < 120
     setPlace({ top: above ? rect.top - 8 : rect.bottom + 8, left: rect.right, above })
     setOpen((current) => !current)
   }
@@ -1017,7 +1121,16 @@ function CollectionMenu({
   async function choose(published: boolean) {
     setPending(true)
     setOpen(false)
+    setConfirmDelete(false)
     await onPublished(published)
+    setPending(false)
+  }
+
+  async function remove() {
+    setPending(true)
+    setOpen(false)
+    setConfirmDelete(false)
+    await onDelete()
     setPending(false)
   }
 
@@ -1050,6 +1163,15 @@ function CollectionMenu({
           <button type="button" role="menuitem" onClick={() => void choose(nextPublished)}>
             {collection.published ? 'Move to draft' : 'Publish'}
           </button>
+          {confirmDelete ? (
+            <button type="button" role="menuitem" className="danger" onClick={() => void remove()}>
+              Confirm delete
+            </button>
+          ) : (
+            <button type="button" role="menuitem" className="danger" onClick={() => setConfirmDelete(true)}>
+              Delete
+            </button>
+          )}
         </div>
       ) : null}
     </div>

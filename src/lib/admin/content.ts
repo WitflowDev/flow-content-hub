@@ -11,8 +11,10 @@ import { companyFolderName, renameOwnedItem, trashOwnedItem } from '@/lib/drive/
 import {
   appendCollectionMaps,
   deleteCollectionState,
+  dropCollectionCover,
   dropFilesFromMaps,
   readCollectionRecords,
+  writeCollectionCover,
   writeCollectionMaps,
   writeCollectionState,
 } from '@/lib/drive/publish'
@@ -58,6 +60,7 @@ export async function loadAdminCollection(input: {
       title: located.folder.name,
       description: record?.description ?? '',
       tags: record?.tags ?? [],
+      coverFileId: record?.coverFileId && visible.some((file) => file.id === record.coverFileId) ? record.coverFileId : '',
       posts,
       maps: (record?.maps ?? [])
         .map((map) => ({
@@ -114,6 +117,7 @@ export async function deleteAdminPost(input: {
     const extras = await linkedVariantIds([file.id])
     await trashCollectionFiles([file.id, ...extras].map((id) => ({ id })))
     await dropFilesFromMaps(located.folder.id, [file.id])
+    await dropCollectionCover(located.folder.id, [file.id])
   } catch (error) {
     return { ok: false, message: publicMessage(error, 'The post could not be deleted.') }
   }
@@ -144,6 +148,7 @@ export async function deleteAdminPosts(input: {
     const extras = await linkedVariantIds(visibleIds)
     await trashCollectionFiles([...new Set([...visibleIds, ...extras])].map((id) => ({ id })))
     await dropFilesFromMaps(located.folder.id, visibleIds)
+    await dropCollectionCover(located.folder.id, visibleIds)
   } catch (error) {
     return { ok: false, message: publicMessage(error, 'The files could not be deleted.') }
   }
@@ -158,6 +163,7 @@ export async function updateAdminCollection(input: {
   description: string
   tags: string
   published: boolean
+  coverFileId: string
   maps: Array<{ fileIds: string[]; description: string }>
 }): Promise<Result> {
   const admin = await requireAdmin()
@@ -169,6 +175,11 @@ export async function updateAdminCollection(input: {
   if (!name) return { ok: false, message: 'Enter a collection name.' }
   const located = await locateCollection(input.accountId, input.folderId)
   if (!located.ok) return located
+  const visibleIds = new Set(located.files.filter((file) => !formatVariantId(file.name)).map((file) => file.id))
+  const coverFileId = input.coverFileId.trim()
+  if (coverFileId && !visibleIds.has(coverFileId)) {
+    return { ok: false, message: 'Choose a cover from this collection.' }
+  }
   const maps = readMaps(input.maps, new Set(located.files.map((file) => file.id)), 12)
   if (!maps) return { ok: false, message: 'Each carousel needs at least two files from this collection.' }
   try {
@@ -181,9 +192,30 @@ export async function updateAdminCollection(input: {
       description: input.description,
       tags: parseTags(input.tags),
     })
+    await writeCollectionCover(located.folder.id, coverFileId)
     await writeCollectionMaps(located.folder.id, maps)
   } catch (error) {
     return { ok: false, message: publicMessage(error, 'The collection could not be saved.') }
+  }
+  refreshLibrary(located.clientFolderId)
+  return { ok: true }
+}
+
+export async function setCollectionCover(input: {
+  accountId: string
+  folderId: string
+  fileId: string
+}): Promise<Result> {
+  const admin = await requireAdmin()
+  if (!admin) return { ok: false, message: 'Only an admin can choose a cover.' }
+  const located = await locateCollection(input.accountId, input.folderId)
+  if (!located.ok) return located
+  const file = located.files.find((item) => item.id === input.fileId)
+  if (!file || formatVariantId(file.name)) return { ok: false, message: 'Choose a file from this collection.' }
+  try {
+    await writeCollectionCover(located.folder.id, file.id)
+  } catch (error) {
+    return { ok: false, message: publicMessage(error, 'The cover could not be saved.') }
   }
   refreshLibrary(located.clientFolderId)
   return { ok: true }

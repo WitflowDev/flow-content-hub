@@ -297,6 +297,9 @@
   .day-landing .plan-card {padding:19px 17px}
   .day-landing .price strong {font-size:32px}
 }
+@media (min-width:901px) and (max-width:2199px) {
+  .day-landing:not(.content-day-embed) {zoom:.9}
+}
 @media (min-width:2200px) {
   .day-landing:not(.content-day-embed) {zoom:1.2}
 }

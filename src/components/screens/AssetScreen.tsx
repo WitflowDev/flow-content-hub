@@ -6,6 +6,7 @@ import { useParams } from 'next/navigation'
 import { Icon } from '@/components/icons'
 import { cropToFormat, exportFormat } from '@/data/exports'
 import { TutorialImage } from '@/components/guides/TutorialImage'
+import { FavoriteButton } from '@/components/media/FavoriteButton'
 import { MediaCard } from '@/components/media/MediaCard'
 import { submitServiceRequest } from '@/lib/admin/actions'
 import { streamPath } from '@/lib/drive/prefix-budget'
@@ -270,7 +271,10 @@ export function AssetScreen() {
         </div>
         <aside className="asset-info">
           <div className="eyebrow">{item.type}</div>
-          <h1>{item.title}</h1>
+          <div className="asset-title-line">
+            <h1>{item.title}</h1>
+            {item.driveFileId ? <FavoriteButton fileId={item.driveFileId} placement="inline" /> : null}
+          </div>
           <p className="asset-sub">
             {item.file} <span>·</span> {item.duration || 'Final'} <span>·</span> {item.orientation}
           </p>

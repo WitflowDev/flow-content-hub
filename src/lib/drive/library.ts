@@ -49,7 +49,7 @@ export async function libraryThumb(folderId: string, fileId: string): Promise<Li
 }
 
 function readCachedSnapshot(folderId: string): Promise<LibrarySnapshot> {
-  return unstable_cache(() => buildSnapshot(folderId), ['drive-library-v7', folderId], {
+  return unstable_cache(() => buildSnapshot(folderId), ['drive-library-v8', folderId], {
     revalidate: LIBRARY_CACHE_SECONDS,
     tags: [libraryTag(folderId)],
   })()
@@ -90,9 +90,15 @@ function toCollection(folder: DriveCollectionFolder, files: DrivePlacedFile[], r
     tags: record?.tags ?? [],
     maps: record?.maps ?? [],
     ids,
-    cover: ids.slice(0, 9),
+    cover: chosenCover(ids, record?.coverFileId ?? ''),
     published: true,
   }
+}
+
+function chosenCover(ids: string[], coverFileId: string): string[] {
+  const chosen = coverFileId ? `drive-${coverFileId}` : ''
+  if (chosen && ids.includes(chosen)) return [chosen]
+  return ids.slice(0, 9)
 }
 
 function formatCollectionDate(value: string | undefined): string {

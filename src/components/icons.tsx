@@ -21,6 +21,7 @@ export type IconName =
   | 'users'
   | 'upload'
   | 'calendar'
+  | 'star'
 
 function StrokeIcon({ strokeWidth, children }: { strokeWidth: number; children: ReactNode }) {
   return (
@@ -30,7 +31,7 @@ function StrokeIcon({ strokeWidth, children }: { strokeWidth: number; children: 
   )
 }
 
-function renderIcon(name: IconName): ReactNode {
+function renderIcon(name: IconName, filled: boolean): ReactNode {
   switch (name) {
     case 'home':
       return (
@@ -176,6 +177,12 @@ function renderIcon(name: IconName): ReactNode {
           <path d="M8 3v4M16 3v4M4 10h16" />
         </StrokeIcon>
       )
+    case 'star':
+      return (
+        <svg viewBox="0 0 24 24" fill={filled ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={1.8}>
+          <path d="m12 3.6 2.4 4.9 5.4.8-3.9 3.8.9 5.4L12 16.1 7.2 18.5l.9-5.4L4.2 9.3l5.4-.8z" />
+        </svg>
+      )
     default: {
       const exhaustive: never = name
       return exhaustive
@@ -183,6 +190,6 @@ function renderIcon(name: IconName): ReactNode {
   }
 }
 
-export function Icon({ name }: { name: IconName }) {
-  return <span className="svg">{renderIcon(name)}</span>
+export function Icon({ name, filled = false }: { name: IconName; filled?: boolean }) {
+  return <span className="svg">{renderIcon(name, filled)}</span>
 }

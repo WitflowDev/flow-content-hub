@@ -1,5 +1,6 @@
 'use client'
 
+import { Icon } from '@/components/icons'
 import { MediaThumb } from '@/components/media/MediaThumb'
 import { useApp } from '@/state/AppState'
 import { useLibrary } from '@/state/Catalog'
@@ -37,6 +38,11 @@ export function CollectionTile({ collection }: { collection: Collection }) {
           ))}
           <span className="asset-total">{collection.count}</span>
         </div>
+      ) : collection.favorites ? (
+        <div className="collection-cover collection-cover-empty">
+          <Icon name="star" />
+          <span className="asset-total">{collection.count}</span>
+        </div>
       ) : null}
       <div className="collection-body">
         <div>
@@ -44,7 +50,7 @@ export function CollectionTile({ collection }: { collection: Collection }) {
           {collection.description ? <p>{collection.description}</p> : null}
         </div>
         <span className="collection-meta">
-          {collection.count} assets <b>·</b> {collection.date}
+          {collection.count} assets{collection.date ? <> <b>·</b> {collection.date}</> : null}
         </span>
       </div>
     </button>

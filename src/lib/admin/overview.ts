@@ -28,9 +28,15 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
 
   const accounts = users.docs.map((account) => {
     const driveFolderId = account.get('driveFolderId')
+    const email = text(account.get('email'))
+    const name = text(account.get('name'))
+    const companyName = text(account.get('companyName'))
     return {
       id: account.id,
-      label: accountLabel(account.get('companyName'), account.get('name'), account.get('email'), account.id),
+      email,
+      name,
+      companyName,
+      label: accountLabel(companyName, name, email, account.id),
       hasFolder: typeof driveFolderId === 'string' && driveFolderId.length > 0,
       role: parseRole(account.get('role')),
       driveFolderId: typeof driveFolderId === 'string' ? driveFolderId : '',
@@ -69,7 +75,8 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
     for (const collection of entry.listed.collections) {
       const members = entry.listed.files.filter((file) => file.collectionId === collection.id && !formatVariantId(file.name))
       const record = records.get(collection.id)
-      const cover = newestFile(members)
+      const chosen = record?.coverFileId ? members.find((file) => file.id === record.coverFileId) : undefined
+      const cover = chosen ?? newestFile(members)
       collections.push({
         id: collection.id,
         title: collection.name,

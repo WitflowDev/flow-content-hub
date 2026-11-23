@@ -5,7 +5,9 @@ import { Icon } from '@/components/icons'
 import { CollectionTile } from '@/components/collections/CollectionTile'
 import { ContentDayOffer } from '@/components/feedback/ContentDayOffer'
 import { FlowTip } from '@/components/feedback/FlowTip'
+import { favoritesCollection } from '@/lib/favorites'
 import { useLibrary } from '@/state/Catalog'
+import { useFavorites } from '@/state/Favorites'
 import type { Collection } from '@/data/types'
 
 type CollectionOrder = 'newest' | 'oldest'
@@ -16,10 +18,13 @@ function collectionTime(collection: Collection): number {
 }
 
 export function CollectionsScreen() {
-  const { collections } = useLibrary()
+  const { collections, media } = useLibrary()
+  const favorites = useFavorites()
   const [query, setQuery] = useState('')
   const [order, setOrder] = useState<CollectionOrder>('newest')
   const needle = query.trim().toLowerCase()
+  const favoritesFolder = favoritesCollection(media, favorites.ids)
+  const showFavorites = !needle || favoritesFolder.title.toLowerCase().includes(needle)
   const visible = collections
     .filter((collection) => collection.title.toLowerCase().includes(needle))
     .sort((left, right) => {
@@ -51,8 +56,9 @@ export function CollectionsScreen() {
           <option value="oldest">Oldest first</option>
         </select>
       </div>
-      {visible.length === 0 ? <p className="collection-empty">No collections match that search.</p> : null}
+      {visible.length === 0 && !showFavorites ? <p className="collection-empty">No collections match that search.</p> : null}
       <div className="collections-grid">
+        {showFavorites ? <CollectionTile key={favoritesFolder.slug} collection={favoritesFolder} /> : null}
         {visible.map((collection) => (
           <CollectionTile key={collection.slug} collection={collection} />
         ))}

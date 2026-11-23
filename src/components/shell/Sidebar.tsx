@@ -1,5 +1,6 @@
 'use client'
 
+import { useLayoutEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { Icon } from '@/components/icons'
 import type { IconName } from '@/components/icons'
@@ -8,6 +9,11 @@ import { ServiceMenu } from '@/components/shell/ServiceMenu'
 import { useApp } from '@/state/AppState'
 import { useSession } from '@/state/Session'
 import type { NavId } from '@/data/types'
+
+const FLOW_VIDEO_WIDTH = 3440
+const FLOW_VIDEO_HEIGHT = 1440
+const FLOW_VIDEO = '/assets/video_flow/video_flow.mp4'
+const FLOW_SITE = 'https://www.flowproductions.pt/en'
 
 const items: Array<{ id: NavId; label: string; url: string; icon: IconName }> = [
   { id: 'home', label: 'Home', url: '/home', icon: 'home' },
@@ -63,6 +69,7 @@ export function Sidebar() {
           ) : null}
         </nav>
         <ServiceMenu pathname={pathname} />
+        <SidebarTower />
         <div className="sidebar-contact">
           <p>Have a project in mind?</p>
           <span>Tell us the idea and we’ll point you to the next step.</span>
@@ -79,5 +86,33 @@ export function Sidebar() {
         </div>
       </div>
     </aside>
+  )
+}
+
+function SidebarTower() {
+  const gapRef = useRef<HTMLDivElement>(null)
+  const [room, setRoom] = useState(false)
+
+  useLayoutEffect(() => {
+    const gap = gapRef.current
+    if (!gap) return
+    const apply = () => {
+      const needed = (gap.clientWidth * FLOW_VIDEO_HEIGHT) / FLOW_VIDEO_WIDTH + 8
+      setRoom(gap.clientWidth > 0 && gap.clientHeight >= needed)
+    }
+    apply()
+    const watch = new ResizeObserver(apply)
+    watch.observe(gap)
+    return () => watch.disconnect()
+  }, [])
+
+  return (
+    <div className="sidebar-gap" ref={gapRef}>
+      {room ? (
+        <a className="sidebar-tower" href={FLOW_SITE} target="_blank" rel="noreferrer" aria-label="Flow Productions">
+          <video src={FLOW_VIDEO} muted loop playsInline autoPlay preload="auto" />
+        </a>
+      ) : null}
+    </div>
   )
 }

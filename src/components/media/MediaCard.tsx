@@ -5,6 +5,7 @@ import { Icon } from '@/components/icons'
 import { MediaActions } from '@/components/media/MediaActions'
 import { SelectBox } from '@/components/media/SelectBox'
 import { AssetTags } from '@/components/media/AssetTags'
+import { FavoriteButton } from '@/components/media/FavoriteButton'
 import { MediaThumb } from '@/components/media/MediaThumb'
 import { useApp } from '@/state/AppState'
 import type { MediaItem } from '@/data/types'
@@ -22,7 +23,7 @@ export const MediaCard = memo(function MediaCard({
 
   function openAsset(event: MouseEvent<HTMLElement>) {
     const target = event.target
-    if (target instanceof Element && target.closest('[data-select], .kebab-wrap')) return
+    if (target instanceof Element && target.closest('[data-select], .kebab-wrap, [data-favorite]')) return
     navigate(`/asset/${item.id}`)
   }
 
@@ -36,6 +37,7 @@ export const MediaCard = memo(function MediaCard({
             {item.duration}
           </span>
         ) : null}
+        {item.driveFileId ? <FavoriteButton fileId={item.driveFileId} /> : null}
         {selectable ? <SelectBox id={item.id} title={item.title} /> : null}
         <span className="asset-type-badge">{item.type === 'Photography' ? 'Photo' : item.type}</span>
       </div>

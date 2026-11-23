@@ -232,6 +232,9 @@ function CollectionEditor({
   const [carousels, setCarousels] = useState<DraftCarousel[]>(
     detail.maps.map((map, index) => ({ id: `saved-${index}`, description: map.description, fileIds: [...map.fileIds] })),
   )
+  const [coverId, setCoverId] = useState(
+    detail.coverFileId && detail.posts.some((item) => item.id === detail.coverFileId) ? detail.coverFileId : (detail.posts[0]?.id ?? ''),
+  )
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
 
@@ -270,6 +273,7 @@ function CollectionEditor({
           description,
           tags,
           published: collection.published,
+          coverFileId: coverId,
           maps: carousels.map((map) => ({ fileIds: map.fileIds, description: map.description })),
         })
       default: {
@@ -355,6 +359,26 @@ function CollectionEditor({
             onChange={(event) => setTags(event.target.value)}
           />
         </div>
+        {editor.kind === 'collection' && detail.posts.length > 0 ? (
+          <div className="field">
+            <label>Cover</label>
+            <div className="cover-choices">
+              {detail.posts.map((item) => (
+                <button
+                  key={item.id}
+                  type="button"
+                  className={coverId === item.id ? 'cover-choice on' : 'cover-choice'}
+                  disabled={saving}
+                  aria-pressed={coverId === item.id}
+                  onClick={() => setCoverId(item.id)}
+                >
+                  <img src={`/api/admin/files/${item.id}/thumbnail?folder=${collection.clientFolderId}`} alt="" />
+                  <span>{item.title}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
         {editor.kind === 'collection' ? (
           <CollectionMapsEditor
             posts={detail.posts}

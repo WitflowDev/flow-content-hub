@@ -8,7 +8,9 @@ import { FlowTip } from '@/components/feedback/FlowTip'
 import { MediaCard } from '@/components/media/MediaCard'
 import { downloadDriveFiles } from '@/lib/downloadDriveFiles'
 import { createCollectionShare } from '@/lib/share/actions'
+import { FAVORITES_SLUG, favoritesCollection } from '@/lib/favorites'
 import { routeParam } from '@/lib/library'
+import { useFavorites } from '@/state/Favorites'
 import { useApp } from '@/state/AppState'
 import { useLibrary } from '@/state/Catalog'
 import type { MediaItem } from '@/data/types'
@@ -40,11 +42,13 @@ export function CollectionDetailScreen() {
   const params = useParams()
   const { navigate, toast } = useApp()
   const library = useLibrary()
+  const favorites = useFavorites()
   const [assetFilter, setAssetFilter] = useState<AssetFilter>('All')
   const [newestFirst, setNewestFirst] = useState(true)
   const [shareUrl, setShareUrl] = useState('')
   const [sharing, setSharing] = useState(false)
-  const collection = library.getCollection(routeParam(params.slug))
+  const slug = routeParam(params.slug)
+  const collection = slug === FAVORITES_SLUG ? favoritesCollection(library.media, favorites.ids) : library.getCollection(slug)
   if (!collection) {
     return (
       <div className="page collection-detail-page">
@@ -102,7 +106,13 @@ export function CollectionDetailScreen() {
           <div className="eyebrow">Collection</div>
           <h1>{collection.title}</h1>
           <p>
-            {collection.count} assets <span>·</span> Updated {collection.date}
+            {collection.count} assets
+            {collection.date ? (
+              <>
+                {' '}
+                <span>·</span> Updated {collection.date}
+              </>
+            ) : null}
           </p>
           {collection.description ? <p className="collection-desc">{collection.description}</p> : null}
           {collection.tags && collection.tags.length > 0 ? (
@@ -116,9 +126,11 @@ export function CollectionDetailScreen() {
           ) : null}
         </div>
         <div className="collection-actions">
-          <button type="button" className="btn ghost" disabled={sharing} onClick={() => void share()}>
-            <Icon name="share" /> {sharing ? 'Creating link' : 'Share collection'}
-          </button>
+          {collection.favorites ? null : (
+            <button type="button" className="btn ghost" disabled={sharing} onClick={() => void share()}>
+              <Icon name="share" /> {sharing ? 'Creating link' : 'Share collection'}
+            </button>
+          )}
           <button type="button" className="btn primary" onClick={() => downloadDriveFiles(items)}>
             <Icon name="download" /> Download collection
           </button>
@@ -155,7 +167,11 @@ export function CollectionDetailScreen() {
             </button>
           </div>
         </div>
-        {ordered.length === 0 ? <p className="collection-empty">No assets match this filter.</p> : null}
+        {ordered.length === 0 ? (
+          <p className="collection-empty">
+            {collection.favorites && assetFilter === 'All' ? 'Star an asset and it will show up here.' : 'No assets match this filter.'}
+          </p>
+        ) : null}
         <div className="media-grid collection-assets">
           {ordered.map((item, index) => (
             <MediaCard key={`${item.id}-${index}`} item={item} />

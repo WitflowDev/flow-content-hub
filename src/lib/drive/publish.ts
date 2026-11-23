@@ -1,4 +1,5 @@
 import 'server-only'
+import { FieldValue } from 'firebase-admin/firestore'
 import { isDriveFileId } from '@/lib/drive/client'
 import { adminDb } from '@/lib/firebase/admin'
 import { parseTags } from '@/lib/tags'
@@ -16,6 +17,7 @@ export type CollectionRecord = {
   description: string
   tags: string[]
   maps: ContentMapRecord[]
+  coverFileId: string
 }
 
 export async function readCollectionRecords(folderIds: string[]): Promise<Map<string, CollectionRecord>> {
@@ -33,6 +35,7 @@ export async function readCollectionRecords(folderIds: string[]): Promise<Map<st
         description: cleanDescription(snap.get('description')),
         tags: storedTags(snap.get('tags')),
         maps: storedMaps(snap.get('maps')),
+        coverFileId: storedCover(snap.get('coverFileId')),
       })
     }
   }
@@ -106,9 +109,33 @@ export async function dropFilesFromMaps(folderId: string, fileIds: string[]): Pr
   await ref.set({ maps, driveFolderId: folderId }, { merge: true })
 }
 
+export async function writeCollectionCover(folderId: string, coverFileId: string): Promise<void> {
+  if (!isDriveFileId(folderId)) return
+  const ref = adminDb().collection('collections').doc(folderId)
+  if (isDriveFileId(coverFileId)) {
+    await ref.set({ coverFileId, driveFolderId: folderId }, { merge: true })
+    return
+  }
+  await ref.set({ coverFileId: FieldValue.delete() }, { merge: true })
+}
+
+export async function dropCollectionCover(folderId: string, fileIds: string[]): Promise<void> {
+  if (!isDriveFileId(folderId) || fileIds.length === 0) return
+  const ref = adminDb().collection('collections').doc(folderId)
+  const existing = await ref.get()
+  const cover = existing.get('coverFileId')
+  if (typeof cover === 'string' && fileIds.includes(cover)) {
+    await ref.set({ coverFileId: FieldValue.delete() }, { merge: true })
+  }
+}
+
 export async function deleteCollectionState(folderId: string): Promise<void> {
   if (!isDriveFileId(folderId)) return
   await adminDb().collection('collections').doc(folderId).delete()
+}
+
+function storedCover(value: unknown): string {
+  return typeof value === 'string' && isDriveFileId(value) ? value : ''
 }
 
 function storedTags(value: unknown): string[] {

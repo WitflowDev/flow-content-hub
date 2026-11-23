@@ -2,6 +2,7 @@ import { Suspense, type ReactNode } from 'react'
 import { redirect } from 'next/navigation'
 import { AppFrame } from '@/components/shell/AppFrame'
 import { loadDriveLibrary } from '@/lib/drive/library'
+import { readFavoriteFileIds } from '@/lib/favorites/store'
 import { ensureUserProfile } from '@/lib/firebase/profile'
 import { getSessionUser } from '@/lib/firebase/session'
 import { loadAccountNotices } from '@/lib/notifications/sync'
@@ -37,7 +38,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
 
 function LibraryFallback({ profile }: { profile: SessionProfile }) {
   return (
-    <AppFrame profile={profile} notices={[]} media={[]} collections={[]}>
+    <AppFrame profile={profile} notices={[]} media={[]} collections={[]} favoriteFileIds={[]}>
       <div className="page">
         <p className="collection-empty">Loading your library…</p>
       </div>
@@ -58,9 +59,10 @@ async function AccountLibrary({
   profile: SessionProfile
   children: ReactNode
 }) {
-  const [driveLibrary, notices] = await Promise.all([
+  const [driveLibrary, notices, favoriteFileIds] = await Promise.all([
     loadDriveLibrary(userId, email, folderId),
     loadAccountNotices(),
+    readFavoriteFileIds(userId),
   ])
 
   return (
@@ -69,6 +71,7 @@ async function AccountLibrary({
       notices={notices}
       media={driveLibrary.items}
       collections={driveLibrary.collections}
+      favoriteFileIds={favoriteFileIds}
     >
       {children}
     </AppFrame>

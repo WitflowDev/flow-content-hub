@@ -5,6 +5,15 @@ export type AdminAccount = {
   role: 'client' | 'admin'
 }
 
+export type AdminUser = {
+  id: string
+  email: string
+  name: string
+  companyName: string
+  role: 'client' | 'admin'
+  hasFolder: boolean
+}
+
 export type AdminCollectionRow = {
   id: string
   title: string
@@ -37,6 +46,7 @@ export type AdminCollectionDetail = {
   title: string
   description: string
   tags: string[]
+  coverFileId: string
   posts: AdminPost[]
   maps: AdminContentMap[]
 }

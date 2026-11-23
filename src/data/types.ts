@@ -56,6 +56,7 @@ export type Collection = {
   ids: string[]
   cover: string[]
   published?: boolean
+  favorites?: boolean
 }
 
 export type Guide = {
