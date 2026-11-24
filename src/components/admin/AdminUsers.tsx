@@ -1,10 +1,15 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useRouter } from 'next/navigation'
 import type { AppRole } from '@/lib/auth'
 import { parseRole } from '@/lib/auth'
+import { clearClientBanner, clearClientLogo, saveClientBanner, saveClientLogo } from '@/lib/admin/brand'
 import { createAdminUser, deleteAdminUser, loadAdminUsersPage, updateAdminUser } from '@/lib/admin/users'
 import type { AdminUser } from '@/lib/admin/types'
+import { interfaceThemeLabel, readInterfaceTheme, type InterfaceTheme } from '@/lib/interface-theme'
+import { startPreview } from '@/lib/preview/actions'
+import { PALETTE_KEYS, defaultPalette, paletteLabel, resolvePalette, type ThemePalette } from '@/lib/theme-palette'
 import { useApp } from '@/state/AppState'
 import { useSession } from '@/state/Session'
 
@@ -14,14 +19,25 @@ type Draft = {
   companyName: string
   role: AppRole
   password: string
+  interfaceTheme: InterfaceTheme
+  themeColors: ThemePalette
 }
 
 type Editor = { mode: 'closed' } | { mode: 'create' } | { mode: 'edit'; id: string }
 
-const EMPTY_DRAFT: Draft = { name: '', email: '', companyName: '', role: 'client', password: '' }
+const EMPTY_DRAFT: Draft = {
+  name: '',
+  email: '',
+  companyName: '',
+  role: 'client',
+  password: '',
+  interfaceTheme: 'studio',
+  themeColors: defaultPalette('studio'),
+}
 
 export function AdminUsers() {
   const { toast } = useApp()
+  const router = useRouter()
   const session = useSession()
   const [users, setUsers] = useState<AdminUser[]>([])
   const [page, setPage] = useState(1)
@@ -32,6 +48,13 @@ export function AdminUsers() {
   const [draft, setDraft] = useState<Draft>(EMPTY_DRAFT)
   const [busy, setBusy] = useState(false)
   const [pendingDelete, setPendingDelete] = useState('')
+  const [logoFile, setLogoFile] = useState<File | null>(null)
+  const [logoPreview, setLogoPreview] = useState('')
+  const [existingLogo, setExistingLogo] = useState('')
+  const [logoFolder, setLogoFolder] = useState(false)
+  const [bannerFile, setBannerFile] = useState<File | null>(null)
+  const [bannerPreview, setBannerPreview] = useState('')
+  const [existingBanner, setExistingBanner] = useState('')
 
   useEffect(() => {
     let live = true
@@ -59,18 +82,32 @@ export function AdminUsers() {
 
   function openCreate() {
     setPendingDelete('')
+    setLogoFile(null)
+    setLogoPreview('')
+    setExistingLogo('')
+    setLogoFolder(false)
+    setExistingBanner('')
+    chooseBanner(null)
     setDraft(EMPTY_DRAFT)
     setEditor({ mode: 'create' })
   }
 
   function openEdit(user: AdminUser) {
     setPendingDelete('')
+    setLogoFile(null)
+    setLogoPreview('')
+    setExistingLogo(user.logoFileId ?? '')
+    setLogoFolder(user.hasFolder)
+    setExistingBanner(user.bannerFileId ?? '')
+    chooseBanner(null)
     setDraft({
       name: user.name,
       email: user.email,
       companyName: user.companyName,
       role: user.role,
       password: '',
+      interfaceTheme: user.interfaceTheme,
+      themeColors: resolvePalette(user.interfaceTheme, user.themeColors),
     })
     setEditor({ mode: 'edit', id: user.id })
   }
@@ -78,23 +115,99 @@ export function AdminUsers() {
   function closeEditor() {
     setEditor({ mode: 'closed' })
     setDraft(EMPTY_DRAFT)
+    setLogoFile(null)
+    setLogoPreview('')
+    setExistingBanner('')
+    chooseBanner(null)
+  }
+
+  function chooseLogo(file: File | null) {
+    setLogoPreview((current) => {
+      if (current.startsWith('blob:')) URL.revokeObjectURL(current)
+      return file ? URL.createObjectURL(file) : ''
+    })
+    setLogoFile(file)
+  }
+
+  function chooseBanner(file: File | null) {
+    setBannerPreview((current) => {
+      if (current.startsWith('blob:')) URL.revokeObjectURL(current)
+      return file ? URL.createObjectURL(file) : ''
+    })
+    setBannerFile(file)
+  }
+
+  async function onPreview(userId: string) {
+    const result = await startPreview(userId)
+    if (result && !result.ok) toast(result.message)
   }
 
   async function onSave() {
     if (busy) return
     setBusy(true)
+    const editingId = editor.mode === 'edit' ? editor.id : ''
     const result =
       editor.mode === 'edit'
         ? await updateAdminUser({ id: editor.id, ...draft })
         : await createAdminUser(draft)
+    if (!result.ok) {
+      setBusy(false)
+      toast(result.message)
+      return
+    }
+    const accountId = result.id || editingId
+    if (logoFile && accountId) {
+      const body = new FormData()
+      body.set('userId', accountId)
+      body.set('logo', logoFile)
+      const uploaded = await saveClientLogo(body)
+      if (!uploaded.ok) toast(uploaded.message)
+    }
+    if (bannerFile && accountId && draft.interfaceTheme === 'showroom') {
+      const body = new FormData()
+      body.set('userId', accountId)
+      body.set('banner', bannerFile)
+      const uploaded = await saveClientBanner(body)
+      if (!uploaded.ok) toast(uploaded.message)
+    }
+    setBusy(false)
+    toast(editor.mode === 'edit' ? 'Account updated' : 'Account created', 'success')
+    const refreshSelf = editor.mode === 'edit' && editor.id === session.id
+    closeEditor()
+    reload(editor.mode === 'create' ? 1 : page)
+    if (refreshSelf) router.refresh()
+  }
+
+  async function onRemoveLogo() {
+    if (busy || editor.mode !== 'edit') return
+    setBusy(true)
+    const result = await clearClientLogo(editor.id)
     setBusy(false)
     if (!result.ok) {
       toast(result.message)
       return
     }
-    toast(editor.mode === 'edit' ? 'Account updated' : 'Account created', 'success')
-    closeEditor()
-    reload(editor.mode === 'create' ? 1 : page)
+    setExistingLogo('')
+    chooseLogo(null)
+    toast('Logo removed', 'success')
+    if (editor.id === session.id) router.refresh()
+    reload(page)
+  }
+
+  async function onRemoveBanner() {
+    if (busy || editor.mode !== 'edit') return
+    setBusy(true)
+    const result = await clearClientBanner(editor.id)
+    setBusy(false)
+    if (!result.ok) {
+      toast(result.message)
+      return
+    }
+    setExistingBanner('')
+    chooseBanner(null)
+    toast('Banner removed', 'success')
+    if (editor.id === session.id) router.refresh()
+    reload(page)
   }
 
   async function onDelete(id: string) {
@@ -159,6 +272,38 @@ export function AdminUsers() {
               autoComplete="organization"
               onChange={(event) => setDraft({ ...draft, companyName: event.target.value })}
             />
+            <p className="field-note">Shown as “Good morning, this name.”</p>
+          </div>
+          <div className="field field-span">
+            <label htmlFor="user-logo">Company logo</label>
+            {logoPreview || (editor.mode === 'edit' && existingLogo) ? (
+              <span className="client-mark client-mark-settings">
+                <img
+                  src={
+                    logoPreview ||
+                    (editor.mode === 'edit' ? `/api/brand/logo?user=${encodeURIComponent(editor.id)}&v=${encodeURIComponent(existingLogo)}` : '')
+                  }
+                  alt=""
+                />
+              </span>
+            ) : null}
+            <input
+              id="user-logo"
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              disabled={editor.mode === 'edit' && !logoFolder}
+              onChange={(event) => chooseLogo(event.target.files?.[0] ?? null)}
+            />
+            <p className="field-note">
+              {editor.mode === 'edit' && !logoFolder
+                ? 'This account needs a Drive folder before a logo can be added.'
+                : 'Shown in the sidebar, beside the Flow logo. PNG, JPG or WebP, up to 2 MB.'}
+            </p>
+            {editor.mode === 'edit' && existingLogo ? (
+              <button type="button" className="btn" disabled={busy} onClick={() => void onRemoveLogo()}>
+                Remove logo
+              </button>
+            ) : null}
           </div>
           <div className="field">
             <label htmlFor="user-role">Role</label>
@@ -171,6 +316,87 @@ export function AdminUsers() {
               <option value="client">Client</option>
               <option value="admin">Admin</option>
             </select>
+          </div>
+          <div className="field">
+            <label htmlFor="user-theme">Interface</label>
+            <select
+              id="user-theme"
+              value={draft.interfaceTheme}
+              onChange={(event) => {
+                const theme = readInterfaceTheme(event.target.value)
+                if (!theme) return
+                setDraft({ ...draft, interfaceTheme: theme, themeColors: defaultPalette(theme) })
+              }}
+            >
+              <option value="studio">Studio</option>
+              <option value="showroom">Showroom</option>
+            </select>
+          </div>
+          {draft.interfaceTheme === 'showroom' ? (
+            <div className="field field-span">
+              <label htmlFor="user-banner">Home banner</label>
+              {bannerPreview || (editor.mode === 'edit' && existingBanner) ? (
+                <img
+                  className="banner-preview"
+                  src={
+                    bannerPreview ||
+                    (editor.mode === 'edit'
+                      ? `/api/brand/banner?user=${encodeURIComponent(editor.id)}&v=${encodeURIComponent(existingBanner)}`
+                      : '')
+                  }
+                  alt=""
+                />
+              ) : null}
+              <input
+                id="user-banner"
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                disabled={editor.mode === 'edit' && !logoFolder}
+                onChange={(event) => chooseBanner(event.target.files?.[0] ?? null)}
+              />
+              <p className="field-note">
+                {editor.mode === 'edit' && !logoFolder
+                  ? 'This account needs a Drive folder before a banner can be added.'
+                  : 'Shown across the top of Home in Showroom. PNG, JPG or WebP, up to 8 MB. Without one, the latest asset is used.'}
+              </p>
+              {editor.mode === 'edit' && existingBanner ? (
+                <button type="button" className="btn" disabled={busy} onClick={() => void onRemoveBanner()}>
+                  Remove banner
+                </button>
+              ) : null}
+            </div>
+          ) : null}
+          <div className="field field-span">
+            <label id="user-colors">Theme colors</label>
+            <div className="color-grid" role="group" aria-labelledby="user-colors">
+              {PALETTE_KEYS.map((key) => (
+                <label key={key}>
+                  {paletteLabel(key)}
+                  <input
+                    type="color"
+                    value={draft.themeColors[key]}
+                    aria-label={paletteLabel(key)}
+                    onChange={(event) =>
+                      setDraft({
+                        ...draft,
+                        themeColors: { ...draft.themeColors, [key]: event.target.value.toLowerCase() },
+                      })
+                    }
+                  />
+                </label>
+              ))}
+            </div>
+            <div className="color-actions">
+              <button
+                type="button"
+                className="btn"
+                disabled={busy}
+                onClick={() => setDraft({ ...draft, themeColors: defaultPalette(draft.interfaceTheme) })}
+              >
+                Reset colors
+              </button>
+              <p className="field-note">These are the theme defaults until you change them.</p>
+            </div>
           </div>
           <div className="field field-span">
             <label htmlFor="user-password">{editor.mode === 'edit' ? 'New password' : 'Password'}</label>
@@ -205,6 +431,7 @@ export function AdminUsers() {
               <b>
                 {user.companyName || user.name || user.email || 'Account'}
                 <span className="user-role">{roleLabel(user.role)}</span>
+                <span className="user-role">{interfaceThemeLabel(user.interfaceTheme)}</span>
               </b>
               <small>
                 {[user.name && user.companyName ? user.name : '', user.email, user.hasFolder ? 'Drive folder ready' : 'No Drive folder']
@@ -214,6 +441,11 @@ export function AdminUsers() {
               {pendingDelete === user.id ? <small>The login is removed. The Drive folder stays.</small> : null}
             </div>
             <div className="user-actions">
+              {mine ? null : (
+                <button type="button" className="btn" onClick={() => void onPreview(user.id)}>
+                  View as user
+                </button>
+              )}
               <button type="button" className="btn" onClick={() => openEdit(user)}>
                 Edit
               </button>

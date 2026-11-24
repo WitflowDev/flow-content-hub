@@ -384,7 +384,7 @@ function CoverChoices({
   const current = selected >= 0 && selected < items.length ? selected : 0
   return (
     <div className="field">
-      <label>Cover</label>
+      <label>Banner</label>
       <div className="cover-choices">
         {items.map((item, index) => (
           <button
@@ -400,6 +400,7 @@ function CoverChoices({
           </button>
         ))}
       </div>
+      <p className="field-note">Shown across the top of the collection in Showroom. You can change it later.</p>
     </div>
   )
 }

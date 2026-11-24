@@ -7,12 +7,14 @@ import { loadDriveLibrary } from '@/lib/drive/library'
 import { adminDb } from '@/lib/firebase/admin'
 import { readUserProfile } from '@/lib/firebase/profile'
 import { getSessionUser } from '@/lib/firebase/session'
+import { readPreviewTarget } from '@/lib/preview'
 
 type Result = { ok: true; fileIds: string[] } | { ok: false; message: string }
 
 export async function toggleFavorite(fileId: string): Promise<Result> {
   const user = await getSessionUser()
   if (!user) return { ok: false, message: 'Sign in before saving a favorite.' }
+  if (await readPreviewTarget()) return { ok: false, message: 'Exit preview before changing favorites.' }
   if (!isDriveFileId(fileId)) return { ok: false, message: 'That asset is not in your library.' }
   const profile = await readUserProfile(user.uid)
   const library = await loadDriveLibrary(user.uid, user.email, profile?.driveFolderId ?? null)

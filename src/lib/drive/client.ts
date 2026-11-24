@@ -2,6 +2,7 @@ import 'server-only'
 import { readFileSync } from 'node:fs'
 import { JWT } from 'google-auth-library'
 import type { ClientFolder } from './access'
+import { BRAND_FOLDER_NAME } from './brand'
 
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive'
 const GRID_THUMBNAIL_SIZE = 640
@@ -107,6 +108,7 @@ export async function listClientFolder(folderId: string): Promise<{
   const collectionFolders: DriveFileResource[] = []
   for (const child of children) {
     if (!child.id || !child.name || !child.mimeType) continue
+    if (child.name === BRAND_FOLDER_NAME) continue
     if (isMediaMime(child.mimeType)) {
       files.push(placeFile(child, null, null))
       continue
@@ -198,6 +200,24 @@ export async function wideClientImage(folderId: string, fileId: string): Promise
   if (wide) return wide
   const image = await originalMedia(fileId)
   return { mimeType: meta.mimeType, body: image.body }
+}
+
+export async function readContainedImage(
+  folderId: string,
+  fileId: string,
+): Promise<{ mimeType: string; bytes: Uint8Array } | null> {
+  try {
+    const meta = await requireMediaFile(folderId, fileId)
+    if (!meta.id || !meta.mimeType?.startsWith('image/')) return null
+    const size = Number(meta.size ?? 0)
+    if (!Number.isFinite(size) || size <= 0 || size > 2_500_000) return null
+    const media = await originalMedia(meta.id)
+    const bytes = new Uint8Array(await new Response(media.body).arrayBuffer())
+    if (bytes.byteLength === 0 || bytes.byteLength > 2_500_000) return null
+    return { mimeType: meta.mimeType, bytes }
+  } catch {
+    return null
+  }
 }
 
 export async function thumbnailClientFile(folderId: string, fileId: string): Promise<{

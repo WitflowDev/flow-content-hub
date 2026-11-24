@@ -2,11 +2,12 @@
 
 import { adminDb } from '@/lib/firebase/admin'
 import { getSessionUser } from '@/lib/firebase/session'
+import { readPreviewTarget } from '@/lib/preview'
 
 export async function saveAccountName(name: string): Promise<boolean> {
   const user = await getSessionUser()
   const nextName = name.trim()
-  if (!user || !nextName) return false
+  if (!user || !nextName || (await readPreviewTarget())) return false
   try {
     await adminDb().collection('users').doc(user.uid).update({ name: nextName })
     return true

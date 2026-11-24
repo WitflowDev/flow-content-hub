@@ -6,10 +6,12 @@ import { listRequestedContentDays } from '@/lib/content-day-requests'
 import { organizeClientFolders } from '@/lib/drive/owner'
 import { readUserProfile } from '@/lib/firebase/profile'
 import { getSessionUser } from '@/lib/firebase/session'
+import { readPreviewTarget } from '@/lib/preview'
 
 export default async function AdminPage() {
   const user = await getSessionUser()
   if (!user) redirect('/login')
+  if (await readPreviewTarget()) redirect('/home')
 
   const profile = await readUserProfile(user.uid)
   if (!profile || parseRole(profile.role) !== 'admin') redirect('/home')

@@ -1,0 +1,71 @@
+.palette-custom {
+  background: var(--bg);
+  color: var(--text);
+}
+.palette-custom .sidebar {
+  background: var(--surface);
+  color: var(--text);
+  border-right-color: var(--line);
+}
+.palette-custom .nav-item { color: var(--text); }
+.palette-custom .nav-item.active {
+  background: color-mix(in srgb, var(--flow) 16%, var(--surface));
+  color: var(--flow);
+}
+.palette-custom .topbar {
+  background: color-mix(in srgb, var(--surface) 92%, transparent);
+  border-bottom-color: var(--line);
+}
+.palette-custom .main,
+.palette-custom .page { background: var(--bg); color: var(--text); }
+.palette-custom .card,
+.palette-custom .btn,
+.palette-custom .btn.ghost,
+.palette-custom .content-search,
+.palette-custom .global-search,
+.palette-custom .sort-select,
+.palette-custom .field input,
+.palette-custom .field textarea,
+.palette-custom .view-toggle,
+.palette-custom .view-toggle button,
+.palette-custom .pill {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--line);
+}
+.palette-custom .btn.primary,
+.palette-custom .pill.active,
+.palette-custom .size-picker button.on {
+  background: var(--flow);
+  color: var(--on-accent);
+  border-color: transparent;
+}
+.palette-custom .page-title p,
+.palette-custom .eyebrow,
+.palette-custom .section-kicker,
+.palette-custom .media-card-sub,
+.palette-custom .collection-body p,
+.palette-custom .asset-sub { color: var(--muted); }
+.palette-custom .asset-tag-row .tag:not(.collection),
+.palette-custom .size-picker button {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--line);
+}
+.palette-custom .link,
+.palette-custom .text-btn.purple { color: var(--flow); }
+.palette-custom .day-landing,
+.palette-custom .day-landing .btn,
+.palette-custom .day-landing input,
+.palette-custom .day-landing textarea,
+.palette-custom .day-landing select {
+  background: #fff;
+  color: #121217;
+  border-color: #dedde6;
+}
+.palette-custom .day-landing .btn-primary,
+.palette-custom .day-landing .btn.primary {
+  background: #6843ff;
+  color: #fff;
+  border-color: #6843ff;
+}

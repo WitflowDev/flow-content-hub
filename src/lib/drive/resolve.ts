@@ -3,6 +3,7 @@ import { clientFolderForEmail } from '@/lib/drive/access'
 import { legacyFolderId, readFolderName } from '@/lib/drive/client'
 import { readUserProfile } from '@/lib/firebase/profile'
 import { getSessionUser } from '@/lib/firebase/session'
+import { readPreviewTarget } from '@/lib/preview'
 
 export type DriveFolder = {
   id: string
@@ -79,5 +80,7 @@ async function savedFolderId(userId: string): Promise<string | null> {
 export async function driveFolderForCurrentUser(): Promise<DriveFolder | null> {
   const user = await getSessionUser()
   if (!user) return null
+  const preview = await readPreviewTarget()
+  if (preview) return driveFolderForUser(preview.id, preview.email, preview.driveFolderId)
   return driveFolderForUser(user.uid, user.email)
 }

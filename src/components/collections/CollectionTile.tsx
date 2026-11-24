@@ -46,7 +46,10 @@ export function CollectionTile({ collection }: { collection: Collection }) {
       ) : null}
       <div className="collection-body">
         <div>
-          <h3>{collection.title}</h3>
+          <h3>
+            {collection.title}
+            {collection.published === false ? <span className="draft-mark">Draft</span> : null}
+          </h3>
           {collection.description ? <p>{collection.description}</p> : null}
         </div>
         <span className="collection-meta">

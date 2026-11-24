@@ -26,6 +26,7 @@ export function SettingsScreen() {
   const [name, setName] = useState(profile.name)
 
   async function saveProfile() {
+    if (profile.preview) return
     const nextName = name.trim()
     if (!nextName) {
       toast('Add a name before saving')
@@ -54,7 +55,7 @@ export function SettingsScreen() {
           <h3>Profile</h3>
           <div className="field">
             <label htmlFor="profile-name">Name</label>
-            <input id="profile-name" value={name} onChange={(event) => setName(event.target.value)} />
+            <input id="profile-name" value={name} readOnly={profile.preview} onChange={(event) => setName(event.target.value)} />
           </div>
           <div className="field">
             <label htmlFor="profile-email">Email</label>
@@ -64,9 +65,13 @@ export function SettingsScreen() {
             <label htmlFor="profile-company">Company</label>
             <input id="profile-company" value={profile.companyName} readOnly />
           </div>
-          <button type="button" className="btn primary" onClick={() => void saveProfile()}>
-            Save changes
-          </button>
+          {profile.preview ? (
+            <p className="field-note">Preview only. Exit preview to use your own account.</p>
+          ) : (
+            <button type="button" className="btn primary" onClick={() => void saveProfile()}>
+              Save changes
+            </button>
+          )}
         </section>
         <section className="card settings-card">
           <h3>Notifications</h3>
@@ -75,7 +80,7 @@ export function SettingsScreen() {
           <ToggleRow label="Flow tips" initiallyOn={false} />
           <hr />
           <h3>Account</h3>
-          <button type="button" className="btn danger wide" onClick={logout}>
+          <button type="button" className="btn danger wide" disabled={profile.preview} onClick={logout}>
             Log out
           </button>
         </section>

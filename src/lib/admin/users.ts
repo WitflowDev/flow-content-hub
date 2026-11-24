@@ -1,11 +1,14 @@
 'use server'
 
+import { FieldValue } from 'firebase-admin/firestore'
 import type { AppRole } from '@/lib/auth'
 import { parseRole } from '@/lib/auth'
+import { parseInterfaceTheme, readInterfaceTheme, type InterfaceTheme } from '@/lib/interface-theme'
 import type { AdminUser } from '@/lib/admin/types'
 import { requireAdmin } from '@/lib/auth/admin'
 import { companyFolderName, createClientDriveFolder, ownerAccessConfigured } from '@/lib/drive/owner'
 import { adminAuth, adminDb } from '@/lib/firebase/admin'
+import { readStoredPalette, type ThemePalette } from '@/lib/theme-palette'
 
 type UserInput = {
   name: string
@@ -13,6 +16,8 @@ type UserInput = {
   companyName: string
   role: string
   password: string
+  interfaceTheme: string
+  themeColors: ThemePalette
 }
 
 type SavedUser = {
@@ -21,9 +26,11 @@ type SavedUser = {
   companyName: string
   role: AppRole
   password: string
+  interfaceTheme: InterfaceTheme
+  themeColors: Partial<ThemePalette>
 }
 
-type Result = { ok: true } | { ok: false; message: string }
+type Result = { ok: true; id?: string } | { ok: false; message: string }
 
 const EMAIL = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
 const USER_PAGE_SIZE = 5
@@ -76,13 +83,15 @@ export async function createAdminUser(input: UserInput): Promise<Result> {
       driveFolderId,
       role: saved.role,
       onboardingDone: true,
+      interfaceTheme: saved.interfaceTheme,
+      ...(Object.keys(saved.themeColors).length > 0 ? { themeColors: saved.themeColors } : {}),
     })
   } catch (error) {
     console.error(error instanceof Error ? error.message : 'The account could not be saved.')
     await adminAuth().deleteUser(uid).catch(() => undefined)
     return { ok: false, message: 'The account could not be saved.' }
   }
-  return { ok: true }
+  return { ok: true, id: uid }
 }
 
 export async function updateAdminUser(input: UserInput & { id: string }): Promise<Result> {
@@ -125,6 +134,8 @@ export async function updateAdminUser(input: UserInput & { id: string }): Promis
       companyName: saved.companyName,
       driveFolderId,
       role: saved.role,
+      interfaceTheme: saved.interfaceTheme,
+      themeColors: Object.keys(saved.themeColors).length > 0 ? saved.themeColors : FieldValue.delete(),
     },
     { merge: true },
   )
@@ -183,7 +194,10 @@ function readUser(input: UserInput, creating: boolean): ({ ok: true } & SavedUse
   if (role === 'client' && !company) return { ok: false, message: 'Enter a company name.' }
   const companyName = company ? companyFolderName(company) : ''
   if (company && !companyName) return { ok: false, message: 'Enter a company name.' }
-  return { ok: true, name, email, companyName: companyName ?? '', role, password }
+  const interfaceTheme = readInterfaceTheme(input.interfaceTheme)
+  if (!interfaceTheme) return { ok: false, message: 'Choose an interface.' }
+  const themeColors = readStoredPalette(input.themeColors, interfaceTheme)
+  return { ok: true, name, email, companyName: companyName ?? '', role, password, interfaceTheme, themeColors }
 }
 
 function readRole(value: string): AppRole | null {
@@ -218,6 +232,7 @@ function authCode(error: unknown): string {
 
 function mapListedUser(id: string, data: Record<string, unknown>): AdminUser {
   const driveFolderId = data.driveFolderId
+  const interfaceTheme = parseInterfaceTheme(data.interfaceTheme)
   return {
     id,
     email: textValue(data.email),
@@ -225,6 +240,10 @@ function mapListedUser(id: string, data: Record<string, unknown>): AdminUser {
     companyName: textValue(data.companyName),
     role: parseRole(data.role),
     hasFolder: typeof driveFolderId === 'string' && driveFolderId.length > 0,
+    interfaceTheme,
+    logoFileId: textValue(data.logoFileId) || null,
+    bannerFileId: textValue(data.bannerFileId) || null,
+    themeColors: readStoredPalette(data.themeColors, interfaceTheme),
   }
 }
 

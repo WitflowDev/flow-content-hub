@@ -2,6 +2,7 @@ import 'server-only'
 import { unstable_cache } from 'next/cache'
 import { formatVariantId } from '@/data/exports'
 import type { Collection, MediaItem, Orientation } from '@/data/types'
+import { readPreviewTarget } from '@/lib/preview'
 import { libraryTag } from './cache'
 import { listClientFolder, type DriveCollectionFolder, type DrivePlacedFile } from './client'
 import { readCollectionRecords, type CollectionRecord } from './publish'
@@ -30,10 +31,11 @@ export async function loadDriveLibrary(
   userId: string,
   email: string | null | undefined,
   driveFolderId: string | null,
+  includeDrafts = false,
 ): Promise<LibraryView> {
   const folder = await driveFolderForUser(userId, email, driveFolderId)
   if (!folder) return { items: [], collections: [], folderName: null, hasFolder: false }
-  const snapshot = await readCachedSnapshot(folder.id)
+  const snapshot = await readCachedSnapshot(folder.id, includeDrafts)
   return {
     items: snapshot.items,
     collections: snapshot.collections,
@@ -43,22 +45,29 @@ export async function loadDriveLibrary(
 }
 
 export async function libraryThumb(folderId: string, fileId: string): Promise<ListedThumb> {
-  const snapshot = await readCachedSnapshot(folderId)
+  const includeDrafts = (await readPreviewTarget()) !== null
+  const snapshot = await readCachedSnapshot(folderId, includeDrafts)
   if (!snapshot.fileIds.includes(fileId)) return { listed: false }
   return { listed: true, link: snapshot.thumbs[fileId] ?? null }
 }
 
-function readCachedSnapshot(folderId: string): Promise<LibrarySnapshot> {
-  return unstable_cache(() => buildSnapshot(folderId), ['drive-library-v8', folderId], {
-    revalidate: LIBRARY_CACHE_SECONDS,
-    tags: [libraryTag(folderId)],
-  })()
+function readCachedSnapshot(folderId: string, includeDrafts: boolean): Promise<LibrarySnapshot> {
+  return unstable_cache(
+    () => buildSnapshot(folderId, includeDrafts),
+    ['drive-library-v9', folderId, includeDrafts ? 'drafts' : 'live'],
+    {
+      revalidate: LIBRARY_CACHE_SECONDS,
+      tags: [libraryTag(folderId)],
+    },
+  )()
 }
 
-async function buildSnapshot(folderId: string): Promise<LibrarySnapshot> {
+async function buildSnapshot(folderId: string, includeDrafts: boolean): Promise<LibrarySnapshot> {
   const listed = await listClientFolder(folderId)
   const records = await readCollectionRecords(listed.collections.map((entry) => entry.id))
-  const hidden = new Set([...records].filter(([, record]) => !record.published).map(([id]) => id))
+  const hidden = includeDrafts
+    ? new Set<string>()
+    : new Set([...records].filter(([, record]) => !record.published).map(([id]) => id))
   const collections = listed.collections.filter((entry) => !hidden.has(entry.id))
   const files = listed.files.filter((file) => !file.collectionId || !hidden.has(file.collectionId))
   const visible = files.filter((file) => !formatVariantId(file.name))
@@ -91,7 +100,7 @@ function toCollection(folder: DriveCollectionFolder, files: DrivePlacedFile[], r
     maps: record?.maps ?? [],
     ids,
     cover: chosenCover(ids, record?.coverFileId ?? ''),
-    published: true,
+    published: record ? record.published : true,
   }
 }
 

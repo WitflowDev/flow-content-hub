@@ -1,3 +1,6 @@
+import type { InterfaceTheme } from '@/lib/interface-theme'
+import type { ThemePalette } from '@/lib/theme-palette'
+
 export type AdminAccount = {
   id: string
   label: string
@@ -12,6 +15,10 @@ export type AdminUser = {
   companyName: string
   role: 'client' | 'admin'
   hasFolder: boolean
+  interfaceTheme: InterfaceTheme
+  logoFileId: string | null
+  bannerFileId: string | null
+  themeColors: Partial<ThemePalette>
 }
 
 export type AdminCollectionRow = {

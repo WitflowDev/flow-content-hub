@@ -4,9 +4,11 @@ import { useLayoutEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { Icon } from '@/components/icons'
 import type { IconName } from '@/components/icons'
+import { ClientMark } from '@/components/shell/ClientMark'
 import { Logo } from '@/components/shell/Logo'
 import { ServiceMenu } from '@/components/shell/ServiceMenu'
 import { useApp } from '@/state/AppState'
+import { isShowroomTheme } from '@/lib/interface-theme'
 import { useSession } from '@/state/Session'
 import type { NavId } from '@/data/types'
 
@@ -41,9 +43,21 @@ export function Sidebar() {
 
   return (
     <aside className={mobileNav ? 'sidebar open' : 'sidebar'}>
-      <button type="button" className="brand-btn" onClick={() => navigate('/home', true)}>
-        <Logo />
-      </button>
+      {profile.logoFileId ? (
+        <div className="brand-lockup">
+          <button type="button" className="brand-btn" onClick={() => navigate('/home', true)}>
+            <Logo theme={isShowroomTheme(profile.interfaceTheme) ? 'light' : 'dark'} />
+          </button>
+          <span className="brand-collab" aria-hidden="true">
+            ×
+          </span>
+          <ClientMark />
+        </div>
+      ) : (
+        <button type="button" className="brand-btn" onClick={() => navigate('/home', true)}>
+          <Logo theme={isShowroomTheme(profile.interfaceTheme) ? 'light' : 'dark'} />
+        </button>
+      )}
       <div className="sidebar-body">
         <nav className="nav">
           {items.map((item) => (

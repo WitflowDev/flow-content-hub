@@ -361,7 +361,7 @@ function CollectionEditor({
         </div>
         {editor.kind === 'collection' && detail.posts.length > 0 ? (
           <div className="field">
-            <label>Cover</label>
+            <label>Banner</label>
             <div className="cover-choices">
               {detail.posts.map((item) => (
                 <button
@@ -377,6 +377,7 @@ function CollectionEditor({
                 </button>
               ))}
             </div>
+            <p className="field-note">Shown across the top of the collection in Showroom.</p>
           </div>
         ) : null}
         {editor.kind === 'collection' ? (

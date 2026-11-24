@@ -1,5 +1,6 @@
 import 'server-only'
 import { OAuth2Client } from 'google-auth-library'
+import { BRAND_FOLDER_NAME } from './brand'
 
 const OWNER_EMAIL = 'geral.productionsflow@gmail.com'
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive'
@@ -82,6 +83,47 @@ export async function createOwnedFolder(parentId: string, name: string): Promise
     throw new Error('The collection folder could not be created in Google Drive.')
   }
   return { id: created.id, name: created.name || name }
+}
+
+export async function ensureBrandFolder(clientFolderId: string): Promise<string> {
+  const children = await listFolders(
+    `${quote(clientFolderId)} in parents and name = ${quote(BRAND_FOLDER_NAME)} and mimeType = '${FOLDER_MIME}' and trashed = false`,
+  )
+  const existing = children.find((folder) => folder.id && folder.name === BRAND_FOLDER_NAME)
+  if (existing?.id) return existing.id
+  return (await createOwnedFolder(clientFolderId, BRAND_FOLDER_NAME)).id
+}
+
+export async function uploadOwnedImage(
+  parentId: string,
+  name: string,
+  mimeType: string,
+  bytes: Uint8Array,
+): Promise<string> {
+  const token = await accessToken()
+  const boundary = `flowbrand${Date.now()}`
+  const head = Buffer.from(
+    `--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name, parents: [parentId] })}\r\n--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`,
+    'utf8',
+  )
+  const tail = Buffer.from(`\r\n--${boundary}--`, 'utf8')
+  const body = Buffer.concat([head, Buffer.from(bytes), tail])
+  const response = await fetch(
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,parents',
+    {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${token}`,
+        'Content-Type': `multipart/related; boundary=${boundary}`,
+        'Content-Length': String(body.length),
+      },
+      body,
+    },
+  )
+  if (!response.ok) throw new Error('The logo could not be saved.')
+  const created = (await response.json()) as DriveFile
+  if (!created.id) throw new Error('The logo could not be saved.')
+  return created.id
 }
 
 export async function beginOwnedUpload(input: {

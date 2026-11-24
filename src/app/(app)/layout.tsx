@@ -3,9 +3,11 @@ import { redirect } from 'next/navigation'
 import { AppFrame } from '@/components/shell/AppFrame'
 import { loadDriveLibrary } from '@/lib/drive/library'
 import { readFavoriteFileIds } from '@/lib/favorites/store'
-import { ensureUserProfile } from '@/lib/firebase/profile'
+import { ensureUserProfile, type AccountProfile } from '@/lib/firebase/profile'
 import { getSessionUser } from '@/lib/firebase/session'
 import { loadAccountNotices } from '@/lib/notifications/sync'
+import { readPreviewTarget } from '@/lib/preview'
+import { resolvePalette } from '@/lib/theme-palette'
 import type { SessionProfile } from '@/state/Session'
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
@@ -13,27 +15,39 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
   if (!user) redirect('/login')
 
   const profile = await ensureUserProfile(user)
-  const session: SessionProfile = {
-    id: user.uid,
-    name: profile?.name.trim() || '',
-    email: user.email ?? profile?.email ?? '',
-    companyName: profile?.companyName.trim() || '',
-    role: profile?.role ?? 'client',
-    onboardingDone: profile?.onboardingDone ?? false,
-  }
+  const previewTarget = await readPreviewTarget()
+  const viewed = previewTarget ?? profile
+  const session = toSession(viewed, previewTarget !== null, previewTarget ? viewed.email : (user.email ?? profile.email))
 
   return (
     <Suspense fallback={<LibraryFallback profile={session} />}>
       <AccountLibrary
-        userId={user.uid}
-        email={user.email}
-        folderId={profile?.driveFolderId ?? null}
+        userId={viewed.id}
+        email={viewed.email}
+        folderId={viewed.driveFolderId}
+        includeDrafts={previewTarget !== null}
         profile={session}
       >
         {children}
       </AccountLibrary>
     </Suspense>
   )
+}
+
+function toSession(profile: AccountProfile, preview: boolean, email: string): SessionProfile {
+  return {
+    id: profile.id,
+    name: profile.name.trim() || '',
+    email,
+    companyName: profile.companyName.trim() || '',
+    role: profile.role,
+    onboardingDone: profile.onboardingDone,
+    interfaceTheme: profile.interfaceTheme,
+    logoFileId: profile.logoFileId,
+    bannerFileId: profile.bannerFileId,
+    palette: resolvePalette(profile.interfaceTheme, profile.themeColors),
+    preview,
+  }
 }
 
 function LibraryFallback({ profile }: { profile: SessionProfile }) {
@@ -50,18 +64,20 @@ async function AccountLibrary({
   userId,
   email,
   folderId,
+  includeDrafts,
   profile,
   children,
 }: {
   userId: string
   email: string | null
   folderId: string | null
+  includeDrafts: boolean
   profile: SessionProfile
   children: ReactNode
 }) {
   const [driveLibrary, notices, favoriteFileIds] = await Promise.all([
-    loadDriveLibrary(userId, email, folderId),
-    loadAccountNotices(),
+    loadDriveLibrary(userId, email, folderId, includeDrafts),
+    includeDrafts ? Promise.resolve([]) : loadAccountNotices(),
     readFavoriteFileIds(userId),
   ])
 
