@@ -1,7 +1,8 @@
 import 'server-only'
+import { EXPORT_IDS, isCustomFormatId, parseExportIds, pixelSize, type CropFrame, type ExportId } from '@/data/exports'
 import { isDriveFileId } from '@/lib/drive/client'
 import { adminDb } from '@/lib/firebase/admin'
-import { EXPORT_IDS, isCustomFormatId, parseExportIds, pixelSize, type ExportId } from '@/data/exports'
+import { readPress, type PressRecord } from '@/lib/press'
 import { parseTags } from '@/lib/tags'
 
 const READ_BATCH = 100
@@ -20,15 +21,26 @@ export type StoredCustomVariant = AssetVariant & {
   height?: number
 }
 
+export type StoredCustomCrop = {
+  id: string
+  label: string
+  width: number
+  height: number
+  frame: CropFrame
+}
+
 export type AssetCopy = {
   tags: string[]
   suggestedUse: string
   exports: ExportId[]
   variants: Partial<Record<ExportId, AssetVariant>>
   customVariants: StoredCustomVariant[]
+  crops: Partial<Record<ExportId, CropFrame>>
+  customCrops: StoredCustomCrop[]
+  press: PressRecord
 }
 
-export async function readAssetCopy(fileIds: string[]): Promise<Map<string, AssetCopy>> {
+export async function readAssetCopy(fileIds: string[], ownerId?: string): Promise<Map<string, AssetCopy>> {
   const ids = [...new Set(fileIds.filter(isDriveFileId))]
   const copy = new Map<string, AssetCopy>()
   if (ids.length === 0) return copy
@@ -46,8 +58,28 @@ export async function readAssetCopy(fileIds: string[]): Promise<Map<string, Asse
       const customVariants = parseCustomVariants(snap.get('customVariants'))
       const savedFormats = parseExportIds(snap.get('formats'))
       const exports = EXPORT_IDS.filter((id) => savedFormats.includes(id) || variants[id])
-      if (tags.length === 0 && !suggestedUse && exports.length === 0 && customVariants.length === 0) continue
-      copy.set(snap.id, { tags, suggestedUse, exports, variants, customVariants })
+      const crops = parseCrops(snap.get('crops'))
+      const customCrops = parseCustomCrops(snap.get('customCrops'))
+      const press = readPress({
+        credit: snap.get('credit'),
+        license: snap.get('license'),
+        captionApproved: snap.get('captionApproved'),
+        embargoUntil: snap.get('embargoUntil'),
+      })
+      const owner = snap.get('profileId')
+      if (ownerId && typeof owner === 'string' && owner !== ownerId) continue
+      if (
+        tags.length === 0 &&
+        !suggestedUse &&
+        exports.length === 0 &&
+        customVariants.length === 0 &&
+        Object.keys(crops).length === 0 &&
+        customCrops.length === 0 &&
+        !hasPress(press)
+      ) {
+        continue
+      }
+      copy.set(snap.id, { tags, suggestedUse, exports, variants, customVariants, crops, customCrops, press })
     }
   }
   return copy
@@ -59,6 +91,7 @@ export async function saveAssetCopy(
   tags: string[],
   suggestedUse: string,
   formats?: ExportId[],
+  press?: PressRecord,
 ): Promise<void> {
   const use = cleanUse(suggestedUse)
   if (!isDriveFileId(fileId)) return
@@ -72,6 +105,7 @@ export async function saveAssetCopy(
         tags,
         suggestedUse: use,
         ...(formats ? { formats } : {}),
+        ...(press ? pressFields(press) : {}),
       },
       { merge: true },
     )
@@ -150,9 +184,78 @@ export async function attachCustomVariant(
   })
 }
 
+export async function saveAssetFrames(
+  fileId: string,
+  accountId: string,
+  formats: ExportId[],
+  crops: Partial<Record<ExportId, CropFrame>>,
+  customCrops: StoredCustomCrop[],
+): Promise<void> {
+  if (!isDriveFileId(fileId)) return
+  const stored: Partial<Record<ExportId, CropFrame>> = {}
+  for (const id of formats) {
+    const frame = crops[id]
+    if (frame) stored[id] = frame
+  }
+  await adminDb()
+    .collection('assets')
+    .doc(fileId)
+    .set(
+      {
+        profileId: accountId,
+        driveFileId: fileId,
+        formats,
+        crops: stored,
+        customCrops: customCrops.slice(0, 8),
+      },
+      { merge: true },
+    )
+}
+
 export async function deleteAssetCopy(fileId: string): Promise<void> {
   if (!isDriveFileId(fileId)) return
   await adminDb().collection('assets').doc(fileId).delete()
+}
+
+function parseCrops(value: unknown): Partial<Record<ExportId, CropFrame>> {
+  if (!value || typeof value !== 'object') return {}
+  const record = value as Record<string, unknown>
+  const crops: Partial<Record<ExportId, CropFrame>> = {}
+  for (const id of EXPORT_IDS) {
+    const frame = readFrame(record[id])
+    if (frame) crops[id] = frame
+  }
+  return crops
+}
+
+function parseCustomCrops(value: unknown): StoredCustomCrop[] {
+  if (!Array.isArray(value)) return []
+  const items: StoredCustomCrop[] = []
+  for (const entry of value) {
+    if (!entry || typeof entry !== 'object') continue
+    const row = entry as Record<string, unknown>
+    if (typeof row.id !== 'string' || !isCustomFormatId(row.id) || items.some((item) => item.id === row.id)) continue
+    if (typeof row.label !== 'string') continue
+    const label = row.label.trim().slice(0, 40)
+    const width = pixelSize(row.width)
+    const height = pixelSize(row.height)
+    const frame = readFrame(row.frame)
+    if (!label || !width || !height || !frame) continue
+    items.push({ id: row.id, label, width, height, frame })
+  }
+  return items.slice(0, 8)
+}
+
+function readFrame(value: unknown): CropFrame | null {
+  if (!value || typeof value !== 'object') return null
+  const row = value as Record<string, unknown>
+  if (typeof row.x !== 'number' || typeof row.y !== 'number' || typeof row.zoom !== 'number') return null
+  if (!Number.isFinite(row.x) || !Number.isFinite(row.y) || !Number.isFinite(row.zoom)) return null
+  return {
+    x: Math.min(1, Math.max(0, row.x)),
+    y: Math.min(1, Math.max(0, row.y)),
+    zoom: Math.min(3, Math.max(1, row.zoom)),
+  }
 }
 
 function parseVariants(value: unknown): Partial<Record<ExportId, AssetVariant>> {
@@ -198,4 +301,17 @@ function readVariant(value: unknown): AssetVariant | null {
 function cleanUse(value: unknown): string {
   if (typeof value !== 'string') return ''
   return value.trim().slice(0, 500)
+}
+
+function hasPress(press: PressRecord): boolean {
+  return press.credit.length > 0 || press.license !== '' || press.captionApproved || press.embargoUntil.length > 0
+}
+
+function pressFields(press: PressRecord): PressRecord {
+  return {
+    credit: press.credit.trim().slice(0, 160),
+    license: press.license,
+    captionApproved: press.captionApproved,
+    embargoUntil: press.embargoUntil,
+  }
 }

@@ -1,6 +1,5 @@
 import 'server-only'
-import { clientFolderForEmail } from '@/lib/drive/access'
-import { legacyFolderId, readFolderName } from '@/lib/drive/client'
+import { readFolderName } from '@/lib/drive/client'
 import { readUserProfile } from '@/lib/firebase/profile'
 import { getSessionUser } from '@/lib/firebase/session'
 import { readPreviewTarget } from '@/lib/preview'
@@ -17,7 +16,7 @@ const folderInflight = new Map<string, Promise<DriveFolder | null>>()
 
 export async function driveFolderForUser(
   userId: string,
-  email: string | null | undefined,
+  _email: string | null | undefined,
   knownFolderId?: string | null,
 ): Promise<DriveFolder | null> {
   const cached = readCachedFolder(userId, knownFolderId)
@@ -28,7 +27,7 @@ export async function driveFolderForUser(
   const pending = folderInflight.get(inflightKey)
   if (pending) return pending
 
-  const next = resolveDriveFolder(userId, email, knownFolderId)
+  const next = resolveDriveFolder(userId, knownFolderId)
     .then((folder) => {
       if (folder) folderCache.set(userId, { folder, expires: Date.now() + FOLDER_TTL_MS })
       return folder
@@ -49,24 +48,13 @@ function readCachedFolder(userId: string, knownFolderId: string | null | undefin
 
 async function resolveDriveFolder(
   userId: string,
-  email: string | null | undefined,
   knownFolderId: string | null | undefined,
 ): Promise<DriveFolder | null> {
   const folderId = knownFolderId === undefined ? await savedFolderId(userId) : knownFolderId
-  if (folderId) {
-    try {
-      const name = await readFolderName(folderId)
-      return { id: folderId, name }
-    } catch {
-      return null
-    }
-  }
-
-  const legacy = clientFolderForEmail(email)
-  if (!legacy) return null
+  if (!folderId) return null
   try {
-    const id = await legacyFolderId(legacy)
-    return { id, name: legacy.folderName }
+    const name = await readFolderName(folderId)
+    return { id: folderId, name }
   } catch {
     return null
   }

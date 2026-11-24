@@ -1,11 +1,10 @@
 import { NextResponse } from 'next/server'
 import { adminAuth } from '@/lib/firebase/admin'
-import { SESSION_COOKIE, sessionCookieOptions } from '@/lib/firebase/config'
+import { SESSION_COOKIE, SESSION_MAX_AGE_SECONDS, sessionCookieOptions } from '@/lib/firebase/config'
+import { reportError } from '@/lib/observe'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
-
-const TOKEN_MAX_AGE = 55 * 60
 
 export async function POST(request: Request) {
   let idToken = ''
@@ -20,15 +19,14 @@ export async function POST(request: Request) {
   if (!idToken) return NextResponse.json({ ok: false }, { status: 400 })
 
   try {
-    await adminAuth().verifyIdToken(idToken)
+    const session = await adminAuth().createSessionCookie(idToken, { expiresIn: SESSION_MAX_AGE_SECONDS * 1000 })
+    const response = NextResponse.json({ ok: true })
+    response.cookies.set(SESSION_COOKIE, session, sessionCookieOptions(SESSION_MAX_AGE_SECONDS))
+    return response
   } catch (error) {
-    console.error('Firebase session was rejected.', error instanceof Error ? error.message : error)
+    reportError('auth.session', error)
     return NextResponse.json({ ok: false }, { status: 401 })
   }
-
-  const response = NextResponse.json({ ok: true })
-  response.cookies.set(SESSION_COOKIE, idToken, sessionCookieOptions(TOKEN_MAX_AGE))
-  return response
 }
 
 export async function DELETE() {

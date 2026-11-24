@@ -2,11 +2,12 @@
 
 import { Icon } from '@/components/icons'
 import { downloadDriveFiles } from '@/lib/downloadDriveFiles'
-import { useSelected, useSelectionActions } from '@/state/AppState'
+import { useApp, useSelected, useSelectionActions } from '@/state/AppState'
 import { useLibrary } from '@/state/Catalog'
 
 export function BulkBar() {
   const selected = useSelected()
+  const { toast } = useApp()
   const { clearSelected } = useSelectionActions()
   const { getMedia } = useLibrary()
   if (selected.size === 0) return null
@@ -16,7 +17,7 @@ export function BulkBar() {
       const item = getMedia(id)
       return item ? [item] : []
     })
-    downloadDriveFiles(items)
+    downloadDriveFiles(items, toast)
   }
 
   return (

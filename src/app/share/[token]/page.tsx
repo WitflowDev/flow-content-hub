@@ -20,7 +20,7 @@ export default async function SharePage({ params }: PageProps) {
       <div className="share-shell">
         <main className="page">
           <h1>This link is not available.</h1>
-          <p className="share-note">The collection may have been removed or the link is no longer valid.</p>
+          <p className="share-note">The collection may have been removed, or this link has expired.</p>
         </main>
       </div>
     )

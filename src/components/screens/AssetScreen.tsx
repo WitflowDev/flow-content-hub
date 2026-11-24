@@ -4,13 +4,15 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { useParams } from 'next/navigation'
 import { Icon } from '@/components/icons'
-import { cropToFormat, exportFormat } from '@/data/exports'
+import { CENTER_CROP, exportFormat, renderCrop, type CropFrame } from '@/data/exports'
 import { TutorialImage } from '@/components/guides/TutorialImage'
 import { FavoriteButton } from '@/components/media/FavoriteButton'
 import { MediaCard } from '@/components/media/MediaCard'
 import { submitServiceRequest } from '@/lib/admin/actions'
+import { downloadBlob, downloadNamedFile, downloadPressKit } from '@/lib/downloadDriveFiles'
 import { streamPath } from '@/lib/drive/prefix-budget'
 import { assetFormat, mediaTags, routeParam } from '@/lib/library'
+import { embargoActive, pressLabel, pressText } from '@/lib/press'
 import { useApp } from '@/state/AppState'
 import { useLibrary } from '@/state/Catalog'
 
@@ -23,6 +25,14 @@ function fileType(name: string): string {
   const dot = name.lastIndexOf('.')
   if (dot < 0 || dot === name.length - 1) return 'File'
   return name.slice(dot + 1).toUpperCase()
+}
+
+async function renderFormat(preview: string, original: string, width: number, height: number, frame: CropFrame): Promise<Blob> {
+  try {
+    return await renderCrop(original, width, height, frame)
+  } catch {
+    return renderCrop(preview, width, height, frame)
+  }
 }
 
 function AssetNotes({ item, tags }: { item: { collection: string; description: string }; tags: string[] }) {
@@ -118,12 +128,29 @@ export function AssetScreen() {
   const [chosen, setChosen] = useState('')
   const [cropUrl, setCropUrl] = useState<string | null>(null)
   const [naturalRatio, setNaturalRatio] = useState<number | null>(null)
+  const [preparing, setPreparing] = useState(false)
   const previewSrc = item?.src.includes('/thumbnail') ? item.src.replace('/thumbnail', '/preview') : (item?.src ?? '')
   const customSelected = item?.customVariants?.find((variant) => variant.id === chosen) ?? null
+  const frameCustom =
+    (item?.customCrops ?? []).find(
+      (crop) => crop.id === chosen && !(item?.customVariants ?? []).some((variant) => variant.id === crop.id),
+    ) ?? null
   const selected = item?.type === 'Photography' && (item.exports ?? []).includes(chosen) ? exportFormat(chosen) : null
   const fileVariant = selected ? item?.variants?.[selected.id] : (customSelected ?? undefined)
   const variantSrc = fileVariant ? `/api/drive/files/${fileVariant.fileId}/preview` : ''
-  const selectedSize = selected && !fileVariant ? `${selected.width}x${selected.height}` : ''
+  const cropFrame: CropFrame | null = fileVariant
+    ? null
+    : selected
+      ? (item?.crops?.[selected.id] ?? CENTER_CROP)
+      : frameCustom
+        ? frameCustom.frame
+        : null
+  const cropWidth = cropFrame ? (selected ? selected.width : frameCustom ? frameCustom.width : 0) : 0
+  const cropHeight = cropFrame ? (selected ? selected.height : frameCustom ? frameCustom.height : 0) : 0
+
+  const frameX = cropFrame?.x ?? 0
+  const frameY = cropFrame?.y ?? 0
+  const frameZoom = cropFrame?.zoom ?? 1
 
   useEffect(() => {
     setChosen('')
@@ -134,21 +161,15 @@ export function AssetScreen() {
   }, [previewSrc, variantSrc, cropUrl])
 
   useEffect(() => {
-    if (!previewSrc || !selectedSize || variantSrc) return
-    const [widthText, heightText] = selectedSize.split('x')
-    const width = Number(widthText)
-    const height = Number(heightText)
-    if (!width || !height) return
+    if (!previewSrc || !cropWidth || !cropHeight || variantSrc) return
+    const frame = { x: frameX, y: frameY, zoom: frameZoom }
     let active = true
     let url = ''
-    void cropToFormat(previewSrc, width, height)
-      .then((next) => {
-        if (!active) {
-          URL.revokeObjectURL(next)
-          return
-        }
-        url = next
-        setCropUrl(next)
+    void renderCrop(previewSrc, cropWidth, cropHeight, frame)
+      .then((blob) => {
+        if (!active) return
+        url = URL.createObjectURL(blob)
+        setCropUrl(url)
       })
       .catch(() => {
         if (active) setCropUrl(null)
@@ -158,7 +179,7 @@ export function AssetScreen() {
       if (url) URL.revokeObjectURL(url)
       setCropUrl(null)
     }
-  }, [previewSrc, selectedSize, variantSrc])
+  }, [previewSrc, cropWidth, cropHeight, frameX, frameY, frameZoom, variantSrc])
 
   if (!item) {
     return (
@@ -184,11 +205,16 @@ export function AssetScreen() {
     return format ? [format] : []
   })
   const customVariants = item.customVariants ?? []
+  const frameCustoms = (item.customCrops ?? []).filter(
+    (crop) => !customVariants.some((variant) => variant.id === crop.id),
+  )
   const formatRatio = selected
     ? selected.width / selected.height
     : customSelected?.width && customSelected.height
       ? customSelected.width / customSelected.height
-      : naturalRatio
+      : frameCustom
+        ? frameCustom.width / frameCustom.height
+        : naturalRatio
   const shaped = item.type === 'Photography' && chosen !== '' && Boolean(formatRatio)
   const formatLabel = selected
     ? `${selected.width} × ${selected.height}`
@@ -196,11 +222,37 @@ export function AssetScreen() {
       ? `${customSelected.label} · ${customSelected.width} × ${customSelected.height}`
       : customSelected
         ? customSelected.label
-        : assetFormat(item.orientation)
-  const downloadHref = fileVariant
-    ? `/api/drive/files/${fileVariant.fileId}`
-    : (cropUrl ?? (item.driveFileId ? `/api/drive/files/${item.driveFileId}` : item.src))
-  const downloadName = fileVariant ? fileVariant.name : cropUrl ? `${item.title}.jpg` : item.driveFileId ? item.file : `${item.id}.jpg`
+        : frameCustom
+          ? `${frameCustom.label} · ${frameCustom.width} × ${frameCustom.height}`
+          : assetFormat(item.orientation)
+
+  const sourceId = typeof item.driveFileId === 'string' ? item.driveFileId : ''
+  const sourceTitle = item.title
+  const sourceFile = item.file
+  const sourceSrc = item.src
+  const sourceKey = item.id
+
+  async function downloadChosen(): Promise<void> {
+    if (preparing) return
+    if (fileVariant) {
+      downloadNamedFile(`/api/drive/files/${fileVariant.fileId}`, fileVariant.name)
+      return
+    }
+    if (cropFrame && cropWidth && cropHeight && sourceId) {
+      setPreparing(true)
+      try {
+        const blob = await renderFormat(previewSrc, `/api/drive/files/${sourceId}`, cropWidth, cropHeight, cropFrame)
+        downloadBlob(blob, `${sourceTitle}.jpg`)
+      } catch {
+        toast('This format could not be prepared.')
+      } finally {
+        setPreparing(false)
+      }
+      return
+    }
+    if (sourceId) downloadNamedFile(`/api/drive/files/${sourceId}`, sourceFile)
+    else downloadNamedFile(sourceSrc, `${sourceKey}.jpg`)
+  }
   const shownSrc = variantSrc || cropUrl || previewSrc
 
   return (
@@ -279,7 +331,7 @@ export function AssetScreen() {
             {item.file} <span>·</span> {item.duration || 'Final'} <span>·</span> {item.orientation}
           </p>
           {item.type === 'Video' ? <AssetNotes item={item} tags={tags} /> : null}
-          {exports.length > 0 || customVariants.length > 0 ? (
+          {exports.length > 0 || customVariants.length > 0 || frameCustoms.length > 0 ? (
             <div className="size-picker" role="radiogroup" aria-label="Photo format">
               <button type="button" role="radio" aria-checked={chosen === ''} className={chosen === '' ? 'on' : ''} onClick={() => setChosen('')}>
                 Default
@@ -308,18 +360,58 @@ export function AssetScreen() {
                   {variant.label}
                 </button>
               ))}
+              {frameCustoms.map((crop) => (
+                <button
+                  key={crop.id}
+                  type="button"
+                  role="radio"
+                  aria-checked={chosen === crop.id}
+                  className={chosen === crop.id ? 'on' : ''}
+                  onClick={() => setChosen(crop.id)}
+                >
+                  {crop.label}
+                </button>
+              ))}
             </div>
           ) : null}
           {selected ? <p className="size-note">{selected.note}</p> : null}
           {customSelected ? <p className="size-note">This file keeps the size of the photo that was uploaded.</p> : null}
+          {frameCustom ? <p className="size-note">This crop is created when you download.</p> : null}
           <section className="asset-specs">
             <DetailRow label="Format" value={formatLabel} />
-            <DetailRow label="File size" value={fileVariant ? formatBytes(fileVariant.bytes) : item.size} />
-            <DetailRow label="File type" value={fileVariant ? fileType(fileVariant.name) : cropUrl ? 'JPG' : fileType(item.file)} />
+            <DetailRow label="File size" value={fileVariant ? formatBytes(fileVariant.bytes) : cropFrame ? 'Prepared on download' : item.size} />
+            <DetailRow label="File type" value={fileVariant ? fileType(fileVariant.name) : cropFrame ? 'JPG' : fileType(item.file)} />
+            {item.credit ? <DetailRow label="Credit" value={item.credit} /> : null}
+            {item.license ? <DetailRow label="License" value={pressLabel(item.license)} /> : null}
           </section>
-          <a className="btn primary wide" href={downloadHref} download={downloadName}>
-            <Icon name="download" /> Download
-          </a>
+          <button type="button" className="btn primary wide" disabled={preparing} onClick={() => void downloadChosen()}>
+            <Icon name="download" /> {preparing ? 'Preparing…' : 'Download'}
+          </button>
+          {item.captionApproved && item.description && item.credit ? (
+            <button
+              type="button"
+              className="btn ghost wide"
+              onClick={() => {
+                const text = pressText({
+                  caption: item.description,
+                  credit: item.credit ?? '',
+                  license: item.license ?? '',
+                  embargoUntil: '',
+                })
+                void navigator.clipboard.writeText(text).then(
+                  () => toast('Caption copied', 'success'),
+                  () => toast('The caption could not be copied.'),
+                )
+              }}
+            >
+              Copy caption
+            </button>
+          ) : null}
+          {item.driveFileId && item.captionApproved && item.credit && !embargoActive(item.embargoUntil ?? '') ? (
+            <button type="button" className="btn ghost wide" onClick={() => downloadPressKit(item.driveFileId ?? '', toast)}>
+              <Icon name="download" /> Download press kit
+            </button>
+          ) : null}
           {item.type === 'Photography' ? <PhotoRequest assetFileId={item.driveFileId ?? ''} toast={toast} /> : null}
           <button type="button" className="btn day wide" onClick={() => navigate('/content-day')}>
             Book another Content Day

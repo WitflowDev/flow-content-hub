@@ -26,7 +26,7 @@ export async function GET(request: Request, context: RouteContext) {
 
   try {
     await readFolderName(folderId)
-    const thumbnail = await thumbnailClientFile(folderId, fileId)
+    const thumbnail = await thumbnailClientFile(folderId, fileId, false)
     if (!thumbnail) return placeholder()
     return new Response(thumbnail.body, {
       headers: {

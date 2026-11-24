@@ -1,8 +1,8 @@
 'use client'
 
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
 import { FormatCrop } from '@/components/admin/FormatCrop'
-import { CENTER_CROP, EXPORT_FORMATS, pixelSize, type CropFrame, type ExportId } from '@/data/exports'
+import { CENTER_CROP, EXPORT_FORMATS, EXPORT_IDS, pixelSize, type CropFrame, type ExportId } from '@/data/exports'
 
 export type CustomSizeDraft = {
   key: string
@@ -29,15 +29,17 @@ export type ReadyCustomSize = {
   frame: CropFrame
 }
 
-export function blankPhoto(file: File): PhotoDraft {
+export function blankPhoto(file: File, source?: PhotoDraft): PhotoDraft {
   return {
     key: `${file.name}-${file.size}-${file.lastModified}-${Math.random().toString(36).slice(2, 8)}`,
     file,
     url: URL.createObjectURL(file),
     readyFiles: {},
-    makeFormats: [],
+    makeFormats: source ? [...source.makeFormats] : [...EXPORT_IDS],
     cropFrames: {},
-    customs: [],
+    customs: source
+      ? source.customs.map((row) => ({ ...row, key: `${file.name}-${row.key}`, frame: CENTER_CROP }))
+      : [],
   }
 }
 
@@ -68,12 +70,14 @@ export function PhotoRail({
   mode,
   uploading,
   onChange,
+  onReplace,
   onRemove,
 }: {
   photos: PhotoDraft[]
   mode: 'ready' | 'make'
   uploading: boolean
   onChange: (photo: PhotoDraft) => void
+  onReplace: (photos: PhotoDraft[]) => void
   onRemove: (key: string) => void
 }) {
   const railRef = useRef<HTMLDivElement>(null)
@@ -90,6 +94,7 @@ export function PhotoRail({
 
   return (
     <div className="photo-rail-wrap">
+      <SharedFormats photos={photos} mode={mode} uploading={uploading} onReplace={onReplace} />
       <div className="photo-rail-nav">
         <span>
           {photos.length === 1 ? '1 photo' : `${photos.length} photos`}
@@ -114,6 +119,7 @@ export function PhotoRail({
             total={photos.length}
             mode={mode}
             uploading={uploading}
+            customTemplate={photos.find((item) => item.customs.length > 0)?.customs ?? []}
             onChange={onChange}
             onRemove={() => onRemove(photo.key)}
           />
@@ -129,6 +135,7 @@ function PhotoSlide({
   total,
   mode,
   uploading,
+  customTemplate,
   onChange,
   onRemove,
 }: {
@@ -137,6 +144,7 @@ function PhotoSlide({
   total: number
   mode: 'ready' | 'make'
   uploading: boolean
+  customTemplate: CustomSizeDraft[]
   onChange: (photo: PhotoDraft) => void
   onRemove: () => void
 }) {
@@ -154,8 +162,187 @@ function PhotoSlide({
           Remove
         </button>
       </header>
-      <SlideFormats photo={photo} mode={mode} uploading={uploading} onChange={onChange} />
+      <SlideFormats photo={photo} mode={mode} uploading={uploading} customTemplate={customTemplate} onChange={onChange} />
     </article>
+  )
+}
+
+function SharedFormats({
+  photos,
+  mode,
+  uploading,
+  onReplace,
+}: {
+  photos: PhotoDraft[]
+  mode: 'ready' | 'make'
+  uploading: boolean
+  onReplace: (photos: PhotoDraft[]) => void
+}) {
+  const template = photos.find((photo) => photo.customs.length > 0)?.customs ?? []
+  const allCustom = photos.every((photo) => photo.customs.length > 0)
+  const someCustom = photos.some((photo) => photo.customs.length > 0)
+  if (!photos[0]) return null
+
+  function toggleFormat(id: ExportId) {
+    const allOn = photos.every((photo) => photo.makeFormats.includes(id))
+    onReplace(
+      photos.map((photo) => {
+        const makeFormats = allOn
+          ? photo.makeFormats.filter((item) => item !== id)
+          : photo.makeFormats.includes(id)
+            ? photo.makeFormats
+            : [...photo.makeFormats, id]
+        return {
+          ...photo,
+          makeFormats,
+          readyFiles: makeFormats.includes(id) ? photo.readyFiles : { ...photo.readyFiles, [id]: null },
+        }
+      }),
+    )
+  }
+
+  function copyCustoms(rows: CustomSizeDraft[], photo: PhotoDraft): CustomSizeDraft[] {
+    return rows.map((row, index) => {
+      const existing = photo.customs[index]
+      return {
+        key: existing?.key ?? `${photo.key}-${row.key}`,
+        name: row.name,
+        width: row.width,
+        height: row.height,
+        frame: existing?.frame ?? CENTER_CROP,
+      }
+    })
+  }
+
+  function toggleCustom() {
+    if (allCustom) {
+      onReplace(photos.map((photo) => ({ ...photo, customs: [] })))
+      return
+    }
+    const rows = template.length > 0 ? template : [blankCustom()]
+    onReplace(photos.map((photo) => ({ ...photo, customs: copyCustoms(rows, photo) })))
+  }
+
+  function editCustoms(rows: CustomSizeDraft[]) {
+    onReplace(
+      photos.map((photo) => (photo.customs.length === 0 ? photo : { ...photo, customs: copyCustoms(rows, photo) })),
+    )
+  }
+
+  return (
+    <div className="shared-formats">
+      <p>Set the formats for every photo. Each photo can still turn a format on or off.</p>
+      <div className="format-choice">
+        {EXPORT_FORMATS.map((format) => {
+          const count = photos.filter((photo) => photo.makeFormats.includes(format.id)).length
+          return (
+            <FormatCheck
+              key={format.id}
+              label={format.label}
+              checked={count === photos.length}
+              indeterminate={count > 0 && count < photos.length}
+              disabled={uploading}
+              onChange={() => toggleFormat(format.id)}
+            />
+          )
+        })}
+        {mode === 'make' ? (
+          <FormatCheck
+            label="Custom"
+            checked={allCustom}
+            indeterminate={someCustom && !allCustom}
+            disabled={uploading}
+            onChange={toggleCustom}
+          />
+        ) : null}
+      </div>
+      {mode === 'make'
+        ? template.map((row, index) => (
+            <div key={row.key} className="custom-size">
+              <label className="field">
+                <span>Name</span>
+                <input
+                  value={row.name}
+                  disabled={uploading}
+                  maxLength={40}
+                  placeholder="Lookbook"
+                  onChange={(event) =>
+                    editCustoms(template.map((item, itemIndex) => (itemIndex === index ? { ...item, name: event.target.value } : item)))
+                  }
+                />
+              </label>
+              <label className="field">
+                <span>Width</span>
+                <input
+                  inputMode="numeric"
+                  value={row.width}
+                  disabled={uploading}
+                  placeholder="1080"
+                  onChange={(event) =>
+                    editCustoms(template.map((item, itemIndex) => (itemIndex === index ? { ...item, width: event.target.value } : item)))
+                  }
+                />
+              </label>
+              <label className="field">
+                <span>Height</span>
+                <input
+                  inputMode="numeric"
+                  value={row.height}
+                  disabled={uploading}
+                  placeholder="1350"
+                  onChange={(event) =>
+                    editCustoms(template.map((item, itemIndex) => (itemIndex === index ? { ...item, height: event.target.value } : item)))
+                  }
+                />
+              </label>
+              <button
+                type="button"
+                className="text-btn"
+                disabled={uploading}
+                onClick={() => editCustoms(template.filter((_, itemIndex) => itemIndex !== index))}
+              >
+                Remove
+              </button>
+            </div>
+          ))
+        : null}
+      {mode === 'make' && template.length > 0 ? (
+        <button
+          type="button"
+          className="btn soft"
+          disabled={uploading || template.length >= 6}
+          onClick={() => editCustoms([...template, blankCustom()])}
+        >
+          Add another size
+        </button>
+      ) : null}
+    </div>
+  )
+}
+
+function FormatCheck({
+  label,
+  checked,
+  indeterminate = false,
+  disabled,
+  onChange,
+}: {
+  label: string
+  checked: boolean
+  indeterminate?: boolean
+  disabled: boolean
+  onChange: () => void
+}) {
+  const inputRef = useRef<HTMLInputElement>(null)
+  useEffect(() => {
+    if (inputRef.current) inputRef.current.indeterminate = indeterminate
+  }, [indeterminate])
+
+  return (
+    <label>
+      <input ref={inputRef} type="checkbox" checked={checked} disabled={disabled} onChange={onChange} />
+      <span>{label}</span>
+    </label>
   )
 }
 
@@ -163,19 +350,62 @@ function SlideFormats({
   photo,
   mode,
   uploading,
+  customTemplate,
   onChange,
 }: {
   photo: PhotoDraft
   mode: 'ready' | 'make'
   uploading: boolean
+  customTemplate: CustomSizeDraft[]
   onChange: (photo: PhotoDraft) => void
 }) {
+  function toggleFormat(id: ExportId) {
+    const makeFormats = photo.makeFormats.includes(id)
+      ? photo.makeFormats.filter((item) => item !== id)
+      : [...photo.makeFormats, id]
+    onChange({
+      ...photo,
+      makeFormats,
+      readyFiles: makeFormats.includes(id) ? photo.readyFiles : { ...photo.readyFiles, [id]: null },
+    })
+  }
+
+  function toggleCustom() {
+    if (photo.customs.length > 0) {
+      onChange({ ...photo, customs: [] })
+      return
+    }
+    const rows = customTemplate.length > 0 ? customTemplate : [blankCustom()]
+    onChange({
+      ...photo,
+      customs: rows.map((row) => ({ ...row, key: `${photo.key}-${row.key}`, frame: CENTER_CROP })),
+    })
+  }
+
+  const chosen = EXPORT_FORMATS.filter((format) => photo.makeFormats.includes(format.id))
+  const choices = (
+    <div className="format-choice">
+      {EXPORT_FORMATS.map((format) => (
+        <FormatCheck
+          key={format.id}
+          label={format.label}
+          checked={photo.makeFormats.includes(format.id)}
+          disabled={uploading}
+          onChange={() => toggleFormat(format.id)}
+        />
+      ))}
+      {mode === 'make' ? (
+        <FormatCheck label="Custom" checked={photo.customs.length > 0} disabled={uploading} onChange={toggleCustom} />
+      ) : null}
+    </div>
+  )
+
   switch (mode) {
     case 'ready':
       return (
         <>
-          <p>Upload each format already at the right size.</p>
-          {EXPORT_FORMATS.map((format) => (
+          {choices}
+          {chosen.map((format) => (
             <label key={format.id} className="format-upload">
               <span>
                 <b>{format.label}</b>
@@ -199,109 +429,8 @@ function SlideFormats({
     case 'make':
       return (
         <>
-          <p>Choose the formats to make from this photo. Drag each preview until the crop looks right.</p>
-          <div className="format-choice">
-            {EXPORT_FORMATS.map((format) => (
-              <label key={format.id}>
-                <input
-                  type="checkbox"
-                  checked={photo.makeFormats.includes(format.id)}
-                  disabled={uploading}
-                  onChange={() =>
-                    onChange({
-                      ...photo,
-                      makeFormats: photo.makeFormats.includes(format.id)
-                        ? photo.makeFormats.filter((id) => id !== format.id)
-                        : [...photo.makeFormats, format.id],
-                    })
-                  }
-                />
-                <span>{format.label}</span>
-              </label>
-            ))}
-            <label>
-              <input
-                type="checkbox"
-                checked={photo.customs.length > 0}
-                disabled={uploading}
-                onChange={() =>
-                  onChange({
-                    ...photo,
-                    customs: photo.customs.length > 0 ? [] : [blankCustom()],
-                  })
-                }
-              />
-              <span>Custom</span>
-            </label>
-          </div>
-          {photo.customs.map((row) => (
-            <div key={row.key} className="custom-size">
-              <label className="field">
-                <span>Name</span>
-                <input
-                  value={row.name}
-                  disabled={uploading}
-                  maxLength={40}
-                  placeholder="Lookbook"
-                  onChange={(event) =>
-                    onChange({
-                      ...photo,
-                      customs: photo.customs.map((item) => (item.key === row.key ? { ...item, name: event.target.value } : item)),
-                    })
-                  }
-                />
-              </label>
-              <label className="field">
-                <span>Width</span>
-                <input
-                  inputMode="numeric"
-                  value={row.width}
-                  disabled={uploading}
-                  placeholder="1080"
-                  onChange={(event) =>
-                    onChange({
-                      ...photo,
-                      customs: photo.customs.map((item) => (item.key === row.key ? { ...item, width: event.target.value } : item)),
-                    })
-                  }
-                />
-              </label>
-              <label className="field">
-                <span>Height</span>
-                <input
-                  inputMode="numeric"
-                  value={row.height}
-                  disabled={uploading}
-                  placeholder="1350"
-                  onChange={(event) =>
-                    onChange({
-                      ...photo,
-                      customs: photo.customs.map((item) => (item.key === row.key ? { ...item, height: event.target.value } : item)),
-                    })
-                  }
-                />
-              </label>
-              <button
-                type="button"
-                className="text-btn"
-                disabled={uploading}
-                onClick={() => onChange({ ...photo, customs: photo.customs.filter((item) => item.key !== row.key) })}
-              >
-                Remove
-              </button>
-            </div>
-          ))}
-          {photo.customs.length > 0 ? (
-            <button
-              type="button"
-              className="btn soft"
-              disabled={uploading || photo.customs.length >= 6}
-              onClick={() => onChange({ ...photo, customs: [...photo.customs, blankCustom()] })}
-            >
-              Add another size
-            </button>
-          ) : null}
-          {EXPORT_FORMATS.filter((format) => photo.makeFormats.includes(format.id)).map((format) => (
+          {choices}
+          {chosen.map((format) => (
             <FormatCrop
               key={format.id}
               src={photo.url}

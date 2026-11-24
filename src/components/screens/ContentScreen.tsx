@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, type FormEvent } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import { Icon } from '@/components/icons'
 import { ContentDayOffer } from '@/components/feedback/ContentDayOffer'
 import { FlowTip } from '@/components/feedback/FlowTip'
@@ -9,9 +9,13 @@ import { MediaCard } from '@/components/media/MediaCard'
 import { MediaListRow } from '@/components/media/MediaListRow'
 import { CONTENT_TYPE_FILTERS, SORT_MODES } from '@/data/types'
 import type { SortMode } from '@/data/types'
-import { mediaTags, type SearchCloseness } from '@/lib/library'
+import { ARCHIVE_FORMATS, mediaTags, type ArchiveFormat, type SearchCloseness } from '@/lib/library'
 import { useApp, useSelectionActions } from '@/state/AppState'
 import { useLibrary } from '@/state/Catalog'
+
+function isArchiveFormat(value: string): value is ArchiveFormat {
+  return (ARCHIVE_FORMATS as readonly string[]).includes(value)
+}
 
 function isSortMode(value: string): value is SortMode {
   return (SORT_MODES as readonly string[]).includes(value)
@@ -50,7 +54,10 @@ export function ContentScreen() {
     setView,
   } = useApp()
   const { clearSelected } = useSelectionActions()
-  const { media, filteredMedia: applyFilters } = useLibrary()
+  const { media, collections, filteredMedia: applyFilters } = useLibrary()
+  const [year, setYear] = useState('All')
+  const [collectionName, setCollectionName] = useState('All')
+  const [format, setFormat] = useState<ArchiveFormat>('All')
   const tagFilters = useMemo(() => {
     const names = new Set<string>()
     for (const item of media) {
@@ -59,17 +66,28 @@ export function ContentScreen() {
     return ['All', ...[...names].sort((left, right) => left.localeCompare(right))]
   }, [media])
 
+  const years = useMemo(() => {
+    const values = new Set<number>()
+    for (const item of media) {
+      if (item.year) values.add(item.year)
+    }
+    return [...values].sort((left, right) => right - left)
+  }, [media])
+
   const outcome = useMemo(
-    () => applyFilters({ search, contentType, channel, sort }),
-    [applyFilters, search, contentType, channel, sort],
+    () => applyFilters({ search, contentType, channel, sort, year, collection: collectionName, format }),
+    [applyFilters, search, contentType, channel, sort, year, collectionName, format],
   )
   const results = outcome.items
-  const filtering = Boolean(search) || contentType !== 'All' || channel !== 'All'
+  const filtering = Boolean(search) || contentType !== 'All' || channel !== 'All' || year !== 'All' || collectionName !== 'All' || format !== 'All'
 
   function clearFilters() {
     setSearch('')
     setContentType('All')
     setChannel('All')
+    setYear('All')
+    setCollectionName('All')
+    setFormat('All')
     clearSelected()
   }
 
@@ -92,7 +110,7 @@ export function ContentScreen() {
       <section className="library-toolbar card">
         <form id="content-search-form" className="content-search" onSubmit={onSearch}>
           <Icon name="search" />
-          <input key={search} name="q" defaultValue={search} placeholder="Search by title, collection or tag…" />
+          <input key={search} name="q" defaultValue={search} placeholder="Search the archive by title, collection, caption or year…" />
           <button type="submit" className="search-submit">
             Search
           </button>
@@ -132,6 +150,43 @@ export function ContentScreen() {
               ))}
             </div>
           ) : null}
+          <div className="filter-group">
+            <span className="filter-label">Year</span>
+            <select className="sort-select" value={year} onChange={(event) => setYear(event.target.value)}>
+              <option value="All">All years</option>
+              {years.map((item) => (
+                <option key={item} value={String(item)}>
+                  {item}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="filter-group">
+            <span className="filter-label">Collection</span>
+            <select className="sort-select" value={collectionName} onChange={(event) => setCollectionName(event.target.value)}>
+              <option value="All">All collections</option>
+              {collections.map((item) => (
+                <option key={item.slug} value={item.title}>
+                  {item.title}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="filter-group">
+            <span className="filter-label">Format</span>
+            {ARCHIVE_FORMATS.map((item) => (
+              <button
+                key={item}
+                type="button"
+                className={format === item ? 'pill active' : 'pill'}
+                onClick={() => {
+                  if (isArchiveFormat(item)) setFormat(item)
+                }}
+              >
+                {item}
+              </button>
+            ))}
+          </div>
           <div className="toolbar-spacer" />
           <select
             className="sort-select"

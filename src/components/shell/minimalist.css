@@ -1,0 +1,474 @@
+.theme-minimalist {
+  background: var(--bg);
+  color: var(--text);
+  --bg: #ffffff;
+  --surface: #ffffff;
+  --surface-soft: #f4f4f4;
+  --surface-purple: #f4f4f4;
+  --line: #e2e2e2;
+  --line-dark: #111111;
+  --text: #111111;
+  --muted: #737373;
+  --muted2: #737373;
+  --flow: #111111;
+  --flow-dark: #111111;
+  --flow-soft: #f4f4f4;
+  --on-accent: #ffffff;
+  --on-text: #ffffff;
+  --flow-ink: #111111;
+  --shadow: none;
+  --shadow-sm: none;
+  --radius: 0;
+  --radius-sm: 0;
+  font-family: "Helvetica Neue", Helvetica, Inter, Arial, sans-serif;
+  scrollbar-color: #e2e2e2 #ffffff;
+}
+.theme-minimalist,
+.theme-minimalist * {
+  border-radius: 0 !important;
+  box-shadow: none !important;
+}
+.theme-minimalist ::-webkit-scrollbar {width:8px;height:8px}
+.theme-minimalist ::-webkit-scrollbar-track {background:#ffffff;border-left:1px solid #e2e2e2}
+.theme-minimalist ::-webkit-scrollbar-thumb {background:#e2e2e2}
+.theme-minimalist ::-webkit-scrollbar-thumb:hover {background:#737373}
+.theme-minimalist .app-shell,
+.theme-minimalist .main,
+.theme-minimalist .sidebar {background:var(--bg);color:var(--text)}
+.theme-minimalist .sidebar {padding:36px 28px 32px;background:var(--bg);border-right:1px solid var(--line)}
+.theme-minimalist .nav {gap:2px;margin-top:36px}
+.theme-minimalist .nav-item,
+.theme-minimalist .help-card {
+  border-radius:0;
+  background:transparent;
+  color:var(--muted);
+  font-weight:500;
+  padding:14px 4px;
+}
+.theme-minimalist .nav-item span,
+.theme-minimalist .help-card span {
+  font-size:11px;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+}
+.theme-minimalist .nav-item:hover,
+.theme-minimalist .help-card:hover {background:var(--surface-soft);color:var(--text)}
+.theme-minimalist .nav-item.active {background:transparent;color:var(--text);font-weight:500}
+.theme-minimalist .nav-item.active span {border-bottom:1px solid var(--text);padding-bottom:2px}
+.theme-minimalist .topbar {
+  height:88px;
+  padding:0 40px;
+  background:var(--bg);
+  border-bottom:1px solid var(--line);
+}
+.theme-minimalist .global-search,
+.theme-minimalist .content-search {
+  border:1px solid var(--line);
+  border-radius:0;
+  background:var(--bg);
+  box-shadow:none;
+}
+.theme-minimalist .global-search input,
+.theme-minimalist .content-search input {color:var(--text);letter-spacing:.04em}
+.theme-minimalist .global-search input::placeholder,
+.theme-minimalist .content-search input::placeholder {color:var(--muted)}
+.theme-minimalist .global-search:focus-within,
+.theme-minimalist .content-search:focus-within {border-color:var(--text)}
+.theme-minimalist .icon-btn,
+.theme-minimalist .avatar-btn,
+.theme-minimalist .mobile-menu,
+.theme-minimalist .chev,
+.theme-minimalist .close {color:var(--muted);border-radius:0}
+.theme-minimalist .icon-btn:hover,
+.theme-minimalist .avatar-btn:hover,
+.theme-minimalist .close:hover {background:transparent;color:var(--text)}
+.theme-minimalist .avatar {
+  border-radius:0;
+  background:transparent;
+  color:var(--text);
+  border:1px solid var(--line);
+  letter-spacing:.12em;
+}
+.theme-minimalist .badge-dot {background:var(--text);border-color:var(--bg)}
+.theme-minimalist .eyebrow,
+.theme-minimalist .section-kicker {color:var(--muted);letter-spacing:.12em;font-weight:500;font-size:11px}
+.theme-minimalist h1,
+.theme-minimalist h2,
+.theme-minimalist h3 {font-weight:400;text-align:left}
+.theme-minimalist .page-title h1,
+.theme-minimalist .collection-heading h1,
+.theme-minimalist .minimal-hero h1 {
+  letter-spacing:-.03em;
+  text-transform:none;
+  font-weight:400;
+  text-align:left;
+}
+.theme-minimalist .card,
+.theme-minimalist .stat-card,
+.theme-minimalist .popover,
+.theme-minimalist .drawer,
+.theme-minimalist .upload-dialog,
+.theme-minimalist .guide-modal,
+.theme-minimalist .confirm-dialog,
+.theme-minimalist .notification-pop,
+.theme-minimalist .kebab-menu,
+.theme-minimalist .btn,
+.theme-minimalist .btn.ghost,
+.theme-minimalist .content-search,
+.theme-minimalist .sort-select,
+.theme-minimalist .view-toggle,
+.theme-minimalist .admin-filters button,
+.theme-minimalist .promotion-form select,
+.theme-minimalist .upload-dialog select,
+.theme-minimalist .phone-row select,
+.theme-minimalist .library-toolbar,
+.theme-minimalist .flow-tip,
+.theme-minimalist .guide-card,
+.theme-minimalist .day-offer,
+.theme-minimalist .service-option,
+.theme-minimalist .service-offer {
+  background:var(--bg);
+  color:var(--text);
+  border-color:var(--line);
+  box-shadow:none;
+}
+.theme-minimalist .btn,
+.theme-minimalist .pill,
+.theme-minimalist .card,
+.theme-minimalist .flow-tip,
+.theme-minimalist .flow-tip-icon,
+.theme-minimalist .inline-tip,
+.theme-minimalist .inline-tip-icon,
+.theme-minimalist .mini-card,
+.theme-minimalist .mini-card img,
+.theme-minimalist .day-offer,
+.theme-minimalist .guide-card,
+.theme-minimalist .guide-visual,
+.theme-minimalist .guide-visual img,
+.theme-minimalist .guide-modal,
+.theme-minimalist .content-search,
+.theme-minimalist .search-submit,
+.theme-minimalist .sort-select,
+.theme-minimalist .view-toggle,
+.theme-minimalist .library-toolbar,
+.theme-minimalist .asset-preview,
+.theme-minimalist .collection-feature,
+.theme-minimalist .collection-stack img,
+.theme-minimalist .collection-count,
+.theme-minimalist .duration,
+.theme-minimalist .asset-type-badge,
+.theme-minimalist .tag,
+.theme-minimalist .kebab,
+.theme-minimalist .kebab-menu,
+.theme-minimalist .service-option,
+.theme-minimalist .media-row,
+.theme-minimalist .toast,
+.theme-minimalist .cover-choice,
+.theme-minimalist .icon-btn,
+.theme-minimalist .avatar-btn,
+.theme-minimalist input,
+.theme-minimalist textarea,
+.theme-minimalist select {border-radius:0}
+.theme-minimalist .btn,
+.theme-minimalist .search-submit,
+.theme-minimalist .sidebar-contact a {
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  font-size:11px;
+  font-weight:500;
+}
+.theme-minimalist .btn:hover,
+.theme-minimalist .sidebar-contact a:hover {
+  transform:none;
+  background:var(--text);
+  color:var(--on-text);
+  border-color:var(--text);
+  box-shadow:none;
+}
+.theme-minimalist .btn.primary {background:var(--text);color:var(--on-text);border:1px solid var(--text)}
+.theme-minimalist .btn.primary:hover {background:var(--bg);color:var(--text);border-color:var(--text)}
+.theme-minimalist .btn.soft,
+.theme-minimalist .search-submit {background:transparent;color:var(--text);border:1px solid var(--line)}
+.theme-minimalist .btn.danger {color:var(--text);border-color:var(--text);background:transparent}
+.theme-minimalist .btn.danger:hover {background:var(--text);color:var(--on-text);border-color:var(--text)}
+.theme-minimalist .pill {
+  height:auto;
+  padding:0 0 4px;
+  border:0;
+  border-radius:0;
+  background:transparent;
+  color:var(--muted);
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  font-size:10px;
+  font-weight:500;
+}
+.theme-minimalist .pill:hover {border-color:transparent;color:var(--text)}
+.theme-minimalist .pill.active {background:transparent;color:var(--text);border-bottom:1px solid var(--text)}
+.theme-minimalist input,
+.theme-minimalist textarea,
+.theme-minimalist select,
+.theme-minimalist .field input,
+.theme-minimalist .field select,
+.theme-minimalist .promotion-form select,
+.theme-minimalist .user-form select,
+.theme-minimalist .upload-dialog select,
+.theme-minimalist .phone-row select {background:var(--bg);color:var(--text);border-color:var(--line)}
+.theme-minimalist .link,
+.theme-minimalist .text-btn,
+.theme-minimalist .text-btn.purple {color:var(--text);letter-spacing:.12em;text-transform:uppercase;font-size:11px}
+.theme-minimalist button.btn.soft {color:var(--text)}
+.theme-minimalist .sidebar-contact {background:transparent;border-radius:0;border-top:1px solid var(--line)}
+.theme-minimalist .sidebar-contact a,
+.theme-minimalist .sidebar-tower,
+.theme-minimalist .svc-tile,
+.theme-minimalist .svc-flyout {border-radius:0}
+.theme-minimalist .svc-tile::before {display:none}
+.theme-minimalist .sidebar-contact p {color:var(--muted);letter-spacing:.12em;text-transform:uppercase;font-size:11px}
+.theme-minimalist .sidebar-contact span,
+.theme-minimalist .svc-intro,
+.theme-minimalist .svc-legend {color:var(--muted)}
+.theme-minimalist .sidebar-contact a {background:transparent;color:var(--text);border:1px solid var(--line)}
+.theme-minimalist .svc-tile {background:var(--bg);color:var(--text);border-color:var(--line)}
+.theme-minimalist .svc-flyout {background:var(--bg);color:var(--text);border-color:var(--line);box-shadow:none}
+.theme-minimalist .card:hover,
+.theme-minimalist .collection-tile:hover,
+.theme-minimalist .collection-feature:hover,
+.theme-minimalist .guide-card:hover,
+.theme-minimalist .media-card:hover .thumb {transform:none;box-shadow:none}
+.theme-minimalist .thumb,
+.theme-minimalist .collection-cover,
+.theme-minimalist .asset-preview,
+.theme-minimalist .admin-thumb {background:var(--surface-soft);border-color:var(--line)}
+.theme-minimalist .media-grid,
+.theme-minimalist .library-grid,
+.theme-minimalist .collection-assets,
+.theme-minimalist .collections-grid {gap:1px;background:transparent;border:0}
+.theme-minimalist .media-card,
+.theme-minimalist .collection-tile {
+  position:relative;
+  background:var(--bg);
+  border:0;
+  border-radius:0;
+  overflow:visible;
+  box-shadow:inset 0 0 0 1px var(--line);
+}
+.theme-minimalist .thumb,
+.theme-minimalist .collection-cover {
+  aspect-ratio:4/3;
+  height:auto;
+  border:0;
+  border-radius:0;
+  overflow:hidden;
+}
+.theme-minimalist .media-card:hover,
+.theme-minimalist .collection-tile:hover {outline:1px solid var(--text);outline-offset:-1px;z-index:1}
+.theme-minimalist .media-card .media-card-meta,
+.theme-minimalist .collection-tile .collection-body {
+  position:relative;
+  left:auto;
+  right:auto;
+  bottom:auto;
+  width:auto;
+  margin:0;
+  padding:12px 14px 14px;
+  background:transparent;
+  border:0;
+  opacity:1;
+}
+.theme-minimalist .media-card-title,
+.theme-minimalist .collection-body h3 {
+  color:var(--text);
+  font-size:10px;
+  font-weight:500;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+}
+.theme-minimalist .media-card-sub,
+.theme-minimalist .collection-meta,
+.theme-minimalist .collection-body p {color:var(--muted)}
+.theme-minimalist .asset-type-badge {
+  border-radius:0;
+  background:var(--bg);
+  color:var(--text);
+  border:1px solid var(--line);
+  letter-spacing:.14em;
+  text-transform:uppercase;
+}
+.theme-minimalist .favorite-btn,
+.theme-minimalist .favorite-btn.on {
+  background:transparent;
+  border:0;
+  box-shadow:none;
+  color:#111111;
+  filter:drop-shadow(0 0 1px #fff);
+}
+.theme-minimalist .media-card .favorite-btn {top:10px;right:auto;bottom:auto;left:10px}
+.theme-minimalist .favorite-btn.on {color:#111111}
+.theme-minimalist .thumb img,
+.theme-minimalist .collection-cover img {filter:none;opacity:1}
+.theme-minimalist .media-card .favorite-btn,
+.theme-minimalist .media-card .kebab {opacity:0}
+.theme-minimalist .media-card:hover .favorite-btn,
+.theme-minimalist .media-card:hover .kebab,
+.theme-minimalist .media-card:focus-within .favorite-btn,
+.theme-minimalist .media-card:focus-within .kebab {opacity:1}
+.theme-minimalist .tag,
+.theme-minimalist .asset-tag-row .tag:not(.collection),
+.theme-minimalist .size-picker button {
+  background:var(--bg);
+  color:var(--text);
+  border:1px solid var(--line);
+  border-radius:0;
+}
+.theme-minimalist .size-picker button.on {background:var(--text);color:var(--on-text);border-color:var(--text)}
+.theme-minimalist .flow-tip {border:1px solid var(--line)}
+.theme-minimalist .flow-tip-icon,
+.theme-minimalist .inline-tip-icon {background:transparent;color:var(--text);border:1px solid var(--line);border-radius:0}
+.theme-minimalist .minimal-hero {
+  display:flex;
+  flex-direction:column;
+  align-items:flex-start;
+  text-align:left;
+  padding:96px 64px 72px;
+  border-bottom:1px solid var(--line);
+  background:var(--bg);
+}
+.theme-minimalist .minimal-hero p {
+  margin:0 0 18px;
+  font-size:11px;
+  letter-spacing:.12em;
+  text-transform:uppercase;
+  color:var(--muted);
+}
+.theme-minimalist .minimal-hero h1 {
+  width:100%;
+  max-width:none;
+  margin:0;
+  text-align:left;
+  font-size:clamp(36px, 4vw, 56px);
+  font-weight:400;
+  letter-spacing:-.03em;
+  text-transform:none;
+  line-height:1.05;
+}
+.theme-minimalist .minimal-rule {width:48px;height:0;margin:22px 0;border-bottom:1px solid var(--text)}
+.theme-minimalist .minimal-meta {margin:0;letter-spacing:.12em}
+.theme-minimalist .minimal-note {
+  max-width:520px;
+  margin:14px 0 0;
+  letter-spacing:.02em;
+  text-transform:none;
+  font-size:13px;
+  line-height:1.5;
+}
+.theme-minimalist .minimal-hero .asset-tag-row,
+.theme-minimalist .minimal-hero .collection-actions {justify-content:flex-start;margin-top:18px}
+.theme-minimalist .home-page,
+.theme-minimalist .collection-detail-page {padding:0 0 64px;max-width:none}
+.theme-minimalist .home-page .day-offer,
+.theme-minimalist .home-page .section,
+.theme-minimalist .home-page .latest-collection,
+.theme-minimalist .home-page .flow-tip,
+.theme-minimalist .collection-detail-page .section,
+.theme-minimalist .collection-detail-page .share-link,
+.theme-minimalist .collection-detail-page .flow-tip {margin-left:64px;margin-right:64px}
+.theme-minimalist .home-page .day-offer {margin-top:32px}
+.theme-minimalist .content-page .library-grid,
+.theme-minimalist .content-page .media-list,
+.theme-minimalist .collections-page .collections-grid {margin-left:-38px;margin-right:-38px}
+.theme-minimalist .ig-post {background:#fff;color:#121217}
+.theme-minimalist .kebab-menu a,
+.theme-minimalist .kebab-menu button {color:var(--text)}
+.theme-minimalist .kebab-menu a:hover,
+.theme-minimalist .kebab-menu button:hover {background:var(--surface-soft);color:var(--text)}
+.theme-minimalist .content-day-embed {
+  color:var(--text);
+  font-family:inherit;
+}
+.theme-minimalist .content-day-embed .package-inclusions,
+.theme-minimalist .content-day-embed .calendar-card,
+.theme-minimalist .content-day-embed .booking-card,
+.theme-minimalist .content-day-embed .booking-summary > div,
+.theme-minimalist .content-day-embed .booking-confirm-card {
+  background:var(--bg);
+  color:var(--text);
+  border-color:var(--line);
+  border-radius:0;
+  box-shadow:none;
+}
+.theme-minimalist .content-day-embed .package-inclusions span,
+.theme-minimalist .content-day-embed .weekdays span,
+.theme-minimalist .content-day-embed .calendar-hint,
+.theme-minimalist .content-day-embed .calendar-hint strong,
+.theme-minimalist .content-day-embed .field label,
+.theme-minimalist .content-day-embed .booking-summary small,
+.theme-minimalist .content-day-embed .plan-note,
+.theme-minimalist .content-day-embed .eyebrow {color:var(--muted)}
+.theme-minimalist .content-day-embed .calendar-top h3,
+.theme-minimalist .content-day-embed .booking-summary strong,
+.theme-minimalist .content-day-embed .booking-confirm-card h3 {
+  color:var(--text);
+  font-weight:400;
+  letter-spacing:.08em;
+  text-transform:uppercase;
+}
+.theme-minimalist .content-day-embed .calendar-nav button,
+.theme-minimalist .content-day-embed .calendar-grid button,
+.theme-minimalist .content-day-embed .field input,
+.theme-minimalist .content-day-embed .field select,
+.theme-minimalist .content-day-embed .btn {
+  background:var(--bg);
+  color:var(--text);
+  border:1px solid var(--line);
+  border-radius:0;
+  box-shadow:none;
+  letter-spacing:.08em;
+}
+.theme-minimalist .content-day-embed .calendar-grid button.selectable {
+  background:var(--bg);
+  border-color:var(--text);
+  color:var(--text);
+}
+.theme-minimalist .content-day-embed .calendar-grid button.selectable:hover,
+.theme-minimalist .content-day-embed .calendar-nav button:not(:disabled):hover {
+  background:var(--text);
+  color:var(--on-text);
+  border-color:var(--text);
+}
+.theme-minimalist .content-day-embed .calendar-grid button.selected,
+.theme-minimalist .content-day-embed .btn-primary,
+.theme-minimalist .content-day-embed .btn.primary {
+  background:var(--text);
+  color:var(--on-text);
+  border-color:var(--text);
+}
+.theme-minimalist .content-day-embed .btn:hover {
+  transform:none;
+  background:var(--text);
+  color:var(--on-text);
+  border-color:var(--text);
+}
+.theme-minimalist .content-day-embed .btn-primary:hover,
+.theme-minimalist .content-day-embed .btn.primary:hover {
+  background:var(--bg);
+  color:var(--text);
+  border-color:var(--text);
+}
+.theme-minimalist .content-day-embed .field input:focus,
+.theme-minimalist .content-day-embed .field select:focus {border-color:var(--text);box-shadow:none}
+@media (max-width:900px) {
+  .theme-minimalist .minimal-hero {padding:56px 20px 36px}
+  .theme-minimalist .home-page,
+  .theme-minimalist .collection-detail-page {padding-bottom:44px}
+  .theme-minimalist .home-page .day-offer,
+  .theme-minimalist .home-page .section,
+  .theme-minimalist .home-page .latest-collection,
+  .theme-minimalist .home-page .flow-tip,
+  .theme-minimalist .collection-detail-page .section,
+  .theme-minimalist .collection-detail-page .share-link,
+  .theme-minimalist .collection-detail-page .flow-tip {margin-left:20px;margin-right:20px}
+  .theme-minimalist .content-page .library-grid,
+  .theme-minimalist .content-page .media-list,
+  .theme-minimalist .collections-page .collections-grid {margin-left:-20px;margin-right:-20px}
+}

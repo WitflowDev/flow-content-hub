@@ -19,6 +19,7 @@ export function readFirebaseWebConfig(): FirebaseWebConfig {
 }
 
 export const SESSION_COOKIE = 'flow_session'
+export const SESSION_MAX_AGE_SECONDS = 14 * 24 * 60 * 60
 
 export const FLOW_UID_HEADER = 'x-flow-uid'
 export const FLOW_EMAIL_HEADER = 'x-flow-email'

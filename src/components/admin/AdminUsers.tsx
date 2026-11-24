@@ -7,9 +7,10 @@ import { parseRole } from '@/lib/auth'
 import { clearClientBanner, clearClientLogo, saveClientBanner, saveClientLogo } from '@/lib/admin/brand'
 import { createAdminUser, deleteAdminUser, loadAdminUsersPage, updateAdminUser } from '@/lib/admin/users'
 import type { AdminUser } from '@/lib/admin/types'
-import { interfaceThemeLabel, readInterfaceTheme, type InterfaceTheme } from '@/lib/interface-theme'
+import { interfaceThemeLabel, readFlowLogo, readInterfaceTheme, type FlowLogo, type InterfaceTheme } from '@/lib/interface-theme'
+import { paletteFromImage } from '@/lib/logo-colors'
 import { startPreview } from '@/lib/preview/actions'
-import { PALETTE_KEYS, defaultPalette, paletteLabel, resolvePalette, type ThemePalette } from '@/lib/theme-palette'
+import { PALETTE_KEYS, defaultPalette, paletteHasOverrides, paletteLabel, resolvePalette, suggestedFlowLogo, type ThemePalette } from '@/lib/theme-palette'
 import { useApp } from '@/state/AppState'
 import { useSession } from '@/state/Session'
 
@@ -20,6 +21,7 @@ type Draft = {
   role: AppRole
   password: string
   interfaceTheme: InterfaceTheme
+  flowLogo: FlowLogo
   themeColors: ThemePalette
 }
 
@@ -32,6 +34,7 @@ const EMPTY_DRAFT: Draft = {
   role: 'client',
   password: '',
   interfaceTheme: 'studio',
+  flowLogo: 'black',
   themeColors: defaultPalette('studio'),
 }
 
@@ -55,6 +58,33 @@ export function AdminUsers() {
   const [bannerFile, setBannerFile] = useState<File | null>(null)
   const [bannerPreview, setBannerPreview] = useState('')
   const [existingBanner, setExistingBanner] = useState('')
+  const [colorsFromLogo, setColorsFromLogo] = useState(false)
+  const logoSrc =
+    logoPreview ||
+    (editor.mode === 'edit' && existingLogo
+      ? `/api/brand/logo?user=${encodeURIComponent(editor.id)}&v=${encodeURIComponent(existingLogo)}`
+      : '')
+
+  useEffect(() => {
+    if (!logoSrc) return
+    let live = true
+    void paletteFromImage(logoSrc, draft.interfaceTheme).then((palette) => {
+      if (!live || !palette) return
+      const freshUpload = logoSrc.startsWith('blob:')
+      let applied = false
+      setDraft((current) => {
+        if (current.interfaceTheme !== draft.interfaceTheme) return current
+        if (!freshUpload && paletteHasOverrides(current.interfaceTheme, current.themeColors)) return current
+        applied = true
+        if (PALETTE_KEYS.every((key) => current.themeColors[key] === palette[key])) return current
+        return { ...current, themeColors: palette, flowLogo: suggestedFlowLogo(current.interfaceTheme, palette.background) }
+      })
+      if (applied) setColorsFromLogo(true)
+    })
+    return () => {
+      live = false
+    }
+  }, [logoSrc, draft.interfaceTheme])
 
   useEffect(() => {
     let live = true
@@ -82,6 +112,7 @@ export function AdminUsers() {
 
   function openCreate() {
     setPendingDelete('')
+    setColorsFromLogo(false)
     setLogoFile(null)
     setLogoPreview('')
     setExistingLogo('')
@@ -94,6 +125,7 @@ export function AdminUsers() {
 
   function openEdit(user: AdminUser) {
     setPendingDelete('')
+    setColorsFromLogo(false)
     setLogoFile(null)
     setLogoPreview('')
     setExistingLogo(user.logoFileId ?? '')
@@ -107,12 +139,16 @@ export function AdminUsers() {
       role: user.role,
       password: '',
       interfaceTheme: user.interfaceTheme,
+      flowLogo:
+        user.flowLogo ??
+        suggestedFlowLogo(user.interfaceTheme, resolvePalette(user.interfaceTheme, user.themeColors).background),
       themeColors: resolvePalette(user.interfaceTheme, user.themeColors),
     })
     setEditor({ mode: 'edit', id: user.id })
   }
 
   function closeEditor() {
+    setColorsFromLogo(false)
     setEditor({ mode: 'closed' })
     setDraft(EMPTY_DRAFT)
     setLogoFile(null)
@@ -325,12 +361,38 @@ export function AdminUsers() {
               onChange={(event) => {
                 const theme = readInterfaceTheme(event.target.value)
                 if (!theme) return
-                setDraft({ ...draft, interfaceTheme: theme, themeColors: defaultPalette(theme) })
+                setColorsFromLogo(false)
+                const themeColors = defaultPalette(theme)
+                setDraft({
+                  ...draft,
+                  interfaceTheme: theme,
+                  themeColors,
+                  flowLogo: suggestedFlowLogo(theme, themeColors.background),
+                })
               }}
             >
               <option value="studio">Studio</option>
               <option value="showroom">Showroom</option>
+              <option value="minimalist">Minimalist</option>
+              <option value="high-tech">High Tech</option>
+              <option value="institutional">Institutional</option>
             </select>
+          </div>
+          <div className="field">
+            <label htmlFor="user-flow-logo">Flow logo</label>
+            <select
+              id="user-flow-logo"
+              value={draft.flowLogo}
+              onChange={(event) => {
+                const flowLogo = readFlowLogo(event.target.value)
+                if (!flowLogo) return
+                setDraft({ ...draft, flowLogo })
+              }}
+            >
+              <option value="black">Black</option>
+              <option value="white">White</option>
+            </select>
+            <p className="field-note">Use white on a dark background and black on a light one.</p>
           </div>
           {draft.interfaceTheme === 'showroom' ? (
             <div className="field field-span">
@@ -376,12 +438,15 @@ export function AdminUsers() {
                     type="color"
                     value={draft.themeColors[key]}
                     aria-label={paletteLabel(key)}
-                    onChange={(event) =>
+                    onChange={(event) => {
+                      setColorsFromLogo(false)
+                      const color = event.target.value.toLowerCase()
                       setDraft({
                         ...draft,
-                        themeColors: { ...draft.themeColors, [key]: event.target.value.toLowerCase() },
+                        themeColors: { ...draft.themeColors, [key]: color },
+                        ...(key === 'background' ? { flowLogo: suggestedFlowLogo(draft.interfaceTheme, color) } : {}),
                       })
-                    }
+                    }}
                   />
                 </label>
               ))}
@@ -391,11 +456,19 @@ export function AdminUsers() {
                 type="button"
                 className="btn"
                 disabled={busy}
-                onClick={() => setDraft({ ...draft, themeColors: defaultPalette(draft.interfaceTheme) })}
+                onClick={() => {
+                  setColorsFromLogo(false)
+                  const themeColors = defaultPalette(draft.interfaceTheme)
+                  setDraft({ ...draft, themeColors, flowLogo: suggestedFlowLogo(draft.interfaceTheme, themeColors.background) })
+                }}
               >
                 Reset colors
               </button>
-              <p className="field-note">These are the theme defaults until you change them.</p>
+              <p className="field-note">
+                {colorsFromLogo
+                  ? 'Taken from the company logo. Reset colors restores the theme defaults.'
+                  : 'These are the theme defaults until you change them.'}
+              </p>
             </div>
           </div>
           <div className="field field-span">

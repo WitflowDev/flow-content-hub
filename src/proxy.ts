@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from 'next/server'
 import { parseRole } from '@/lib/auth'
 import { adminAuth, adminDb } from '@/lib/firebase/admin'
 import { FLOW_EMAIL_HEADER, FLOW_UID_HEADER, SESSION_COOKIE } from '@/lib/firebase/config'
+import { recordMetric, reportError } from '@/lib/observe'
 
 type SessionStamp = {
   uid: string
@@ -37,9 +38,11 @@ export async function proxy(request: NextRequest) {
 async function sessionUser(token: string | undefined): Promise<SessionStamp | null> {
   if (!token) return null
   try {
-    const decoded = await adminAuth().verifyIdToken(token)
+    const decoded = await adminAuth().verifySessionCookie(token, true)
     return { uid: decoded.uid, email: decoded.email ?? null }
-  } catch {
+  } catch (error) {
+    recordMetric('auth.rejected')
+    reportError('auth.session', error)
     return null
   }
 }

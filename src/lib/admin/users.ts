@@ -3,7 +3,7 @@
 import { FieldValue } from 'firebase-admin/firestore'
 import type { AppRole } from '@/lib/auth'
 import { parseRole } from '@/lib/auth'
-import { parseInterfaceTheme, readInterfaceTheme, type InterfaceTheme } from '@/lib/interface-theme'
+import { parseInterfaceTheme, readFlowLogo, readInterfaceTheme, type FlowLogo, type InterfaceTheme } from '@/lib/interface-theme'
 import type { AdminUser } from '@/lib/admin/types'
 import { requireAdmin } from '@/lib/auth/admin'
 import { companyFolderName, createClientDriveFolder, ownerAccessConfigured } from '@/lib/drive/owner'
@@ -17,6 +17,7 @@ type UserInput = {
   role: string
   password: string
   interfaceTheme: string
+  flowLogo: string
   themeColors: ThemePalette
 }
 
@@ -27,6 +28,7 @@ type SavedUser = {
   role: AppRole
   password: string
   interfaceTheme: InterfaceTheme
+  flowLogo: FlowLogo
   themeColors: Partial<ThemePalette>
 }
 
@@ -84,6 +86,7 @@ export async function createAdminUser(input: UserInput): Promise<Result> {
       role: saved.role,
       onboardingDone: true,
       interfaceTheme: saved.interfaceTheme,
+      flowLogo: saved.flowLogo,
       ...(Object.keys(saved.themeColors).length > 0 ? { themeColors: saved.themeColors } : {}),
     })
   } catch (error) {
@@ -135,6 +138,7 @@ export async function updateAdminUser(input: UserInput & { id: string }): Promis
       driveFolderId,
       role: saved.role,
       interfaceTheme: saved.interfaceTheme,
+      flowLogo: saved.flowLogo,
       themeColors: Object.keys(saved.themeColors).length > 0 ? saved.themeColors : FieldValue.delete(),
     },
     { merge: true },
@@ -196,8 +200,10 @@ function readUser(input: UserInput, creating: boolean): ({ ok: true } & SavedUse
   if (company && !companyName) return { ok: false, message: 'Enter a company name.' }
   const interfaceTheme = readInterfaceTheme(input.interfaceTheme)
   if (!interfaceTheme) return { ok: false, message: 'Choose an interface.' }
+  const flowLogo = readFlowLogo(input.flowLogo)
+  if (!flowLogo) return { ok: false, message: 'Choose a black or white Flow logo.' }
   const themeColors = readStoredPalette(input.themeColors, interfaceTheme)
-  return { ok: true, name, email, companyName: companyName ?? '', role, password, interfaceTheme, themeColors }
+  return { ok: true, name, email, companyName: companyName ?? '', role, password, interfaceTheme, flowLogo, themeColors }
 }
 
 function readRole(value: string): AppRole | null {
@@ -241,6 +247,7 @@ function mapListedUser(id: string, data: Record<string, unknown>): AdminUser {
     role: parseRole(data.role),
     hasFolder: typeof driveFolderId === 'string' && driveFolderId.length > 0,
     interfaceTheme,
+    flowLogo: readFlowLogo(data.flowLogo),
     logoFileId: textValue(data.logoFileId) || null,
     bannerFileId: textValue(data.bannerFileId) || null,
     themeColors: readStoredPalette(data.themeColors, interfaceTheme),

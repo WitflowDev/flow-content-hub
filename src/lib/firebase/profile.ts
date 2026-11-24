@@ -1,7 +1,7 @@
 import 'server-only'
 import { adminDb } from '@/lib/firebase/admin'
 import { parseRole, type AppRole } from '@/lib/auth'
-import { parseInterfaceTheme, type InterfaceTheme } from '@/lib/interface-theme'
+import { parseInterfaceTheme, readFlowLogo, type FlowLogo, type InterfaceTheme } from '@/lib/interface-theme'
 import { readStoredPalette, type ThemePalette } from '@/lib/theme-palette'
 
 export type AccountProfile = {
@@ -13,6 +13,7 @@ export type AccountProfile = {
   role: AppRole
   onboardingDone: boolean
   interfaceTheme: InterfaceTheme
+  flowLogo: FlowLogo | null
   logoFileId: string | null
   bannerFileId: string | null
   themeColors: Partial<ThemePalette>
@@ -36,6 +37,7 @@ export async function ensureUserProfile(user: { uid: string; email: string | nul
     role: 'client',
     onboardingDone: false,
     interfaceTheme: 'studio',
+    flowLogo: null,
     logoFileId: null,
     bannerFileId: null,
     themeColors: {},
@@ -63,6 +65,7 @@ function mapProfile(id: string, data: Record<string, unknown>): AccountProfile {
     role: parseRole(data.role),
     onboardingDone: data.onboardingDone === true,
     interfaceTheme,
+    flowLogo: readFlowLogo(data.flowLogo),
     logoFileId: text(data.logoFileId) || null,
     bannerFileId: text(data.bannerFileId) || null,
     themeColors: readStoredPalette(data.themeColors, interfaceTheme),

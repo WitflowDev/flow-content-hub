@@ -2,6 +2,13 @@ node_modules/
 .next/
 out/
 *.tsbuildinfo
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+playwright-report/
+test-results/
+blob-report/
 
 # Secrets stay local. The empty example is the only env file that belongs in git.
 .env

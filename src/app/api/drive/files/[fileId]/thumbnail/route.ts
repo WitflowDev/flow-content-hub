@@ -1,66 +1,53 @@
-import { unstable_cache } from 'next/cache'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
-import { thumbnailTag } from '@/lib/drive/cache'
-import { gridThumbnailFromLink, thumbnailClientFile, thumbnailForKnownFile } from '@/lib/drive/client'
+import { gridThumbnailFromLink, thumbnailForKnownFile } from '@/lib/drive/client'
 import { libraryThumb } from '@/lib/drive/library'
 import { driveFolderForCurrentUser } from '@/lib/drive/resolve'
+import { enqueueJob } from '@/lib/jobs/queue'
+import { readStoredThumb, writeStoredThumb } from '@/lib/library-index/store'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
 
-const THUMB_CACHE_SECONDS = 60 * 60 * 12
 const placeholderBytes = readFileSync(join(process.cwd(), 'public', 'assets', 'flow-logo-black.png'))
+const MAX_STORED_THUMB_BYTES = 400_000
 
 type RouteContext = {
   params: Promise<{ fileId: string }>
 }
 
-type CachedThumb = {
-  mimeType: string
-  base64: string
-}
-
-export async function GET(request: Request, context: RouteContext) {
+export async function GET(_request: Request, context: RouteContext) {
   const { fileId } = await context.params
   const folder = await driveFolderForCurrentUser()
   if (!folder) return placeholder()
 
-  const version = new URL(request.url).searchParams.get('v') ?? ''
   const known = await libraryThumb(folder.id, fileId)
-  if (known.listed) {
-    try {
-      const cached = await readCachedThumbnail(fileId, version, known.link)
-      if (cached) return image(cached)
-    } catch {
-      // A missing thumbnail is not cached. Fall through to the checked fetch.
-    }
-  }
+  if (!known.listed) return placeholder()
+  const stored = await readStoredThumb(folder.id, fileId)
+  if (stored) return image(stored)
 
-  try {
-    const thumbnail = await thumbnailClientFile(folder.id, fileId)
-    if (!thumbnail) return placeholder()
-    return new Response(thumbnail.body, { headers: imageHeaders(thumbnail.mimeType) })
-  } catch {
+  const picture = await driveThumb(known.link, fileId)
+  if (!picture) {
+    await enqueueJob({ kind: 'warm-thumbnails', folderId: folder.id, uid: 'library' })
     return placeholder()
   }
+  const bytes = Buffer.from(await new Response(picture.body).arrayBuffer())
+  if (bytes.byteLength === 0) return placeholder()
+  if (bytes.byteLength <= MAX_STORED_THUMB_BYTES) {
+    await writeStoredThumb(folder.id, fileId, { mimeType: picture.mimeType, base64: bytes.toString('base64') }).catch(() => undefined)
+  }
+  return new Response(new Uint8Array(bytes), { headers: imageHeaders(picture.mimeType) })
 }
 
-function readCachedThumbnail(fileId: string, version: string, link: string | null): Promise<CachedThumb | null> {
-  return unstable_cache(
-    async () => {
-      const image = link ? await gridThumbnailFromLink(link) : await thumbnailForKnownFile(fileId)
-      if (!image) throw new Error('no-thumb')
-      const bytes = Buffer.from(await new Response(image.body).arrayBuffer())
-      if (bytes.byteLength === 0) throw new Error('no-thumb')
-      return { mimeType: image.mimeType, base64: bytes.toString('base64') }
-    },
-    ['drive-thumb-v1', fileId, version],
-    { revalidate: THUMB_CACHE_SECONDS, tags: [thumbnailTag(fileId)] },
-  )()
+async function driveThumb(link: string | null, fileId: string): Promise<{ mimeType: string; body: ReadableStream<Uint8Array> } | null> {
+  if (link) {
+    const fromLink = await gridThumbnailFromLink(link)
+    if (fromLink) return fromLink
+  }
+  return thumbnailForKnownFile(fileId)
 }
 
-function image(cached: CachedThumb): Response {
+function image(cached: { mimeType: string; base64: string }): Response {
   const bytes = Buffer.from(cached.base64, 'base64')
   return new Response(new Uint8Array(bytes), { headers: imageHeaders(cached.mimeType) })
 }
@@ -77,6 +64,7 @@ function placeholder(): Response {
     headers: {
       'Content-Type': 'image/png',
       'Cache-Control': 'private, no-store',
+      'X-Flow-Thumb': 'preparing',
     },
   })
 }

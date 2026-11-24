@@ -54,18 +54,28 @@
 }
 .palette-custom .link,
 .palette-custom .text-btn.purple { color: var(--flow); }
-.palette-custom .day-landing,
-.palette-custom .day-landing .btn,
-.palette-custom .day-landing input,
-.palette-custom .day-landing textarea,
-.palette-custom .day-landing select {
-  background: #fff;
-  color: #121217;
-  border-color: #dedde6;
+.palette-custom .content-day-embed .calendar-card,
+.palette-custom .content-day-embed .booking-card,
+.palette-custom .content-day-embed .package-inclusions,
+.palette-custom .content-day-embed .booking-summary > div,
+.palette-custom .content-day-embed .calendar-nav button,
+.palette-custom .content-day-embed .calendar-grid button,
+.palette-custom .content-day-embed .field input,
+.palette-custom .content-day-embed .field select,
+.palette-custom .content-day-embed .btn {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--line);
 }
-.palette-custom .day-landing .btn-primary,
-.palette-custom .day-landing .btn.primary {
-  background: #6843ff;
-  color: #fff;
-  border-color: #6843ff;
+.palette-custom .content-day-embed .calendar-grid button.selectable {
+  background: color-mix(in srgb, var(--flow) 14%, var(--surface));
+  border-color: color-mix(in srgb, var(--flow) 35%, var(--line));
+  color: var(--flow);
+}
+.palette-custom .content-day-embed .calendar-grid button.selected,
+.palette-custom .content-day-embed .btn-primary,
+.palette-custom .content-day-embed .btn.primary {
+  background: var(--flow);
+  color: var(--on-accent);
+  border-color: var(--flow);
 }

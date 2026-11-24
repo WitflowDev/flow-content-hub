@@ -8,7 +8,7 @@ import { ClientMark } from '@/components/shell/ClientMark'
 import { Logo } from '@/components/shell/Logo'
 import { ServiceMenu } from '@/components/shell/ServiceMenu'
 import { useApp } from '@/state/AppState'
-import { isShowroomTheme } from '@/lib/interface-theme'
+import { flowLogoTheme } from '@/lib/interface-theme'
 import { useSession } from '@/state/Session'
 import type { NavId } from '@/data/types'
 
@@ -46,7 +46,7 @@ export function Sidebar() {
       {profile.logoFileId ? (
         <div className="brand-lockup">
           <button type="button" className="brand-btn" onClick={() => navigate('/home', true)}>
-            <Logo theme={isShowroomTheme(profile.interfaceTheme) ? 'light' : 'dark'} />
+            <Logo theme={flowLogoTheme(profile.flowLogo)} />
           </button>
           <span className="brand-collab" aria-hidden="true">
             ×
@@ -55,7 +55,7 @@ export function Sidebar() {
         </div>
       ) : (
         <button type="button" className="brand-btn" onClick={() => navigate('/home', true)}>
-          <Logo theme={isShowroomTheme(profile.interfaceTheme) ? 'light' : 'dark'} />
+          <Logo theme={flowLogoTheme(profile.flowLogo)} />
         </button>
       )}
       <div className="sidebar-body">

@@ -1,24 +1,28 @@
 import 'server-only'
-import { unstable_cache } from 'next/cache'
 import { formatVariantId } from '@/data/exports'
 import type { Collection, MediaItem, Orientation } from '@/data/types'
+import { enqueueJob } from '@/lib/jobs/queue'
+import { readLibraryIndex, writeLibraryIndex } from '@/lib/library-index/store'
+import { recordMetric } from '@/lib/observe'
+import { embargoActive } from '@/lib/press'
 import { readPreviewTarget } from '@/lib/preview'
-import { libraryTag } from './cache'
+import { invalidateLibrary } from './cache'
 import { listClientFolder, type DriveCollectionFolder, type DrivePlacedFile } from './client'
 import { readCollectionRecords, type CollectionRecord } from './publish'
 import { driveFolderForUser } from './resolve'
 import { readAssetCopy, type AssetCopy } from './tags'
 
-const LIBRARY_CACHE_SECONDS = 90
+const INDEX_FRESH_MS = 90_000
 
 type LibraryView = {
   items: MediaItem[]
   collections: Collection[]
   folderName: string | null
   hasFolder: boolean
+  preparing: boolean
 }
 
-type LibrarySnapshot = {
+export type LibrarySnapshot = {
   items: MediaItem[]
   collections: Collection[]
   fileIds: string[]
@@ -34,32 +38,53 @@ export async function loadDriveLibrary(
   includeDrafts = false,
 ): Promise<LibraryView> {
   const folder = await driveFolderForUser(userId, email, driveFolderId)
-  if (!folder) return { items: [], collections: [], folderName: null, hasFolder: false }
-  const snapshot = await readCachedSnapshot(folder.id, includeDrafts)
-  return {
-    items: snapshot.items,
-    collections: snapshot.collections,
-    folderName: folder.name,
-    hasFolder: true,
+  if (!folder) return { items: [], collections: [], folderName: null, hasFolder: false, preparing: false }
+  const indexed = await readLibraryIndex(folder.id)
+  const fresh = indexed !== null && Date.now() - indexed.syncedAt < INDEX_FRESH_MS
+  if (!fresh) await enqueueJob({ kind: 'sync-library', folderId: folder.id, uid: userId })
+  if (!indexed) {
+    recordMetric('library.index.miss')
+    return { items: [], collections: [], folderName: folder.name, hasFolder: true, preparing: true }
   }
+  recordMetric('library.index.hit')
+  const projected = projectSnapshot(indexed.snapshot, includeDrafts)
+  return { ...projected, folderName: folder.name, hasFolder: true, preparing: false }
+}
+
+export async function syncLibraryFolder(folderId: string): Promise<void> {
+  const snapshot = await buildSnapshot(folderId, true)
+  await writeLibraryIndex(folderId, snapshot)
+  invalidateLibrary(folderId)
 }
 
 export async function libraryThumb(folderId: string, fileId: string): Promise<ListedThumb> {
   const includeDrafts = (await readPreviewTarget()) !== null
-  const snapshot = await readCachedSnapshot(folderId, includeDrafts)
-  if (!snapshot.fileIds.includes(fileId)) return { listed: false }
-  return { listed: true, link: snapshot.thumbs[fileId] ?? null }
+  const indexed = await readLibraryIndex(folderId)
+  if (!indexed) return { listed: false }
+  const projected = projectSnapshot(indexed.snapshot, includeDrafts)
+  if (!projected.fileIds.includes(fileId)) return { listed: false }
+  return { listed: true, link: indexed.snapshot.thumbs[fileId] ?? null }
 }
 
-function readCachedSnapshot(folderId: string, includeDrafts: boolean): Promise<LibrarySnapshot> {
-  return unstable_cache(
-    () => buildSnapshot(folderId, includeDrafts),
-    ['drive-library-v9', folderId, includeDrafts ? 'drafts' : 'live'],
-    {
-      revalidate: LIBRARY_CACHE_SECONDS,
-      tags: [libraryTag(folderId)],
-    },
-  )()
+function projectSnapshot(snapshot: LibrarySnapshot, includeDrafts: boolean): {
+  items: MediaItem[]
+  collections: Collection[]
+  fileIds: string[]
+} {
+  if (includeDrafts) {
+    return { items: snapshot.items, collections: snapshot.collections, fileIds: snapshot.fileIds }
+  }
+  const collections = snapshot.collections.filter((collection) => collection.published !== false)
+  const titles = new Set(collections.map((collection) => collection.title))
+  const items = snapshot.items.filter(
+    (item) => (item.collection === '' || titles.has(item.collection)) && !embargoActive(item.embargoUntil ?? ''),
+  )
+  const visible = new Set(items.flatMap((item) => (item.driveFileId ? [item.driveFileId] : [])))
+  return {
+    items,
+    collections,
+    fileIds: snapshot.fileIds.filter((fileId) => visible.has(fileId)),
+  }
 }
 
 async function buildSnapshot(folderId: string, includeDrafts: boolean): Promise<LibrarySnapshot> {
@@ -145,7 +170,21 @@ function toMediaItem(file: DrivePlacedFile, collection: string, copy: AssetCopy 
     exports: type === 'Photography' ? (copy?.exports ?? []) : [],
     variants: type === 'Photography' ? copy?.variants : undefined,
     customVariants: type === 'Photography' && copy && copy.customVariants.length > 0 ? copy.customVariants : undefined,
+    crops: type === 'Photography' && copy && Object.keys(copy.crops).length > 0 ? copy.crops : undefined,
+    customCrops: type === 'Photography' && copy && copy.customCrops.length > 0 ? copy.customCrops : undefined,
+    year: yearOf(file.modifiedTime),
+    credit: copy?.press.credit ?? '',
+    license: copy?.press.license ?? '',
+    captionApproved: copy?.press.captionApproved ?? false,
+    embargoUntil: copy?.press.embargoUntil ?? '',
   }
+}
+
+function yearOf(modified: string | undefined): number | undefined {
+  if (!modified) return undefined
+  const year = Number(modified.slice(0, 4))
+  if (!Number.isInteger(year) || year < 1990 || year > 2100) return undefined
+  return year
 }
 
 function byteCount(size: string | undefined): number | undefined {

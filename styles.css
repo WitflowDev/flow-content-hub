@@ -296,9 +296,16 @@ button.status,select.status{border:0;font:inherit;font-size:9px;font-weight:800;
 .share-bar{height:72px;display:flex;align-items:center;padding:0 28px;background:#fff;border-bottom:1px solid var(--line)}
 .share-bar .flow-logo{width:132px}
 .share-note{margin:8px 0 0;color:var(--muted);font-size:14px}
-.share-link{display:flex;flex-direction:column;gap:6px;margin:-8px 0 22px}
+.share-controls{display:flex;align-items:flex-end;gap:8px;flex-wrap:wrap}
+.share-controls label{display:flex;flex-direction:column;gap:4px;font-size:11px;font-weight:700}
+.share-controls select,.share-controls input[type="number"]{height:40px}
+.share-controls input[type="number"]{width:88px}
+.share-link{display:flex;align-items:flex-end;gap:16px;flex-wrap:wrap;margin:-8px 0 22px}
+.share-link label{display:flex;flex-direction:column;gap:6px;flex:1;min-width:220px}
 .share-link span{font-size:12px;font-weight:700}
 .share-link input{width:100%;border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:#fff}
+.share-qr{display:flex;flex-direction:column;align-items:flex-start;gap:8px}
+.share-qr img{width:148px;height:148px;background:#fff;padding:8px;border:1px solid #e9e8ef}
 .share-card{border:0;background:transparent;padding:0;text-align:left}
 .share-card .video-still{position:absolute;inset:0}
 .share-viewer{position:fixed;inset:0;z-index:80;background:rgba(18,18,24,.72);display:grid;place-items:center;padding:24px}
@@ -414,7 +421,7 @@ button.status,select.status{border:0;font:inherit;font-size:9px;font-weight:800;
 .format-upload{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border:1px solid var(--line);border-radius:12px}
 .format-upload b{display:block}
 .format-upload small{display:block;color:var(--muted);font-size:12px;line-height:1.4}
-.format-choice{display:flex;flex-wrap:wrap;gap:8px}
+.format-choice{display:flex;flex-wrap:wrap;gap:8px}.shared-formats{display:flex;flex-direction:column;gap:10px}.shared-formats>p{margin:0;color:var(--muted);font-size:13px;line-height:1.45}.photo-slide .format-choice{margin-bottom:12px}
 .format-choice label{display:flex;align-items:center;gap:6px;min-height:36px;padding:0 12px;border:1px solid var(--line);border-radius:999px;font-size:13px;font-weight:750}
 .format-crop{display:flex;flex-direction:column;gap:8px;padding:10px 12px;border:1px solid var(--line);border-radius:12px}
 .format-crop canvas{width:min(100%,460px);height:auto;border-radius:10px;background:#f4f3f8;cursor:grab;touch-action:none}
@@ -532,12 +539,12 @@ button.status,select.status{border:0;font:inherit;font-size:9px;font-weight:800;
 .brand-lockup .brand-btn{width:auto;flex:none;padding:0}
 .brand-lockup .flow-logo{width:auto;height:28px;max-width:110px;object-fit:contain}
 .brand-collab{flex:none;font-size:16px;font-weight:300;line-height:1;color:var(--text)}
-.client-mark{display:block;width:fit-content;max-width:100%;background:#fff;border:1px solid var(--line);line-height:0}
-.client-mark img{width:auto;max-width:100%;object-fit:contain}
-.client-mark-rail{margin:0;padding:2px 0;flex:none}
-.client-mark-rail img{height:28px;max-height:28px;max-width:72px}
-.client-mark-settings{margin:0 0 16px;padding:10px 14px;border:1px solid var(--line)}
-.client-mark-settings img{max-height:56px}
+.client-mark{display:block;width:fit-content;max-width:100%;background:transparent;border:0;line-height:0}
+.client-mark img{width:auto;height:auto;max-width:100%;object-fit:contain;background:transparent}
+.client-mark-rail{margin:0;padding:0;flex:none}
+.client-mark-rail img{max-height:28px;max-width:110px}
+.client-mark-settings{margin:0 0 16px;padding:0;border:0;background:transparent}
+.client-mark-settings img{max-height:56px;max-width:220px}
 .field-note{margin:6px 0 0;color:var(--muted);font-size:12px;line-height:1.4}
 .banner-preview{display:block;width:min(100%,420px);aspect-ratio:16/9;object-fit:cover;background:#111;margin-bottom:10px}
 .color-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
@@ -550,3 +557,27 @@ button.status,select.status{border:0;font:inherit;font-size:9px;font-weight:800;
 .is-preview:not(.theme-showroom) .topbar{top:42px}
 .is-preview:not(.theme-showroom) .main{padding-top:42px}
 .draft-mark{display:inline-flex;margin-left:8px;padding:1px 6px;border:1px solid currentColor;font-size:10px;letter-spacing:.08em;text-transform:uppercase;font-weight:750;vertical-align:middle}
+.admin-page>.admin-panel,.admin-page>.admin-layout,.admin-page>.admin-board{margin-top:22px}
+.admin-stats{gap:18px}
+.admin-layout{gap:22px}
+.admin-panel{padding:22px 24px}
+.panel-head{gap:16px;margin-bottom:16px}
+.admin-row{gap:16px;padding:14px 0}
+.request-row{gap:16px;padding:16px 0}
+.admin-filters{gap:8px;margin-bottom:16px}
+.admin-posts{gap:18px}
+.admin-editor-actions,.admin-board-actions{gap:12px}
+.user-form{gap:18px}
+.user-row{gap:16px;padding:16px 0}
+.user-actions{gap:10px}
+.color-grid{gap:16px}
+.upload-dialog .field{margin-top:18px}
+.upload-dialog .inline-controls,.upload-uses{gap:12px}
+.upload-dialog,.upload-dialog-wide{top:16px;bottom:auto;transform:translateX(-50%);max-height:calc(100dvh - 32px);overflow-x:hidden;overflow-y:auto;overscroll-behavior:contain}
+.upload-check span{flex:1;min-width:0}
+@media (min-width:901px) and (max-width:2199px) {
+  .upload-dialog,.upload-dialog-wide{max-height:calc((100dvh - 32px) / .9)}
+}
+@media (min-width:2200px) {
+  .upload-dialog,.upload-dialog-wide{max-height:calc((100dvh - 32px) / 1.2)}
+}

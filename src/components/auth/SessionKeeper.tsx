@@ -1,23 +1,35 @@
 'use client'
 
 import { useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 import { onIdTokenChanged } from 'firebase/auth'
 import { auth } from '@/lib/firebase'
 import { establishSession } from '@/lib/firebase/browser-session'
 
 export function SessionKeeper() {
+  const router = useRouter()
   useEffect(() => {
     let timeout = 0
+    let signedInUid = ''
     let stop = () => {}
     try {
       stop = onIdTokenChanged(auth(), (user) => {
         window.clearTimeout(timeout)
-        if (!user) return
-        // Wait until sign-in finishes. Reading the token inside this callback rejects that promise.
+        if (!user) {
+          signedInUid = ''
+          return
+        }
+        if (user.uid === signedInUid) return
+        const uid = user.uid
         timeout = window.setTimeout(() => {
-          void establishSession(user).catch(() => {
-            // The next navigation sends the user back to login when the cookie is missing.
-          })
+          void establishSession(user)
+            .then(() => {
+              signedInUid = uid
+              router.refresh()
+            })
+            .catch(() => {
+              signedInUid = ''
+            })
         }, 0)
       })
     } catch {
@@ -27,7 +39,7 @@ export function SessionKeeper() {
       window.clearTimeout(timeout)
       stop()
     }
-  }, [])
+  }, [router])
 
   return null
 }

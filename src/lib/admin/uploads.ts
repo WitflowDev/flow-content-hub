@@ -1,11 +1,12 @@
 import 'server-only'
 import { isCustomFormatId, parseExportIds, pixelSize, type ExportId } from '@/data/exports'
 import { parseRole } from '@/lib/auth'
-import { sealUploadTicket } from '@/lib/admin/upload-ticket'
+import { sealBatchTicket, sealUploadTicket, openBatchTicket, openUploadTicket } from '@/lib/admin/upload-ticket'
 import { parseTags } from '@/lib/tags'
-import { isDriveFileId, listClientFolder, readDirectChildFolder, readFolderName } from '@/lib/drive/client'
+import { isDriveFileId, listClientFolder, readDirectChildFolder, readFolderName, readUploadedMedia } from '@/lib/drive/client'
 import { beginOwnedUpload, companyFolderName, createOwnedFolder } from '@/lib/drive/owner'
 import { writeCollectionState } from '@/lib/drive/publish'
+import { attachAssetVariant, attachCustomVariant, saveAssetCopy } from '@/lib/drive/tags'
 import { readUserProfile } from '@/lib/firebase/profile'
 
 const MAX_UPLOAD_BYTES = 1024 * 1024 * 1024
@@ -25,6 +26,35 @@ const MEDIA_TYPES = new Set([
 export type UploadSession = {
   ticket: string
   destinationId: string
+  uploadUrl: string
+  batchToken: string
+  mimeType: string
+}
+
+export type PreparedUpload = {
+  batchToken: string
+  destinationId: string
+}
+
+export async function prepareAdminUpload(
+  adminUid: string,
+  input: {
+    accountId: string
+    destinationId: string
+    collectionName: string
+    collectionDescription: string
+  },
+): Promise<PreparedUpload> {
+  const located = await resolveClientDestination(input)
+  return {
+    destinationId: located.destinationId,
+    batchToken: sealBatchTicket({
+      adminUid,
+      accountId: input.accountId,
+      clientFolderId: located.clientFolderId,
+      destinationId: located.destinationId,
+    }),
+  }
 }
 
 export async function openAdminUpload(
@@ -46,6 +76,8 @@ export async function openAdminUpload(
     variantCustomLabel: string
     variantCustomWidth: number
     variantCustomHeight: number
+    batchToken: string
+    origin: string
   },
 ): Promise<UploadSession> {
   const fileName = cleanedFileName(input.fileName)
@@ -67,26 +99,25 @@ export async function openAdminUpload(
   if (Boolean(input.variantParentId) !== linked) throw new Error('Choose a format for this photo.')
   if (linked && !mimeType.startsWith('image/')) throw new Error('Each extra format needs to be a photo.')
   if (!isAccountId(input.accountId)) throw new Error('Choose a client account.')
-
-  const profile = await readUserProfile(input.accountId)
-  const clientFolderId = profile?.driveFolderId ?? ''
-  if (!profile || !clientFolderId || parseRole(profile.role) !== 'client') {
-    throw new Error('This account has no Drive folder.')
-  }
-  await readFolderName(clientFolderId)
-
-  const parentId = await destinationFolder(
-    clientFolderId,
-    input.accountId,
-    input.destinationId,
-    input.collectionName,
-    input.collectionDescription,
-  )
+  const origin = uploadOrigin(input.origin)
+  const batch = openBatchTicket(input.batchToken, adminUid)
+  const located = batch && batch.accountId === input.accountId
+    ? { clientFolderId: batch.clientFolderId, destinationId: batch.destinationId }
+    : await resolveClientDestination(input)
+  const batchToken = batch && batch.accountId === input.accountId
+    ? input.batchToken
+    : sealBatchTicket({
+        adminUid,
+        accountId: input.accountId,
+        clientFolderId: located.clientFolderId,
+        destinationId: located.destinationId,
+      })
   const uploadUrl = await beginOwnedUpload({
-    parentId,
+    parentId: located.destinationId,
     name: fileName,
     mimeType,
     size: input.size,
+    origin,
   })
   return {
     ticket: sealUploadTicket({
@@ -95,6 +126,7 @@ export async function openAdminUpload(
       size: input.size,
       adminUid,
       accountId: input.accountId,
+      destinationId: located.destinationId,
       tags: parseTags(input.tags),
       suggestedUse: input.suggestedUse.trim().slice(0, 500),
       formats: linked ? [] : input.formats,
@@ -106,8 +138,84 @@ export async function openAdminUpload(
       variantCustomWidth: input.variantFormat ? 0 : customWidth,
       variantCustomHeight: input.variantFormat ? 0 : customHeight,
     }),
-    destinationId: parentId,
+    destinationId: located.destinationId,
+    uploadUrl,
+    batchToken,
+    mimeType,
   }
+}
+
+export async function completeAdminUpload(adminUid: string, token: string, fileId: string): Promise<string> {
+  const ticket = openUploadTicket(token, adminUid)
+  if (!ticket || !isDriveFileId(fileId)) throw new Error('The file could not be saved to Drive.')
+  const media = await readUploadedMedia(fileId)
+  if (!media || media.parentId !== ticket.destinationId || !sameKind(ticket.mimeType, media.mimeType)) {
+    throw new Error('The file could not be saved to Drive.')
+  }
+  if (media.bytes > 0 && media.bytes !== ticket.size) throw new Error('The file could not be saved to Drive.')
+  const variantUpload = Boolean(ticket.variantParentId)
+  const customUpload = Boolean(ticket.variantCustomId && ticket.variantCustomLabel)
+  if (variantUpload && ticket.variantFormat) {
+    await attachAssetVariant(ticket.variantParentId, ticket.accountId, ticket.variantFormat, {
+      fileId,
+      name: ticket.fileName,
+      bytes: ticket.size,
+      mimeType: ticket.mimeType,
+    })
+  } else if (variantUpload && customUpload) {
+    await attachCustomVariant(
+      ticket.variantParentId,
+      ticket.accountId,
+      ticket.variantCustomId,
+      ticket.variantCustomLabel,
+      {
+        fileId,
+        name: ticket.fileName,
+        bytes: ticket.size,
+        mimeType: ticket.mimeType,
+      },
+      { width: ticket.variantCustomWidth, height: ticket.variantCustomHeight },
+    )
+  } else if (!variantUpload) {
+    await saveAssetCopy(fileId, ticket.accountId, ticket.tags, ticket.suggestedUse, ticket.formats)
+  } else {
+    throw new Error('The extra format could not be linked to the photo.')
+  }
+  return fileId
+}
+
+async function resolveClientDestination(input: {
+  accountId: string
+  destinationId: string
+  collectionName: string
+  collectionDescription: string
+}): Promise<{ clientFolderId: string; destinationId: string }> {
+  if (!isAccountId(input.accountId)) throw new Error('Choose a client account.')
+  const profile = await readUserProfile(input.accountId)
+  const clientFolderId = profile?.driveFolderId ?? ''
+  if (!profile || !clientFolderId || parseRole(profile.role) !== 'client') {
+    throw new Error('This account has no Drive folder.')
+  }
+  await readFolderName(clientFolderId)
+  const destinationId = await destinationFolder(
+    clientFolderId,
+    input.accountId,
+    input.destinationId,
+    input.collectionName,
+    input.collectionDescription,
+  )
+  return { clientFolderId, destinationId }
+}
+
+function uploadOrigin(value: string): string {
+  if (/^https?:\/\/[a-z0-9.-]+(?::\d+)?$/i.test(value)) return value
+  throw new Error('The upload could not be started.')
+}
+
+function sameKind(expected: string, actual: string): boolean {
+  const expectedKind = expected.split('/')[0]
+  const actualKind = actual.split('/')[0]
+  return (expectedKind === 'image' || expectedKind === 'video') && expectedKind === actualKind
 }
 
 async function destinationFolder(

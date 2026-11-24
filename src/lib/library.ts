@@ -25,6 +25,9 @@ export function mediaTags(item: MediaItem): string[] {
 
 export type SearchCloseness = 'exact' | 'half' | 'quarter'
 
+export const ARCHIVE_FORMATS = ['All', 'Post', 'Story', 'Banner'] as const
+export type ArchiveFormat = (typeof ARCHIVE_FORMATS)[number]
+
 export function filteredMedia(
   media: MediaItem[],
   options: {
@@ -32,12 +35,24 @@ export function filteredMedia(
     contentType: ContentTypeFilter
     channel: ChannelFilter
     sort: SortMode
+    year?: string
+    collection?: string
+    format?: ArchiveFormat
   },
 ): { items: MediaItem[]; closeness: SearchCloseness } {
   let pool = media
   if (options.contentType !== 'All') {
     pool = pool.filter((item) => item.type === options.contentType)
   }
+  if (options.year && options.year !== 'All') {
+    const year = Number(options.year)
+    pool = pool.filter((item) => item.year === year)
+  }
+  if (options.collection && options.collection !== 'All') {
+    pool = pool.filter((item) => item.collection === options.collection)
+  }
+  const format = options.format ?? 'All'
+  if (format !== 'All') pool = pool.filter((item) => formatMatches(item, format))
   if (options.channel !== 'All') {
     const wanted = options.channel.toLowerCase()
     pool = pool.filter((item) => mediaTags(item).some((tag) => tag.toLowerCase() === wanted))
@@ -64,7 +79,27 @@ export function filteredMedia(
 }
 
 function searchText(item: MediaItem): string {
-  return [item.title, item.collection, item.type, ...mediaTags(item)].join(' ').toLowerCase()
+  return [item.title, item.collection, item.type, item.description, item.credit, item.year ? String(item.year) : '', ...mediaTags(item)]
+    .join(' ')
+    .toLowerCase()
+}
+
+function formatMatches(item: MediaItem, format: ArchiveFormat): boolean {
+  const formats = item.exports ?? []
+  switch (format) {
+    case 'All':
+      return true
+    case 'Post':
+      return formats.includes('instagram-post')
+    case 'Story':
+      return formats.includes('story')
+    case 'Banner':
+      return formats.includes('facebook-banner')
+    default: {
+      const unexpected: never = format
+      return unexpected
+    }
+  }
 }
 
 function textScore(query: string, item: MediaItem): number {

@@ -15,7 +15,7 @@ const readVerifiedSession = cache(async function readVerifiedSession(): Promise<
   const token = (await cookies()).get(SESSION_COOKIE)?.value
   if (!token) return null
   try {
-    const decoded = await adminAuth().verifyIdToken(token)
+    const decoded = await adminAuth().verifySessionCookie(token, true)
     return { uid: decoded.uid, email: decoded.email ?? null }
   } catch {
     return null

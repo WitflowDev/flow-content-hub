@@ -1,11 +1,12 @@
 'use server'
 
-import { formatVariantId } from '@/data/exports'
+import { formatVariantId, isCustomFormatId, parseExportIds, pixelSize, type CropFrame, type ExportId } from '@/data/exports'
 import type { AdminCollectionDetail, AdminPost } from '@/lib/admin/types'
 import { requireAdmin } from '@/lib/auth/admin'
 import { parseRole } from '@/lib/auth'
 import { invalidateLibrary, invalidateThumbnail } from '@/lib/drive/cache'
-import { isDriveFileId, listClientFolder, readDirectChildFolder, readFolderName } from '@/lib/drive/client'
+import { enqueueJob } from '@/lib/jobs/queue'
+import { isDriveFileId, listClientFolder, readDirectChildFolder, readFolderName, readUploadedMedia } from '@/lib/drive/client'
 import { lookupStandardStarts } from '@/lib/admin/uploads'
 import { companyFolderName, renameOwnedItem, trashOwnedItem } from '@/lib/drive/owner'
 import {
@@ -18,11 +19,31 @@ import {
   writeCollectionMaps,
   writeCollectionState,
 } from '@/lib/drive/publish'
-import { deleteAssetCopy, readAssetCopy, saveAssetCopy } from '@/lib/drive/tags'
+import { deleteAssetCopy, readAssetCopy, saveAssetCopy, saveAssetFrames, type StoredCustomCrop } from '@/lib/drive/tags'
 import { readUserProfile } from '@/lib/firebase/profile'
+import { syncAccountNotices } from '@/lib/notifications/sync'
+import { readPressLicense, type PressRecord } from '@/lib/press'
 import { parseTags } from '@/lib/tags'
 
 type Result = { ok: true } | { ok: false; message: string }
+
+function pressFromInput(input: {
+  credit: string
+  license: string
+  captionApproved: boolean
+  embargoUntil: string
+}): PressRecord | null {
+  const license = input.license === '' ? '' : readPressLicense(input.license)
+  if (input.license !== '' && license === '') return null
+  const embargoUntil = input.embargoUntil.trim()
+  if (embargoUntil && !/^\d{4}-\d{2}-\d{2}$/.test(embargoUntil)) return null
+  return {
+    credit: input.credit.trim().slice(0, 160),
+    license,
+    captionApproved: input.captionApproved,
+    embargoUntil,
+  }
+}
 
 type LocatedCollection = {
   ok: true
@@ -51,6 +72,10 @@ export async function loadAdminCollection(input: {
       description: saved?.suggestedUse ?? '',
       tags: saved?.tags ?? [],
       video: file.mimeType.startsWith('video/'),
+      credit: saved?.press.credit ?? '',
+      license: saved?.press.license ?? '',
+      captionApproved: saved?.press.captionApproved ?? false,
+      embargoUntil: saved?.press.embargoUntil ?? '',
     }
   })
   return {
@@ -79,6 +104,10 @@ export async function updateAdminPost(input: {
   title: string
   description: string
   tags: string
+  credit: string
+  license: string
+  captionApproved: boolean
+  embargoUntil: string
 }): Promise<Result> {
   const admin = await requireAdmin()
   if (!admin) return { ok: false, message: 'Only an admin can edit a post.' }
@@ -86,6 +115,11 @@ export async function updateAdminPost(input: {
   if (!title || title.length > 140) return { ok: false, message: 'Enter a title.' }
   if (input.description.trim().length > 500) return { ok: false, message: 'Use a shorter description.' }
   if (input.tags.length > 300) return { ok: false, message: 'Use fewer tags.' }
+  const press = pressFromInput(input)
+  if (!press) return { ok: false, message: 'Choose a license and a real embargo date.' }
+  if (press.captionApproved && !input.description.trim()) return { ok: false, message: 'Write the caption before approving it.' }
+  if (press.captionApproved && !press.credit) return { ok: false, message: 'An approved caption needs a credit.' }
+  if (press.license === 'credit' && !press.credit) return { ok: false, message: 'Enter the credit this file requires.' }
   const located = await locateCollection(input.accountId, input.folderId)
   if (!located.ok) return located
   const file = located.files.find((item) => item.id === input.fileId)
@@ -94,11 +128,97 @@ export async function updateAdminPost(input: {
   if (!nextName) return { ok: false, message: 'Enter a title.' }
   try {
     if (nextName !== file.name) await renameOwnedItem(file.id, nextName)
-    await saveAssetCopy(file.id, input.accountId, parseTags(input.tags), input.description)
+    await saveAssetCopy(file.id, input.accountId, parseTags(input.tags), input.description, undefined, press)
   } catch (error) {
     return { ok: false, message: publicMessage(error, 'The post could not be saved.') }
   }
   refreshLibrary(located.clientFolderId, [file.id])
+  return { ok: true }
+}
+
+export async function savePhotoFrames(input: {
+  accountId: string
+  fileId: string
+  formats: string[]
+  crops: Partial<Record<string, { x: number; y: number; zoom: number }>>
+  customs: Array<{ id: string; label: string; width: number; height: number; frame: { x: number; y: number; zoom: number } }>
+}): Promise<Result> {
+  const admin = await requireAdmin()
+  if (!admin) return { ok: false, message: 'Only an admin can save photo formats.' }
+  if (!isDriveFileId(input.fileId)) return { ok: false, message: 'That photo could not be found.' }
+  const formats = parseExportIds(input.formats)
+  const crops: Partial<Record<ExportId, CropFrame>> = {}
+  for (const id of formats) {
+    const frame = readCropFrame(input.crops[id])
+    if (!frame) return { ok: false, message: 'Each format needs a visible area.' }
+    crops[id] = frame
+  }
+  if (!Array.isArray(input.customs) || input.customs.length > 8) return { ok: false, message: 'Use at most 8 custom sizes.' }
+  const customs: StoredCustomCrop[] = []
+  for (const custom of input.customs) {
+    if (!isCustomFormatId(custom.id) || customs.some((item) => item.id === custom.id)) {
+      return { ok: false, message: 'Name each custom size.' }
+    }
+    const label = custom.label.trim().slice(0, 40)
+    const width = pixelSize(custom.width)
+    const height = pixelSize(custom.height)
+    const frame = readCropFrame(custom.frame)
+    if (!label || !width || !height || !frame) return { ok: false, message: 'Enter a name, width, and height for each custom size.' }
+    customs.push({ id: custom.id, label, width, height, frame })
+  }
+  const profile = await readUserProfile(input.accountId)
+  const clientFolderId = profile?.driveFolderId ?? ''
+  if (!profile || !clientFolderId || parseRole(profile.role) !== 'client') {
+    return { ok: false, message: 'This account has no Drive folder.' }
+  }
+  const media = await readUploadedMedia(input.fileId)
+  if (!media || !media.mimeType.startsWith('image/') || formatVariantId(media.name)) {
+    return { ok: false, message: 'That photo could not be found.' }
+  }
+  if (media.parentId !== clientFolderId) {
+    const parent = await readDirectChildFolder(clientFolderId, media.parentId)
+    if (!parent) return { ok: false, message: 'That photo could not be found.' }
+  }
+  try {
+    await saveAssetFrames(media.id, input.accountId, formats, crops, customs)
+  } catch (error) {
+    return { ok: false, message: publicMessage(error, 'The photo formats could not be saved.') }
+  }
+  return { ok: true }
+}
+
+function readCropFrame(value: { x: number; y: number; zoom: number } | undefined): CropFrame | null {
+  if (!value || typeof value.x !== 'number' || typeof value.y !== 'number' || typeof value.zoom !== 'number') return null
+  if (!Number.isFinite(value.x) || !Number.isFinite(value.y) || !Number.isFinite(value.zoom)) return null
+  return {
+    x: Math.min(1, Math.max(0, value.x)),
+    y: Math.min(1, Math.max(0, value.y)),
+    zoom: Math.min(3, Math.max(1, value.zoom)),
+  }
+}
+
+export async function finishUploadBatch(input: { accountId: string; fileIds: string[] }): Promise<Result> {
+  const admin = await requireAdmin()
+  if (!admin) return { ok: false, message: 'Only an admin can upload.' }
+  if (!isAccountId(input.accountId) || !Array.isArray(input.fileIds) || input.fileIds.length > 200) {
+    return { ok: false, message: 'The library could not be refreshed.' }
+  }
+  const fileIds = input.fileIds.filter((fileId) => isDriveFileId(fileId))
+  const profile = await readUserProfile(input.accountId)
+  const clientFolderId = profile?.driveFolderId ?? ''
+  if (!profile || !clientFolderId || parseRole(profile.role) !== 'client') {
+    return { ok: false, message: 'This account has no Drive folder.' }
+  }
+  try {
+    await syncAccountNotices(input.accountId, {
+      fileIds,
+      folderName: profile.companyName || null,
+      hasFolder: true,
+    })
+  } catch (error) {
+    return { ok: false, message: publicMessage(error, 'The library could not be refreshed.') }
+  }
+  refreshLibrary(clientFolderId, fileIds)
   return { ok: true }
 }
 
@@ -205,6 +325,7 @@ export async function setCollectionCover(input: {
   accountId: string
   folderId: string
   fileId: string
+  refresh?: boolean
 }): Promise<Result> {
   const admin = await requireAdmin()
   if (!admin) return { ok: false, message: 'Only an admin can choose a cover.' }
@@ -217,7 +338,7 @@ export async function setCollectionCover(input: {
   } catch (error) {
     return { ok: false, message: publicMessage(error, 'The cover could not be saved.') }
   }
-  refreshLibrary(located.clientFolderId)
+  if (input.refresh !== false) refreshLibrary(located.clientFolderId)
   return { ok: true }
 }
 
@@ -240,6 +361,7 @@ export async function saveCollectionMaps(input: {
   accountId: string
   folderId: string
   maps: Array<{ fileIds: string[]; description: string }>
+  refresh?: boolean
 }): Promise<Result> {
   const admin = await requireAdmin()
   if (!admin) return { ok: false, message: 'Only an admin can save a content map.' }
@@ -254,7 +376,7 @@ export async function saveCollectionMaps(input: {
   } catch (error) {
     return { ok: false, message: publicMessage(error, 'The content maps could not be saved.') }
   }
-  refreshLibrary(located.clientFolderId)
+  if (input.refresh !== false) refreshLibrary(located.clientFolderId)
   return { ok: true }
 }
 
@@ -276,6 +398,7 @@ export async function deleteAdminCollection(input: { accountId: string; folderId
 
 function refreshLibrary(folderId: string, fileIds: string[] = []): void {
   invalidateLibrary(folderId)
+  void enqueueJob({ kind: 'sync-library', folderId, uid: 'admin' })
   for (const fileId of fileIds) invalidateThumbnail(fileId)
 }
 

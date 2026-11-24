@@ -1,4 +1,4 @@
-import type { ExportId } from '@/data/exports'
+import type { CropFrame, ExportId } from '@/data/exports'
 
 export type PhotoVariant = {
   fileId: string
@@ -12,6 +12,14 @@ export type CustomVariant = PhotoVariant & {
   label: string
   width?: number
   height?: number
+}
+
+export type StoredCustomCrop = {
+  id: string
+  label: string
+  width: number
+  height: number
+  frame: CropFrame
 }
 
 export type MediaType = 'Video' | 'Photography' | 'Design'
@@ -37,6 +45,13 @@ export type MediaItem = {
   exports?: string[]
   variants?: Partial<Record<ExportId, PhotoVariant>>
   customVariants?: CustomVariant[]
+  crops?: Partial<Record<ExportId, CropFrame>>
+  customCrops?: StoredCustomCrop[]
+  year?: number
+  credit?: string
+  license?: '' | 'free' | 'credit'
+  captionApproved?: boolean
+  embargoUntil?: string
 }
 
 export type ContentMap = {

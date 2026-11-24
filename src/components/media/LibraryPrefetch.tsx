@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect } from 'react'
+import { usePathname } from 'next/navigation'
 import type { MediaItem } from '@/data/types'
 import { streamPath, videoPrefixLength } from '@/lib/drive/prefix-budget'
 import { useLibrary } from '@/state/Catalog'
@@ -20,10 +21,11 @@ type Job =
 
 export function LibraryPrefetch() {
   const { media } = useLibrary()
+  const pathname = usePathname()
   const sources = queueSignature(media)
 
   useEffect(() => {
-    if (shouldSkip() || sources.length === 0) return
+    if (pathname.startsWith('/admin') || shouldSkip() || sources.length === 0) return
     const pending = sources
       .split('\n')
       .map(parseJob)
@@ -61,7 +63,7 @@ export function LibraryPrefetch() {
       window.clearTimeout(timer)
       cancelWait()
     }
-  }, [sources])
+  }, [pathname, sources])
 
   return null
 }

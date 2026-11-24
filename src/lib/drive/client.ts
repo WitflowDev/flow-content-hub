@@ -1,8 +1,9 @@
 import 'server-only'
 import { readFileSync } from 'node:fs'
 import { JWT } from 'google-auth-library'
-import type { ClientFolder } from './access'
+import { recordMetric, reportError } from '@/lib/observe'
 import { BRAND_FOLDER_NAME } from './brand'
+import { isDriveFileId } from './ids'
 
 const DRIVE_SCOPE = 'https://www.googleapis.com/auth/drive'
 const GRID_THUMBNAIL_SIZE = 640
@@ -49,7 +50,6 @@ type ServiceAccount = {
   private_key: string
 }
 
-const folderIds = new Map<string, Promise<string>>()
 let contentHub: Promise<string> | undefined
 let jwtClient: JWT | undefined
 
@@ -103,6 +103,22 @@ export async function listClientFolder(folderId: string): Promise<{
   files: DrivePlacedFile[]
   collections: DriveCollectionFolder[]
 }> {
+  const started = Date.now()
+  try {
+    const listed = await listClientFolderNow(folderId)
+    recordMetric('drive.list.ms', Date.now() - started)
+    return listed
+  } catch (error) {
+    recordMetric('drive.list.ms', Date.now() - started)
+    reportError('drive.list', error)
+    throw error
+  }
+}
+
+async function listClientFolderNow(folderId: string): Promise<{
+  files: DrivePlacedFile[]
+  collections: DriveCollectionFolder[]
+}> {
   const children = await listChildren(folderId)
   const files: DrivePlacedFile[] = []
   const collectionFolders: DriveFileResource[] = []
@@ -148,18 +164,23 @@ export async function readFolderName(folderId: string): Promise<string> {
   throw new Error('That folder is not available.')
 }
 
-export async function legacyFolderId(folder: ClientFolder): Promise<string> {
-  return folderIdFor(folder)
-}
+export { isDriveFileId } from './ids'
 
 export async function downloadClientFile(folderId: string, fileId: string): Promise<{
   name: string
   mimeType: string
   body: ReadableStream<Uint8Array>
+  collectionId: string
 }> {
   const meta = await requireMediaFile(folderId, fileId)
   const media = await originalMedia(fileId)
-  return { name: meta.name ?? 'download', mimeType: meta.mimeType ?? media.mimeType, body: media.body }
+  const collectionId = (meta.parents ?? []).find((parentId) => parentId !== folderId) ?? ''
+  return {
+    name: meta.name ?? 'download',
+    mimeType: meta.mimeType ?? media.mimeType,
+    body: media.body,
+    collectionId,
+  }
 }
 
 export async function openClientVideo(
@@ -220,11 +241,16 @@ export async function readContainedImage(
   }
 }
 
-export async function thumbnailClientFile(folderId: string, fileId: string): Promise<{
+export async function thumbnailClientFile(
+  folderId: string,
+  fileId: string,
+  allowOriginal = true,
+): Promise<{
   mimeType: string
   body: ReadableStream<Uint8Array>
 } | null> {
   const meta = await requireMediaFile(folderId, fileId)
+  if (!allowOriginal) return loadThumbnail(meta, GRID_THUMBNAIL_SIZE, true)
   return thumbnailFromMeta(meta)
 }
 
@@ -452,57 +478,6 @@ async function findContentHubId(): Promise<string> {
   return parent.id
 }
 
-async function folderIdFor(folder: ClientFolder): Promise<string> {
-  const cached = folderIds.get(folder.email)
-  if (cached) return cached
-  const pending = findFolderId(folder)
-  folderIds.set(folder.email, pending)
-  try {
-    return await pending
-  } catch (error) {
-    folderIds.delete(folder.email)
-    throw error
-  }
-}
-
-async function findFolderId(folder: ClientFolder): Promise<string> {
-  const parents = await listQuery(
-    `name = ${quote(folder.parentName)} and mimeType = '${FOLDER_MIME}' and trashed = false`,
-    'nextPageToken,files(id,name)',
-  )
-  for (const parent of parents) {
-    if (!parent.id) continue
-    const children = await listQuery(
-      `${quote(parent.id)} in parents and mimeType = '${FOLDER_MIME}' and trashed = false`,
-      'nextPageToken,files(id,name)',
-    )
-    const child = children.find((item) => sameFolderName(item.name, folder.folderName))
-    if (child?.id) return child.id
-  }
-
-  const folders = await listQuery(
-    `mimeType = '${FOLDER_MIME}' and trashed = false`,
-    'nextPageToken,files(id,name,parents)',
-  )
-  const named = folders.filter((item) => item.id && sameFolderName(item.name, folder.folderName))
-  for (const candidate of named) {
-    const parentId = candidate.parents?.[0]
-    if (!candidate.id || !parentId) continue
-    const parent = folders.find((item) => item.id === parentId) ?? (await getFile(parentId, 'id,name,mimeType'))
-    if (sameFolderName(parent.name, folder.parentName)) return candidate.id
-  }
-  if (named.length === 1 && named[0]?.id) return named[0].id
-  throw new Error(`The ${folder.folderName} folder is not available.`)
-}
-
-function sameFolderName(left: string | undefined, right: string): boolean {
-  return normalizeFolderName(left ?? '') === normalizeFolderName(right)
-}
-
-function normalizeFolderName(value: string): string {
-  return value.normalize('NFD').replace(/\p{M}/gu, '').toLowerCase()
-}
-
 async function listQuery(query: string, fields: string): Promise<DriveFileResource[]> {
   const files: DriveFileResource[] = []
   let pageToken = ''
@@ -622,8 +597,26 @@ function isMediaMime(mimeType: string): boolean {
   return mimeType.startsWith('image/') || mimeType.startsWith('video/')
 }
 
-export function isDriveFileId(fileId: string): boolean {
-  return /^[a-zA-Z0-9_-]{10,}$/.test(fileId)
+export async function readUploadedMedia(fileId: string): Promise<{
+  id: string
+  name: string
+  mimeType: string
+  parentId: string
+  bytes: number
+} | null> {
+  if (!isDriveFileId(fileId)) return null
+  const file = await getFile(fileId, 'id,name,mimeType,parents,size,trashed')
+  if (!file.id || !file.name || !file.mimeType || file.trashed || !isMediaMime(file.mimeType)) return null
+  const parentId = file.parents?.[0] ?? ''
+  const bytes = Number(file.size ?? '')
+  if (!isDriveFileId(parentId)) return null
+  return {
+    id: file.id,
+    name: file.name,
+    mimeType: file.mimeType,
+    parentId,
+    bytes: Number.isSafeInteger(bytes) && bytes > 0 ? bytes : 0,
+  }
 }
 
 export async function readDirectChildFolder(

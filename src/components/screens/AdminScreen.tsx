@@ -7,16 +7,19 @@ import { useRouter } from 'next/navigation'
 import { AdminUsers } from '@/components/admin/AdminUsers'
 import { blankPhoto, PhotoRail, readCustomSize, type PhotoDraft, type ReadyCustomSize } from '@/components/admin/PhotoFormats'
 import { Icon } from '@/components/icons'
-import { CENTER_CROP, customFormatId, EXPORT_FORMATS, renderCrop, variantFileName, type ExportId } from '@/data/exports'
+import { CENTER_CROP, customFormatId, EXPORT_FORMATS, variantFileName, type ExportId } from '@/data/exports'
 import { AdminCollectionBoard } from '@/components/screens/AdminCollectionBoard'
 import { UploadMaps, type DraftMap } from '@/components/screens/UploadMaps'
 import { confirmContentDay } from '@/lib/admin/content-day'
-import { deleteAdminCollection, nextStandardNames, saveCollectionMaps, setCollectionCover } from '@/lib/admin/content'
+import { deleteAdminCollection, finishUploadBatch, nextStandardNames, saveCollectionMaps, savePhotoFrames, setCollectionCover } from '@/lib/admin/content'
 import { setCollectionPublished, setRequestStatus } from '@/lib/admin/actions'
 import { contentDayPlans, formatContentDay, parseDateKey, type ContentDayRequest } from '@/lib/content-day'
+import type { DownloadEvent } from '@/lib/admin/downloads'
 import type { AdminAccount, AdminCollectionRow, ServiceRequestRow, ServiceRequestStatus } from '@/lib/admin/types'
+import type { MetricReading } from '@/lib/observe'
 import { isServiceRequestStatus } from '@/lib/admin/types'
 import { sendPromotion } from '@/lib/notifications/actions'
+import { isDriveFileId } from '@/lib/drive/ids'
 import { useApp } from '@/state/AppState'
 
 const PREVIEW_COUNT = 4
@@ -29,6 +32,15 @@ const REQUEST_FILTERS: Array<{ id: RequestFilter; label: string }> = [
   { id: 'open', label: 'Open' },
   { id: 'done', label: 'Done' },
 ]
+
+function metricLine(metrics: MetricReading[]): string {
+  const list = metrics.find((metric) => metric.name === 'drive.list.ms')
+  const rejected = metrics.find((metric) => metric.name === 'auth.rejected')
+  const hits = metrics.find((metric) => metric.name === 'library.index.hit')
+  const misses = metrics.find((metric) => metric.name === 'library.index.miss')
+  const average = list && list.count > 0 ? Math.round(list.total / list.count) : 0
+  return `Drive list ${average} ms average · ${rejected?.count ?? 0} rejected sessions · index ${hits?.count ?? 0} hits / ${misses?.count ?? 0} misses`
+}
 
 function StatCard({ label, value, sub }: { label: string; value: string; sub: string }) {
   return (
@@ -49,6 +61,8 @@ export function AdminScreen({
   collections,
   requests,
   contentDays,
+  downloads,
+  metrics,
 }: {
   clientCount: number
   publishedAssets: number
@@ -58,6 +72,8 @@ export function AdminScreen({
   collections: AdminCollectionRow[]
   requests: ServiceRequestRow[]
   contentDays: ContentDayRequest[]
+  downloads: DownloadEvent[]
+  metrics: MetricReading[]
 }) {
   const { toast } = useApp()
   const router = useRouter()
@@ -140,6 +156,31 @@ export function AdminScreen({
         <StatCard label="Open requests" value={String(openRequests)} sub="Talk to Flow" />
         <StatCard label="Draft collections" value={String(draftCollections)} sub="Awaiting publish" />
       </div>
+      <section className="card admin-panel block-card">
+        <div className="panel-head">
+          <div>
+            <div className="eyebrow">Downloads</div>
+            <h2>Who took a file</h2>
+          </div>
+        </div>
+        <p className="admin-empty">{metricLine(metrics)}</p>
+        {downloads.length === 0 ? <p className="admin-empty">No downloads yet.</p> : null}
+        {downloads.map((event) => {
+          const account = accounts.find((item) => item.id === event.uid)
+          return (
+            <div className="request-row" key={event.id}>
+              <div>
+                <b>{event.name || event.fileId}</b>
+                <small>
+                  {account?.label || event.uid}
+                  {event.at ? ` · ${event.at}` : ''}
+                  {event.collectionId ? ` · ${event.collectionId}` : ''}
+                </small>
+              </div>
+            </div>
+          )
+        })}
+      </section>
       <PromotionPanel accounts={accounts} />
       <section className="card admin-panel">
         <div className="panel-head">
@@ -334,38 +375,38 @@ function PromotionPanel({ accounts }: { accounts: AdminAccount[] }) {
   }
 
   return (
-    <section className="card admin-panel promotion-panel">
-      <div className="panel-head">
-        <div>
-          <div className="eyebrow">Promotion</div>
-          <h2>Send a notice</h2>
+      <section className="card admin-panel promotion-panel">
+        <div className="panel-head">
+          <div>
+            <div className="eyebrow">Promotion</div>
+            <h2>Send a notice</h2>
+          </div>
         </div>
-      </div>
-      <form className="promotion-form" onSubmit={(event) => void onSendPromotion(event)}>
-        <div className="field">
-          <label htmlFor="promotion-title">Title</label>
-          <input id="promotion-title" value={title} onChange={(event) => setTitle(event.target.value)} maxLength={120} />
-        </div>
-        <div className="field">
-          <label htmlFor="promotion-message">Message</label>
-          <textarea id="promotion-message" value={message} onChange={(event) => setMessage(event.target.value)} maxLength={500} />
-        </div>
-        <div className="field">
-          <label htmlFor="promotion-audience">Account</label>
-          <select id="promotion-audience" value={audience} onChange={(event) => setAudience(event.target.value)}>
-            <option value="all">All accounts</option>
-            {accounts.map((account) => (
-              <option key={account.id} value={account.id}>
-                {account.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <button type="submit" className="btn primary" disabled={sending}>
-          Send
-        </button>
-      </form>
-    </section>
+        <form className="promotion-form" onSubmit={(event) => void onSendPromotion(event)}>
+          <div className="field">
+            <label htmlFor="promotion-title">Title</label>
+            <input id="promotion-title" value={title} onChange={(event) => setTitle(event.target.value)} maxLength={120} />
+          </div>
+          <div className="field">
+            <label htmlFor="promotion-message">Message</label>
+            <textarea id="promotion-message" value={message} onChange={(event) => setMessage(event.target.value)} maxLength={500} />
+          </div>
+          <div className="field">
+            <label htmlFor="promotion-audience">Account</label>
+            <select id="promotion-audience" value={audience} onChange={(event) => setAudience(event.target.value)}>
+              <option value="all">All accounts</option>
+              {accounts.map((account) => (
+                <option key={account.id} value={account.id}>
+                  {account.label}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button type="submit" className="btn primary" disabled={sending}>
+            Send
+          </button>
+        </form>
+      </section>
   )
 }
 
@@ -486,33 +527,32 @@ function UploadDialog({
     setError('')
     let destinationId = destination === 'new' ? '' : destination
     const namedCollection = destination === 'new' ? collectionName : ''
-    const fileIds: string[] = []
+    const uploadedIds: string[] = []
     try {
       const names = standardNames
         ? await standardFileNames(picked, accountId, destination === 'new' ? '' : destination, destination === 'new' ? collectionName : '')
         : picked.map((file) => file.name)
-      for (let index = 0; index < picked.length; index += 1) {
-        const file = picked[index]
-        if (!file) continue
-        setProgress(`Uploading ${index + 1} of ${picked.length}`)
-        const saved = await uploadOne(
-          file,
-          names[index] ?? file.name,
-          accountId,
-          destinationId,
-          destinationId ? '' : namedCollection,
-          destinationId ? '' : collectionDescription,
-          tags,
-          picked.length > 1 && useMode === 'each' ? (fileUses[index] ?? '') : suggestedUse,
-          [],
-        )
-        destinationId = saved.destinationId
-        fileIds.push(saved.fileId)
-      }
-      if (destination === 'new' && destinationId && fileIds.length > 0) {
-        const coverId = fileIds[coverIndex] ?? fileIds[0]
+      const batch = await prepareUpload(accountId, destinationId, namedCollection, collectionDescription)
+      destinationId = batch.destinationId
+      const limit = limiter(UPLOAD_SLOTS)
+      let done = 0
+      const fileIds = await Promise.all(
+        picked.map(async (file, index) => {
+          if (!file) return ''
+          const saved = await limit(() =>
+            uploadOne(file, names[index] ?? file.name, accountId, batch.batchToken, tags, picked.length > 1 && useMode === 'each' ? (fileUses[index] ?? '') : suggestedUse, []),
+          )
+          uploadedIds.push(saved.fileId)
+          done += 1
+          setProgress(`Uploading ${done} of ${picked.length}`)
+          return saved.fileId
+        }),
+      )
+      const savedIds = fileIds.filter((id) => id.length > 0)
+      if (destination === 'new' && destinationId && savedIds.length > 0) {
+        const coverId = savedIds[coverIndex] ?? savedIds[0]
         if (coverId) {
-          const savedCover = await setCollectionCover({ accountId, folderId: destinationId, fileId: coverId })
+          const savedCover = await setCollectionCover({ accountId, folderId: destinationId, fileId: coverId, refresh: false })
           if (!savedCover.ok) toast(savedCover.message)
         }
       }
@@ -520,7 +560,7 @@ function UploadDialog({
         const ready = maps
           .map((map) => ({
             description: map.description,
-            fileIds: map.order.map((index) => fileIds[index] ?? '').filter((id) => id.length > 0),
+            fileIds: map.order.map((index) => savedIds[index] ?? '').filter((id) => id.length > 0),
           }))
           .filter((map) => map.fileIds.length >= 2)
         if (ready.length > 0) {
@@ -528,12 +568,16 @@ function UploadDialog({
             accountId,
             folderId: destinationId,
             maps: ready,
+            refresh: false,
           })
           if (!savedMaps.ok) toast(savedMaps.message)
         }
       }
+      const finished = await finishUploadBatch({ accountId, fileIds: savedIds })
+      if (!finished.ok) toast(finished.message)
       onUploaded()
     } catch (uploadError) {
+      if (uploadedIds.length > 0) await finishUploadBatch({ accountId, fileIds: uploadedIds }).catch(() => undefined)
       setUploading(false)
       setProgress('')
       setError(uploadError instanceof Error ? uploadError.message : 'The file could not be saved to Drive.')
@@ -594,84 +638,88 @@ function UploadDialog({
     setError('')
     let destinationId = destination === 'new' ? '' : destination
     const namedCollection = destination === 'new' ? collectionName : ''
-    const fileIds: string[] = []
+    const uploadedIds: string[] = []
     try {
       const names = standardNames
         ? await standardFileNames(prepared.map((item) => item.photo.file), accountId, destination === 'new' ? '' : destination, destination === 'new' ? collectionName : '')
         : prepared.map((item) => item.photo.file.name)
-      for (let index = 0; index < prepared.length; index += 1) {
-        const item = prepared[index]
-        if (!item) continue
-        const defaultName = names[index] ?? item.photo.file.name
-        setProgress(`Uploading photo ${index + 1} of ${prepared.length}`)
-        const saved = await uploadOne(
-          item.photo.file,
-          defaultName,
-          accountId,
-          destinationId,
-          destinationId ? '' : namedCollection,
-          destinationId ? '' : collectionDescription,
-          tags,
-          suggestedUse,
-          [],
-        )
-        if (!saved.fileId) throw new Error('The photo could not be saved to Drive.')
-        destinationId = saved.destinationId
-        fileIds.push(saved.fileId)
-        switch (severalMode) {
-          case 'ready':
-            for (const format of EXPORT_FORMATS) {
-              const extra = item.photo.readyFiles[format.id]
-              if (!extra) continue
-              setProgress(`Photo ${index + 1} · ${format.label}`)
-              await uploadOne(extra, variantFileName(defaultName, format.id), accountId, destinationId, '', '', '', '', [], {
-                parentId: saved.fileId,
-                format: format.id,
-              })
+      const batch = await prepareUpload(accountId, destinationId, namedCollection, collectionDescription)
+      destinationId = batch.destinationId
+      const limit = limiter(UPLOAD_SLOTS)
+      let done = 0
+      const steps = prepared.reduce((sum, item) => sum + 1 + (severalMode === 'ready' ? EXPORT_FORMATS.filter((format) => item.photo.readyFiles[format.id]).length : 0), 0)
+      const fileIds = await Promise.all(
+        prepared.map(async (item, index) => {
+          if (!item) return ''
+          const defaultName = names[index] ?? item.photo.file.name
+          const saved = await limit(() => uploadOne(item.photo.file, defaultName, accountId, batch.batchToken, tags, suggestedUse, []))
+          if (!saved.fileId) throw new Error('The photo could not be saved to Drive.')
+          uploadedIds.push(saved.fileId)
+          done += 1
+          setProgress(`Uploading ${done} of ${steps}`)
+          switch (severalMode) {
+            case 'ready':
+              await Promise.all(
+                EXPORT_FORMATS.map(async (format) => {
+                  const extra = item.photo.readyFiles[format.id]
+                  if (!extra) return
+                  await limit(() =>
+                    uploadOne(extra, variantFileName(defaultName, format.id), accountId, batch.batchToken, '', '', [], {
+                      parentId: saved.fileId,
+                      format: format.id,
+                    }),
+                  )
+                  done += 1
+                  setProgress(`Uploading ${done} of ${steps}`)
+                }),
+              )
+              break
+            case 'make': {
+              const crops: Partial<Record<ExportId, { x: number; y: number; zoom: number }>> = {}
+              for (const format of EXPORT_FORMATS) {
+                if (!item.photo.makeFormats.includes(format.id)) continue
+                crops[format.id] = item.photo.cropFrames[format.id] ?? CENTER_CROP
+              }
+              const customs = item.customs.map((custom, customIndex) => ({
+                id: customFormatId(custom.name, customIndex),
+                label: custom.name,
+                width: custom.width,
+                height: custom.height,
+                frame: custom.frame,
+              }))
+              if (item.photo.makeFormats.length > 0 || customs.length > 0) {
+                const savedFrames = await savePhotoFrames({
+                  accountId,
+                  fileId: saved.fileId,
+                  formats: item.photo.makeFormats,
+                  crops,
+                  customs,
+                })
+                if (!savedFrames.ok) throw new Error(savedFrames.message)
+              }
+              break
             }
-            break
-          case 'make':
-            for (const format of EXPORT_FORMATS) {
-              if (!item.photo.makeFormats.includes(format.id)) continue
-              setProgress(`Photo ${index + 1} · ${format.label}`)
-              const blob = await renderCrop(item.photo.url, format.width, format.height, item.photo.cropFrames[format.id] ?? CENTER_CROP)
-              const file = new File([blob], jpegVariantName(defaultName, format.id), { type: 'image/jpeg' })
-              await uploadOne(file, file.name, accountId, destinationId, '', '', '', '', [], {
-                parentId: saved.fileId,
-                format: format.id,
-              })
+            default: {
+              const unreachable: never = severalMode
+              throw new Error(unreachable)
             }
-            for (let customIndex = 0; customIndex < item.customs.length; customIndex += 1) {
-              const custom = item.customs[customIndex]
-              if (!custom) continue
-              setProgress(`Photo ${index + 1} · ${custom.name}`)
-              const blob = await renderCrop(item.photo.url, custom.width, custom.height, custom.frame)
-              const formatId = customFormatId(custom.name, customIndex)
-              const file = new File([blob], jpegVariantName(defaultName, formatId), { type: 'image/jpeg' })
-              await uploadOne(file, file.name, accountId, destinationId, '', '', '', '', [], {
-                parentId: saved.fileId,
-                customId: formatId,
-                customLabel: custom.name,
-                customWidth: custom.width,
-                customHeight: custom.height,
-              })
-            }
-            break
-          default: {
-            const unreachable: never = severalMode
-            throw new Error(unreachable)
           }
-        }
-      }
-      if (destination === 'new' && destinationId && fileIds.length > 0) {
-        const coverId = fileIds[coverIndex] ?? fileIds[0]
+          return saved.fileId
+        }),
+      )
+      const savedIds = fileIds.filter((id) => id.length > 0)
+      if (destination === 'new' && destinationId && savedIds.length > 0) {
+        const coverId = savedIds[coverIndex] ?? savedIds[0]
         if (coverId) {
-          const savedCover = await setCollectionCover({ accountId, folderId: destinationId, fileId: coverId })
+          const savedCover = await setCollectionCover({ accountId, folderId: destinationId, fileId: coverId, refresh: false })
           if (!savedCover.ok) toast(savedCover.message)
         }
       }
+      const finished = await finishUploadBatch({ accountId, fileIds: savedIds })
+      if (!finished.ok) toast(finished.message)
       onUploaded()
     } catch (uploadError) {
+      if (uploadedIds.length > 0) await finishUploadBatch({ accountId, fileIds: uploadedIds }).catch(() => undefined)
       setUploading(false)
       setProgress('')
       setError(uploadError instanceof Error ? uploadError.message : 'The file could not be saved to Drive.')
@@ -683,7 +731,7 @@ function UploadDialog({
       <div className="modal-backdrop" onClick={() => (uploading ? undefined : onClose())} />
       <form className="card upload-dialog upload-dialog-wide" onSubmit={(event) => void onSubmit(event)}>
         <div className="upload-head">
-          <div>
+            <div>
             <div className="eyebrow">Google Drive</div>
             <h2>Upload assets</h2>
           </div>
@@ -855,7 +903,7 @@ function UploadDialog({
               Several formats
             </button>
           </div>
-        </div>
+                </div>
         {formatMode === 'single' ? (
           <div className="field">
             <label htmlFor="upload-files">Files</label>
@@ -874,7 +922,7 @@ function UploadDialog({
                 setMaps([])
               }}
             />
-          </div>
+                </div>
         ) : null}
         {formatMode === 'several' ? (
           <div className="format-uploads">
@@ -895,8 +943,11 @@ function UploadDialog({
                 onClick={() => setSeveralMode('make')}
               >
                 Make formats here
-              </button>
+                </button>
             </div>
+            {severalMode === 'make' ? (
+              <p>One photo is uploaded. Each format is created from the saved crop when someone downloads it.</p>
+            ) : null}
             <label className="field">
               <span>Photos</span>
               <input
@@ -909,12 +960,19 @@ function UploadDialog({
                   const files = [...(event.target.files ?? [])]
                   const images = files.filter(isImageFile)
                   if (images.length !== files.length) setError('Each file needs to be a photo.')
-                  setPhotos((current) => [...current, ...images.map(blankPhoto)])
+                  setPhotos((current) => [...current, ...images.map((file) => blankPhoto(file, current[0]))])
                   event.target.value = ''
                 }}
               />
             </label>
-            <PhotoRail photos={photos} mode={severalMode} uploading={uploading} onChange={updatePhoto} onRemove={removePhoto} />
+            <PhotoRail
+              photos={photos}
+              mode={severalMode}
+              uploading={uploading}
+              onChange={updatePhoto}
+              onReplace={setPhotos}
+              onRemove={removePhoto}
+            />
           </div>
         ) : null}
         {formatMode === 'single' && picked.length > 0 || formatMode === 'several' && photos.length > 0 ? (
@@ -993,43 +1051,79 @@ function readReadyCustoms(photo: PhotoDraft): ReadyCustomSize[] | { error: strin
   return sizes
 }
 
-function jpegVariantName(fileName: string, formatId: string): string {
-  const named = variantFileName(fileName, formatId)
-  const stem = named.replace(/\.[^.]+$/i, '')
-  return `${stem}.jpg`
-}
-
 function isImageFile(file: File): boolean {
   if (file.type.startsWith('image/')) return true
   return /\.(jpe?g|png|webp|gif|heic|heif)$/i.test(file.name)
+}
+
+const UPLOAD_SLOTS = 3
+
+function limiter(max: number): <T>(task: () => Promise<T>) => Promise<T> {
+  let active = 0
+  const waiting: Array<() => void> = []
+  return function limit<T>(task: () => Promise<T>): Promise<T> {
+    return new Promise((resolve, reject) => {
+      const start = () => {
+        active += 1
+        task().then(resolve, reject).finally(() => {
+          active -= 1
+          const next = waiting.shift()
+          if (next) next()
+        })
+      }
+      if (active < max) start()
+      else waiting.push(start)
+    })
+  }
+}
+
+async function prepareUpload(
+  accountId: string,
+  destinationId: string,
+  collectionName: string,
+  collectionDescription: string,
+): Promise<{ batchToken: string; destinationId: string }> {
+  const started = await fetch('/api/admin/uploads', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      prepare: true,
+      accountId,
+      destinationId,
+      collectionName,
+      collectionDescription,
+    }),
+  })
+  const body: unknown = await started.json().catch(() => null)
+  if (!started.ok || !isPreparedUpload(body)) throw new Error(messageFrom(body, 'The upload could not be started.'))
+  return body
 }
 
 async function uploadOne(
   file: File,
   fileName: string,
   accountId: string,
-  destinationId: string,
-  collectionName: string,
-  collectionDescription: string,
+  batchToken: string,
   tags: string,
   suggestedUse: string,
   formats: ExportId[],
   variant?: { parentId: string; format?: ExportId; customId?: string; customLabel?: string; customWidth?: number; customHeight?: number },
-): Promise<{ destinationId: string; fileId: string }> {
+): Promise<{ fileId: string }> {
   const started = await fetch('/api/admin/uploads', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({
       accountId,
-      destinationId,
-      collectionName,
-      collectionDescription,
+      destinationId: '',
+      collectionName: '',
+      collectionDescription: '',
       fileName,
       mimeType: file.type,
       size: file.size,
       tags,
       suggestedUse,
       formats,
+      batchToken,
       variantParentId: variant?.parentId ?? '',
       variantFormat: variant?.format ?? null,
       variantCustomId: variant?.customId ?? '',
@@ -1041,20 +1135,23 @@ async function uploadOne(
   const startedBody: unknown = await started.json().catch(() => null)
   if (!started.ok || !isUploadSession(startedBody)) throw new Error(messageFrom(startedBody, 'The upload could not be started.'))
 
-  const saved = await fetch('/api/admin/uploads', {
+  const sent = await fetch(startedBody.uploadUrl, {
     method: 'PUT',
-    headers: {
-      'Content-Type': file.type || 'application/octet-stream',
-      'X-Upload-Ticket': startedBody.ticket,
-    },
+    headers: { 'Content-Type': startedBody.mimeType || 'application/octet-stream' },
     body: file,
   })
+  const sentBody: unknown = await sent.json().catch(() => null)
+  const fileId = sentBody && typeof sentBody === 'object' && 'id' in sentBody && typeof sentBody.id === 'string' ? sentBody.id : ''
+  if (!sent.ok || !isDriveFileId(fileId)) throw new Error(messageFrom(sentBody, 'The file could not be saved to Drive.'))
+
+  const saved = await fetch('/api/admin/uploads/complete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ticket: startedBody.ticket, fileId }),
+  })
   const savedBody: unknown = await saved.json().catch(() => null)
-  if (!saved.ok) throw new Error(messageFrom(savedBody, 'The file could not be saved to Drive.'))
-  return {
-    destinationId: startedBody.destinationId,
-    fileId: isSavedFile(savedBody) ? savedBody.fileId : '',
-  }
+  if (!saved.ok || !isSavedFile(savedBody)) throw new Error(messageFrom(savedBody, 'The file could not be saved to Drive.'))
+  return { fileId: savedBody.fileId }
 }
 
 function isSavedFile(value: unknown): value is { fileId: string } {
@@ -1062,10 +1159,16 @@ function isSavedFile(value: unknown): value is { fileId: string } {
   return typeof (value as { fileId?: unknown }).fileId === 'string'
 }
 
-function isUploadSession(value: unknown): value is { ticket: string; destinationId: string } {
+function isPreparedUpload(value: unknown): value is { batchToken: string; destinationId: string } {
   if (!value || typeof value !== 'object') return false
   const body = value as Record<string, unknown>
-  return typeof body.ticket === 'string' && typeof body.destinationId === 'string'
+  return typeof body.batchToken === 'string' && typeof body.destinationId === 'string'
+}
+
+function isUploadSession(value: unknown): value is { ticket: string; uploadUrl: string; mimeType: string } {
+  if (!value || typeof value !== 'object') return false
+  const body = value as Record<string, unknown>
+  return typeof body.ticket === 'string' && typeof body.uploadUrl === 'string' && body.uploadUrl.startsWith('https://www.googleapis.com/upload/drive/') && typeof body.mimeType === 'string'
 }
 
 function messageFrom(value: unknown, fallback: string): string {
@@ -1173,7 +1276,7 @@ function CollectionMenu({
               Delete
             </button>
           )}
-        </div>
+              </div>
       ) : null}
     </div>
   )

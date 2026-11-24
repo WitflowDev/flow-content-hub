@@ -1,8 +1,8 @@
-import { FieldValue } from 'firebase-admin/firestore'
+import { recordDownload } from '@/lib/admin/downloads'
 import { downloadClientFile } from '@/lib/drive/client'
 import { driveFolderForUser } from '@/lib/drive/resolve'
-import { adminDb } from '@/lib/firebase/admin'
 import { getSessionUser } from '@/lib/firebase/session'
+import { reportError } from '@/lib/observe'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -21,11 +21,14 @@ export async function GET(_request: Request, context: RouteContext) {
   try {
     const file = await downloadClientFile(folder.id, fileId)
     try {
-      const saved = adminDb().collection('users').doc(user.uid).collection('drive_downloads').doc(fileId)
-      const existing = await saved.get()
-      if (!existing.exists) await saved.set({ createdAt: FieldValue.serverTimestamp() })
+      await recordDownload({
+        uid: user.uid,
+        fileId,
+        collectionId: file.collectionId,
+        name: file.name,
+      })
     } catch (error) {
-      console.error(error instanceof Error ? error.message : 'The download could not be recorded.')
+      reportError('downloads.record', error)
     }
     return new Response(file.body, {
       headers: {

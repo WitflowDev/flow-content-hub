@@ -8,11 +8,19 @@ import { Icon } from '@/components/icons'
 import { adminPostMedia, CollectionMapsEditor, type DraftCarousel } from '@/components/screens/CollectionMapsEditor'
 import { deleteAdminCollection, deleteAdminPost, deleteAdminPosts, loadAdminCollection, updateAdminCollection, updateAdminPost } from '@/lib/admin/content'
 import type { AdminCollectionDetail, AdminCollectionRow, AdminPost } from '@/lib/admin/types'
+import { pressLabel, readPressLicense, type PressLicense } from '@/lib/press'
+import { suggestArchiveFields } from '@/lib/press/suggest'
 import { useApp } from '@/state/AppState'
 
 type Editor =
   | { kind: 'collection' }
   | { kind: 'post'; post: AdminPost }
+
+function licenseChoice(value: string): PressLicense | '' | null {
+  if (value === '') return ''
+  const license = readPressLicense(value)
+  return license === '' ? null : license
+}
 
 export function AdminCollectionBoard({ collection, onBack }: { collection: AdminCollectionRow; onBack: () => void }) {
   const { toast } = useApp()
@@ -229,6 +237,12 @@ function CollectionEditor({
   const [title, setTitle] = useState(post ? post.title : detail.title)
   const [description, setDescription] = useState(post ? post.description : detail.description)
   const [tags, setTags] = useState(post ? post.tags.join(', ') : detail.tags.join(', '))
+  const [credit, setCredit] = useState(post?.credit ?? '')
+  const [license, setLicense] = useState<PressLicense | ''>(post?.license ?? '')
+  const [captionApproved, setCaptionApproved] = useState(post?.captionApproved ?? false)
+  const [embargoUntil, setEmbargoUntil] = useState(post?.embargoUntil ?? '')
+  const [formatHint, setFormatHint] = useState('')
+  const [suggesting, setSuggesting] = useState(false)
   const [carousels, setCarousels] = useState<DraftCarousel[]>(
     detail.maps.map((map, index) => ({ id: `saved-${index}`, description: map.description, fileIds: [...map.fileIds] })),
   )
@@ -261,6 +275,10 @@ function CollectionEditor({
           title,
           description,
           tags,
+          credit,
+          license,
+          captionApproved,
+          embargoUntil,
         })
       case 'collection':
         if (carousels.some((map) => map.fileIds.length < 2)) {
@@ -319,6 +337,22 @@ function CollectionEditor({
     }
   }
 
+  async function suggestCaption() {
+    if (!post || suggesting || saving) return
+    setSuggesting(true)
+    const result = await suggestArchiveFields({ accountId: collection.accountId, fileId: post.id })
+    setSuggesting(false)
+    if (!result.ok) {
+      toast(result.message)
+      return
+    }
+    setDescription(result.caption)
+    if (result.credit) setCredit(result.credit)
+    if (result.license) setLicense(result.license)
+    setFormatHint(result.formatLabel)
+    toast('Suggestion added. Review it before saving.', 'success')
+  }
+
   const heading = editor.kind === 'post' ? 'Edit post' : 'Edit collection'
 
   return (
@@ -345,7 +379,7 @@ function CollectionEditor({
             value={description}
             disabled={saving}
             maxLength={500}
-            placeholder={editor.kind === 'post' ? 'Optional. Shown to the client as suggested use.' : 'Optional. Shown on the collection.'}
+            placeholder={editor.kind === 'post' ? 'Caption the client can copy after you approve it.' : 'Optional. Shown on the collection.'}
             onChange={(event) => setDescription(event.target.value)}
           />
         </div>
@@ -359,6 +393,54 @@ function CollectionEditor({
             onChange={(event) => setTags(event.target.value)}
           />
         </div>
+        {post ? (
+          <>
+            <div className="field">
+              <label htmlFor="edit-credit">Credit</label>
+              <input id="edit-credit" value={credit} disabled={saving} maxLength={160} onChange={(event) => setCredit(event.target.value)} />
+            </div>
+            <div className="field">
+              <label htmlFor="edit-license">License</label>
+              <select
+                id="edit-license"
+                value={license}
+                disabled={saving}
+                onChange={(event) => {
+                  const next = licenseChoice(event.target.value)
+                  if (next !== null) setLicense(next)
+                }}
+              >
+                <option value="">Not set</option>
+                <option value="free">{pressLabel('free')}</option>
+                <option value="credit">{pressLabel('credit')}</option>
+              </select>
+            </div>
+            <div className="field">
+              <label htmlFor="edit-embargo">Embargo date</label>
+              <input
+                id="edit-embargo"
+                type="date"
+                value={embargoUntil}
+                disabled={saving}
+                onChange={(event) => setEmbargoUntil(event.target.value)}
+              />
+              <p className="field-note">Until this date the file stays out of the client archive and shared links.</p>
+            </div>
+            <label className="check-row">
+              <input
+                type="checkbox"
+                checked={captionApproved}
+                disabled={saving}
+                onChange={(event) => setCaptionApproved(event.target.checked)}
+              />
+              Approved caption
+            </label>
+            <button type="button" className="btn ghost" disabled={saving || suggesting} onClick={() => void suggestCaption()}>
+              {suggesting ? 'Looking through this archive…' : 'Suggest from this archive'}
+            </button>
+            {formatHint ? <p className="field-note">Suggested format: {formatHint}. This does not publish the file.</p> : null}
+          </>
+        ) : null}
         {editor.kind === 'collection' && detail.posts.length > 0 ? (
           <div className="field">
             <label>Banner</label>

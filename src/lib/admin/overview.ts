@@ -7,6 +7,7 @@ import { formatVariantId } from '@/data/exports'
 import { isDriveFileId, listClientFolder, type DrivePlacedFile } from '@/lib/drive/client'
 import { readCollectionRecords } from '@/lib/drive/publish'
 import { adminDb } from '@/lib/firebase/admin'
+import { reportError } from '@/lib/observe'
 
 export type AdminOverview = {
   clientCount: number
@@ -50,7 +51,7 @@ export async function loadAdminOverview(): Promise<AdminOverview> {
         try {
           return { account, listed: await listClientFolder(account.driveFolderId) }
         } catch (error) {
-          console.error(error instanceof Error ? error.message : 'A client folder could not be listed.')
+          reportError('drive.list', error instanceof Error ? error : 'A client folder could not be listed.')
           return { account, listed: null }
         }
       }),

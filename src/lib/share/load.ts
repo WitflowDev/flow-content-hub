@@ -3,6 +3,7 @@ import { formatVariantId } from '@/data/exports'
 import { listContainedMedia, readContainedFolder } from '@/lib/drive/client'
 import { readCollectionRecords } from '@/lib/drive/publish'
 import { readAssetCopy } from '@/lib/drive/tags'
+import { embargoActive } from '@/lib/press'
 import { readShare } from '@/lib/share/store'
 import type { SharedCollectionView } from '@/lib/share/types'
 
@@ -14,8 +15,9 @@ export async function loadSharedCollection(token: string): Promise<SharedCollect
   const listed = (await listContainedMedia(share.folderId)).filter((file) => !formatVariantId(file.name))
   const copy = await readAssetCopy(listed.map((file) => file.id))
   const record = (await readCollectionRecords([share.folderId])).get(share.folderId)
-  const ids = new Set(listed.map((file) => file.id))
-  const files = [...listed]
+  const visible = listed.filter((file) => !embargoActive(copy.get(file.id)?.press.embargoUntil ?? ''))
+  const ids = new Set(visible.map((file) => file.id))
+  const files = [...visible]
     .sort((left, right) => (right.modifiedTime ?? '').localeCompare(left.modifiedTime ?? ''))
     .map((file) => ({
       id: file.id,

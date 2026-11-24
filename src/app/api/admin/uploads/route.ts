@@ -1,13 +1,8 @@
 import { NextResponse } from 'next/server'
 import { exportFormat, isCustomFormatId, parseExportIds, pixelSize, type ExportId } from '@/data/exports'
-import { openAdminUpload } from '@/lib/admin/uploads'
-import { openUploadTicket } from '@/lib/admin/upload-ticket'
+import { openAdminUpload, prepareAdminUpload } from '@/lib/admin/uploads'
 import { requireAdmin } from '@/lib/auth/admin'
-import { invalidateLibrary } from '@/lib/drive/cache'
-import { isDriveFileId } from '@/lib/drive/client'
-import { attachAssetVariant, attachCustomVariant, saveAssetCopy } from '@/lib/drive/tags'
-import { readUserProfile } from '@/lib/firebase/profile'
-import { syncAccountNotices } from '@/lib/notifications/sync'
+import { isDriveFileId } from '@/lib/drive/ids'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -29,6 +24,7 @@ type UploadRequest = {
   variantCustomLabel: string
   variantCustomWidth: number
   variantCustomHeight: number
+  batchToken: string
 }
 
 export async function POST(request: Request) {
@@ -41,105 +37,51 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: 'The upload could not be started.' }, { status: 400 })
   }
+  const prepared = readPrepareRequest(body)
+  if (prepared) {
+    try {
+      const session = await prepareAdminUpload(admin.uid, prepared)
+      return NextResponse.json(session)
+    } catch (error) {
+      return NextResponse.json({ error: publicMessage(error, 'The upload could not be started.') }, { status: 400 })
+    }
+  }
+
   const parsed = readUploadRequest(body)
   if (!parsed) return NextResponse.json({ error: 'Check the file and the client account.' }, { status: 400 })
 
   try {
-    const session = await openAdminUpload(admin.uid, parsed)
+    const session = await openAdminUpload(admin.uid, { ...parsed, origin: requestOrigin(request) })
     return NextResponse.json(session)
   } catch (error) {
     return NextResponse.json({ error: publicMessage(error, 'The upload could not be started.') }, { status: 400 })
   }
 }
 
-export async function PUT(request: Request) {
-  const admin = await requireAdmin()
-  if (!admin) return NextResponse.json({ error: 'Only an admin can upload.' }, { status: 403 })
-  const token = request.headers.get('x-upload-ticket') ?? ''
-  let ticket: ReturnType<typeof openUploadTicket>
-  try {
-    ticket = openUploadTicket(token, admin.uid)
-  } catch {
-    return NextResponse.json({ error: 'The upload could not be saved.' }, { status: 400 })
-  }
-  if (!ticket || !request.body) return NextResponse.json({ error: 'The upload could not be saved.' }, { status: 400 })
-
-  const declared = request.headers.get('content-length')
-  if (declared && Number(declared) !== ticket.size) {
-    return NextResponse.json({ error: 'The file size did not match.' }, { status: 400 })
-  }
-
-  const saved = await fetch(ticket.uploadUrl, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': ticket.mimeType,
-      'Content-Length': String(ticket.size),
-    },
-    body: request.body,
-    duplex: 'half',
-  } as RequestInit & { duplex: 'half' })
-  if (!saved.ok) {
-    return NextResponse.json({ error: 'The file could not be saved to Drive.' }, { status: 502 })
-  }
-  const fileId = await savedFileId(saved)
-  const variantUpload = Boolean(ticket.variantParentId)
-  const customUpload = Boolean(ticket.variantCustomId && ticket.variantCustomLabel)
-  if (variantUpload && ((!ticket.variantFormat && !customUpload) || !fileId)) {
-    return NextResponse.json({ error: 'The extra format could not be saved.' }, { status: 400 })
-  }
-  try {
-    if (variantUpload && ticket.variantFormat && fileId) {
-      await attachAssetVariant(ticket.variantParentId, ticket.accountId, ticket.variantFormat, {
-        fileId,
-        name: ticket.fileName,
-        bytes: ticket.size,
-        mimeType: ticket.mimeType,
-      })
-    } else if (variantUpload && customUpload && fileId) {
-      await attachCustomVariant(
-        ticket.variantParentId,
-        ticket.accountId,
-        ticket.variantCustomId,
-        ticket.variantCustomLabel,
-        {
-          fileId,
-          name: ticket.fileName,
-          bytes: ticket.size,
-          mimeType: ticket.mimeType,
-        },
-        { width: ticket.variantCustomWidth, height: ticket.variantCustomHeight },
-      )
-    } else if (fileId) {
-      await saveAssetCopy(fileId, ticket.accountId, ticket.tags, ticket.suggestedUse, ticket.formats)
-    }
-  } catch (error) {
-    console.error(error instanceof Error ? error.message : 'The photo notes could not be saved.')
-    if (variantUpload) {
-      return NextResponse.json({ error: 'The extra format could not be linked to the photo.' }, { status: 502 })
-    }
-  }
-  try {
-    const profile = await readUserProfile(ticket.accountId)
-    if (profile?.driveFolderId) invalidateLibrary(profile.driveFolderId)
-    await syncAccountNotices(ticket.accountId, {
-      fileIds: !variantUpload && fileId ? [fileId] : [],
-      folderName: profile?.companyName || null,
-      hasFolder: Boolean(profile?.driveFolderId),
-    })
-  } catch (error) {
-    console.error(error instanceof Error ? error.message : 'The library notice could not be saved.')
-  }
-  return NextResponse.json({ ok: true, fileId })
+function requestOrigin(request: Request): string {
+  const origin = request.headers.get('origin') ?? ''
+  if (origin) return origin
+  return new URL(request.url).origin
 }
 
-async function savedFileId(response: Response): Promise<string> {
-  try {
-    const body: unknown = await response.json()
-    if (!body || typeof body !== 'object' || !('id' in body)) return ''
-    const id = (body as { id?: unknown }).id
-    return typeof id === 'string' ? id : ''
-  } catch {
-    return ''
+function readPrepareRequest(value: unknown): {
+  accountId: string
+  destinationId: string
+  collectionName: string
+  collectionDescription: string
+} | null {
+  if (!value || typeof value !== 'object') return null
+  const body = value as Record<string, unknown>
+  if (body.prepare !== true) return null
+  if (typeof body.accountId !== 'string' || body.accountId.length > 128) return null
+  if (typeof body.destinationId !== 'string' || body.destinationId.length > 128) return null
+  if (typeof body.collectionName !== 'string' || body.collectionName.length > 180) return null
+  if (typeof body.collectionDescription !== 'string' || body.collectionDescription.length > 500) return null
+  return {
+    accountId: body.accountId,
+    destinationId: body.destinationId,
+    collectionName: body.collectionName,
+    collectionDescription: body.collectionDescription,
   }
 }
 
@@ -174,6 +116,7 @@ function readUploadRequest(value: unknown): UploadRequest | null {
     variantCustomLabel: variant.customLabel,
     variantCustomWidth: variant.customWidth,
     variantCustomHeight: variant.customHeight,
+    batchToken: typeof body.batchToken === 'string' ? body.batchToken.slice(0, 12000) : '',
   }
 }
 

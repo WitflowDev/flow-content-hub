@@ -8,11 +8,13 @@ export function FavoriteButton({ fileId, placement = 'thumb' }: { fileId: string
   const favorites = useFavorites()
   const preview = useSession().preview
   const on = favorites.ids.includes(fileId)
+  const placementClass = placement === 'inline' ? 'inline' : ''
+  const className = ['favorite-btn', placementClass, on ? 'on' : ''].filter(Boolean).join(' ')
 
   return (
     <button
       type="button"
-      className={on ? `favorite-btn ${placement} on` : `favorite-btn ${placement}`}
+      className={className}
       data-favorite=""
       aria-pressed={on}
       aria-label={on ? 'Remove from favorites' : 'Add to favorites'}

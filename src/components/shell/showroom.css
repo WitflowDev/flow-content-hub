@@ -124,7 +124,8 @@
 .theme-showroom .asset-preview,
 .theme-showroom .admin-thumb {background:#161616;border-color:rgba(255,255,255,.08)}
 .theme-showroom .asset-type-badge {background:rgba(0,0,0,.62);color:#fff}
-.theme-showroom .favorite-btn {background:rgba(0,0,0,.55);color:#fff}
+.theme-showroom .favorite-btn,
+.theme-showroom .favorite-btn.on {background:transparent;border:0;border-radius:50%;box-shadow:none;color:#fff;filter:drop-shadow(0 1px 2px rgba(0,0,0,.7))}
 .theme-showroom .collection-stack img,
 .theme-showroom .collection-count {border-color:#0a0a0a}
 .theme-showroom .collection-count {background:#1a1a1a;color:#fff}
@@ -145,24 +146,66 @@
 .theme-showroom .backdrop {background:rgba(0,0,0,.72)}
 .theme-showroom .guide-modal-media {background:var(--surface-soft)}
 .theme-showroom .service-index-links button {background:var(--surface-soft);color:var(--text);border-color:var(--line)}
-.theme-showroom .day-landing {
-  --bg:#ffffff;
-  --surface:#ffffff;
-  --surface-soft:#fafafd;
-  --surface-purple:#f5f2ff;
-  --line:#e9e8ef;
-  --line-dark:#dedde6;
-  --text:#121217;
-  --muted:#747586;
-  --muted2:#9b9baa;
-  --flow:#6843ff;
-  --flow-dark:#5030d7;
-  --flow-soft:#f1edff;
-  --shadow:0 18px 48px rgba(31,25,61,.08);
-  --shadow-sm:0 8px 24px rgba(31,25,61,.06);
-  color:#121217;
-  font-family:Inter,"Segoe UI",Arial,sans-serif;
+.theme-showroom .content-day-embed {
+  color:var(--text);
+  font-family:inherit;
 }
+.theme-showroom .content-day-embed .package-inclusions,
+.theme-showroom .content-day-embed .calendar-card,
+.theme-showroom .content-day-embed .booking-card,
+.theme-showroom .content-day-embed .booking-summary > div,
+.theme-showroom .content-day-embed .booking-confirm-card {
+  background:var(--surface);
+  color:var(--text);
+  border-color:var(--line);
+  border-radius:0;
+  box-shadow:none;
+}
+.theme-showroom .content-day-embed .package-inclusions span,
+.theme-showroom .content-day-embed .weekdays span,
+.theme-showroom .content-day-embed .calendar-hint,
+.theme-showroom .content-day-embed .calendar-hint strong,
+.theme-showroom .content-day-embed .field label,
+.theme-showroom .content-day-embed .booking-summary small,
+.theme-showroom .content-day-embed .plan-note,
+.theme-showroom .content-day-embed .eyebrow {color:var(--muted)}
+.theme-showroom .content-day-embed .calendar-top h3,
+.theme-showroom .content-day-embed .booking-summary strong,
+.theme-showroom .content-day-embed .booking-confirm-card h3 {color:var(--text);font-weight:500}
+.theme-showroom .content-day-embed .calendar-nav button,
+.theme-showroom .content-day-embed .calendar-grid button,
+.theme-showroom .content-day-embed .field input,
+.theme-showroom .content-day-embed .field select,
+.theme-showroom .content-day-embed .btn {
+  background:var(--bg);
+  color:var(--text);
+  border-color:var(--line);
+  border-radius:0;
+  box-shadow:none;
+}
+.theme-showroom .content-day-embed .calendar-grid button.selectable {
+  background:transparent;
+  border-color:rgba(255,255,255,.28);
+  color:var(--text);
+}
+.theme-showroom .content-day-embed .calendar-grid button.selectable:hover,
+.theme-showroom .content-day-embed .calendar-nav button:not(:disabled):hover {
+  background:rgba(255,255,255,.08);
+  border-color:var(--text);
+  color:var(--text);
+}
+.theme-showroom .content-day-embed .calendar-grid button.selected,
+.theme-showroom .content-day-embed .btn-primary,
+.theme-showroom .content-day-embed .btn.primary {
+  background:var(--flow);
+  color:var(--on-accent);
+  border-color:var(--flow);
+}
+.theme-showroom .content-day-embed .btn:hover,
+.theme-showroom .content-day-embed .btn-primary:hover {transform:none;box-shadow:none}
+.theme-showroom .content-day-embed .field input:focus,
+.theme-showroom .content-day-embed .field select:focus {border-color:var(--text);box-shadow:none}
+.theme-showroom .content-day-embed .booking-confirm {background:rgba(0,0,0,.72)}
 .theme-showroom .btn,
 .theme-showroom .pill,
 .theme-showroom .card,
@@ -212,18 +255,6 @@
 .theme-showroom .collection-tile:hover,
 .theme-showroom .collection-feature:hover,
 .theme-showroom .guide-card:hover {transform:none}
-.theme-showroom .day-landing .btn,
-.theme-showroom .day-landing input,
-.theme-showroom .day-landing textarea,
-.theme-showroom .day-landing select {background:#fff;color:#121217;border-color:#dedde6;border-radius:11px}
-.theme-showroom .day-landing .btn-primary {background:#6843ff;color:#fff;border-color:#6843ff}
-.theme-showroom .day-landing h1,
-.theme-showroom .day-landing h2,
-.theme-showroom .day-landing h3 {font-weight:800;color:#121217}
-.theme-showroom .day-landing .eyebrow {color:#77788c}
-.theme-showroom .day-landing .field label,
-.theme-showroom .day-landing .link,
-.theme-showroom .day-landing .text-btn {color:#121217}
 .theme-showroom .page {max-width:none;background:var(--bg);padding:112px 38px 64px}
 .theme-showroom .home-page,
 .theme-showroom .collection-detail-page {padding:0 0 64px}

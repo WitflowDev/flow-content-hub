@@ -131,10 +131,11 @@ export async function beginOwnedUpload(input: {
   name: string
   mimeType: string
   size: number
+  origin: string
 }): Promise<string> {
   const token = await accessToken()
   const response = await fetch(
-    'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true',
+    'https://www.googleapis.com/upload/drive/v3/files?uploadType=resumable&supportsAllDrives=true&fields=id',
     {
       method: 'POST',
       headers: {
@@ -142,6 +143,7 @@ export async function beginOwnedUpload(input: {
         'Content-Type': 'application/json; charset=UTF-8',
         'X-Upload-Content-Type': input.mimeType,
         'X-Upload-Content-Length': String(input.size),
+        Origin: input.origin,
       },
       body: JSON.stringify({
         name: input.name,

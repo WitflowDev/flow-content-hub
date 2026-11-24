@@ -1,0 +1,29 @@
+/* Shared blocks. A theme sets the variables and, where the layout really differs, a skin file. */
+.block-card {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line);
+}
+
+.block-hero {
+  background: var(--bg);
+  color: var(--text);
+}
+
+.block-grid {
+  display: grid;
+  background: var(--line);
+  gap: 1px;
+}
+
+.block-button {
+  background: var(--flow);
+  color: var(--on-accent);
+  border: 1px solid var(--flow);
+}
+
+.block-calendar .selected,
+.block-calendar .on {
+  background: var(--flow);
+  color: var(--on-accent);
+}

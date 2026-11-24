@@ -22,8 +22,8 @@ export const guides: Guide[] = [
   ]),
   guide('share', 'Sharing with your team', 'Create a simple collection link for colleagues or partners.', '00:05', [
     'Open the collection.',
-    'Choose Share collection.',
-    'Copy the link and send it to your team.',
+    'Choose 3, 7, 14 or 31 days, or a custom lifetime up to 62 days, then Share collection.',
+    'Copy the view-only link or download its QR code.',
   ]),
   guide('filters', 'Finding the right content', 'Use format and channel filters to narrow the library quickly.', '00:16', [
     'Open My Content.',

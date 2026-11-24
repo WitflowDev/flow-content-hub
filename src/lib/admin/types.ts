@@ -1,4 +1,4 @@
-import type { InterfaceTheme } from '@/lib/interface-theme'
+import type { FlowLogo, InterfaceTheme } from '@/lib/interface-theme'
 import type { ThemePalette } from '@/lib/theme-palette'
 
 export type AdminAccount = {
@@ -16,6 +16,7 @@ export type AdminUser = {
   role: 'client' | 'admin'
   hasFolder: boolean
   interfaceTheme: InterfaceTheme
+  flowLogo: FlowLogo | null
   logoFileId: string | null
   bannerFileId: string | null
   themeColors: Partial<ThemePalette>
@@ -41,6 +42,10 @@ export type AdminPost = {
   description: string
   tags: string[]
   video: boolean
+  credit: string
+  license: '' | 'free' | 'credit'
+  captionApproved: boolean
+  embargoUntil: string
 }
 
 export type AdminContentMap = {

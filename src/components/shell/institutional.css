@@ -1,0 +1,502 @@
+.theme-institutional {
+  background: var(--bg);
+  color: var(--text);
+  --bg: #f8fafc;
+  --surface: #ffffff;
+  --surface-soft: #f1f5f9;
+  --surface-purple: #eff6ff;
+  --line: #cbd5e1;
+  --line-dark: #94a3b8;
+  --text: #0f172a;
+  --muted: #475569;
+  --muted2: #64748b;
+  --flow: #0f294a;
+  --flow-dark: #1e3a5f;
+  --flow-soft: #eff6ff;
+  --on-accent: #ffffff;
+  --on-text: #ffffff;
+  --flow-ink: #0f294a;
+  --civic-navy: #0f294a;
+  --civic-navy-2: #163863;
+  --civic-navy-line: #1e3a5f;
+  --civic-ochre: #b47b2b;
+  --shadow: none;
+  --shadow-sm: none;
+  --sidebar: 272px;
+  --radius: 6px;
+  --radius-sm: 4px;
+  font-family: inherit;
+  font-size: 14px;
+  scrollbar-color: #94a3b8 #f1f5f9;
+}
+.theme-institutional button,
+.theme-institutional input,
+.theme-institutional select,
+.theme-institutional textarea {font-family: inherit}
+.theme-institutional :focus-visible {outline: 2px solid var(--civic-ochre); outline-offset: 2px}
+.theme-institutional ::-webkit-scrollbar {width: 7px; height: 7px}
+.theme-institutional ::-webkit-scrollbar-track {background: #f1f5f9}
+.theme-institutional ::-webkit-scrollbar-thumb {background: #94a3b8; border-radius: 3px}
+.theme-institutional ::selection {background: #163863; color: #fff}
+.theme-institutional .app-shell,
+.theme-institutional .main {background: var(--bg); color: var(--text)}
+.theme-institutional .sidebar {
+  width: var(--sidebar);
+  padding: 0;
+  background: var(--civic-navy);
+  color: #fff;
+  border-right: 1px solid #0b1e36;
+  box-shadow: none;
+}
+.theme-institutional .brand-btn,
+.theme-institutional .brand-lockup {
+  height: auto;
+  min-height: 72px;
+  margin: 0;
+  padding: 20px 22px;
+  border-bottom: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  color: #fff;
+}
+.theme-institutional .brand-lockup .brand-btn {width: auto}
+.theme-institutional .brand-collab {color: #cbd5e1}
+.theme-institutional .flow-logo,
+.theme-institutional .brand-lockup .flow-logo {width: auto; height: 22px; max-width: 140px}
+.theme-institutional .sidebar-body {gap: 0; padding: 4px 18px 18px}
+.theme-institutional .nav {gap: 2px; margin: 0; padding: 12px 0 8px}
+.theme-institutional .nav::before {
+  content: "Archive";
+  display: block;
+  padding: 4px 12px 10px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+.theme-institutional .nav-item,
+.theme-institutional .help-card {
+  border: 0;
+  border-left: 3px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: #e2e8f0;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 10px 12px;
+  box-shadow: none;
+}
+.theme-institutional .nav-item .svg,
+.theme-institutional .help-card .svg {width: 18px; height: 18px; color: #cbd5e1}
+.theme-institutional .nav-item:hover,
+.theme-institutional .help-card:hover {background: var(--civic-navy-line); color: #fff}
+.theme-institutional .nav-item.active {
+  background: var(--civic-navy-2);
+  color: #fff;
+  border-left-color: var(--civic-ochre);
+  font-weight: 600;
+}
+.theme-institutional .nav-item.active .svg {color: #f3d7a1}
+.theme-institutional .sidebar-bottom,
+.theme-institutional .sidebar-contact {
+  margin: 12px 0 0;
+  padding: 14px;
+  background: rgba(255, 255, 255, .06);
+  border: 1px solid var(--civic-navy-line);
+  border-radius: 4px;
+  color: #fff;
+}
+.theme-institutional .sidebar-contact p {
+  margin: 0 0 4px;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0;
+  text-transform: none;
+}
+.theme-institutional .sidebar-contact span,
+.theme-institutional .svc-intro,
+.theme-institutional .svc-legend {color: #cbd5e1; font-size: 12px; line-height: 1.45}
+.theme-institutional .sidebar-contact a {
+  display: block;
+  margin-top: 12px;
+  background: #fff;
+  color: var(--civic-navy);
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+  text-align: center;
+  padding: 8px 12px;
+}
+.theme-institutional .sidebar-contact a:hover {background: #f8fafc; color: var(--civic-navy)}
+.theme-institutional .topbar {
+  height: 64px;
+  padding: 0 32px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  box-shadow: none;
+}
+.theme-institutional .global-search,
+.theme-institutional .content-search {
+  height: 40px;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  background: var(--bg);
+  box-shadow: none;
+}
+.theme-institutional .global-search input,
+.theme-institutional .content-search input {color: var(--text); font-size: 14px}
+.theme-institutional .global-search input::placeholder,
+.theme-institutional .content-search input::placeholder {color: var(--muted)}
+.theme-institutional .global-search:focus-within,
+.theme-institutional .content-search:focus-within {background: var(--surface); border-color: var(--civic-navy)}
+.theme-institutional .icon-btn,
+.theme-institutional .avatar-btn,
+.theme-institutional .mobile-menu,
+.theme-institutional .close {
+  width: 40px;
+  height: 40px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+}
+.theme-institutional .icon-btn:hover,
+.theme-institutional .avatar-btn:hover,
+.theme-institutional .close:hover {background: var(--surface-soft); color: var(--text)}
+.theme-institutional .avatar {
+  border-radius: 4px;
+  background: var(--civic-navy);
+  color: #fff;
+  border: 0;
+  font-size: 12px;
+  font-weight: 600;
+}
+.theme-institutional .badge-dot {background: var(--civic-ochre); border-color: #fff}
+.theme-institutional h1,
+.theme-institutional h2,
+.theme-institutional h3,
+.theme-institutional .page-title h1,
+.theme-institutional .collection-heading h1,
+.theme-institutional .media-card-title,
+.theme-institutional .collection-body h3,
+.theme-institutional .civic-hero h1 {
+  font-family: var(--font-civic-serif), Georgia, "Times New Roman", serif;
+  font-weight: 600;
+  letter-spacing: -.02em;
+  text-transform: none;
+  color: var(--text);
+}
+.theme-institutional .page-title h1,
+.theme-institutional .collection-heading h1,
+.theme-institutional .civic-hero h1 {
+  font-size: clamp(28px, 3vw, 40px);
+  line-height: 1.15;
+  margin: 8px 0;
+}
+.theme-institutional .section-head h2 {font-size: 22px; margin: 0}
+.theme-institutional .eyebrow,
+.theme-institutional .section-kicker,
+.theme-institutional .civic-hero > div > p:first-child {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: .08em;
+  text-transform: uppercase;
+  color: var(--civic-ochre);
+}
+.theme-institutional .page-title p,
+.theme-institutional .civic-hero-note {color: var(--muted); font-size: 14px; line-height: 1.55}
+.theme-institutional .card,
+.theme-institutional .stat-card,
+.theme-institutional .popover,
+.theme-institutional .drawer,
+.theme-institutional .upload-dialog,
+.theme-institutional .guide-modal,
+.theme-institutional .confirm-dialog,
+.theme-institutional .notification-pop,
+.theme-institutional .kebab-menu,
+.theme-institutional .library-toolbar,
+.theme-institutional .flow-tip,
+.theme-institutional .guide-card,
+.theme-institutional .day-offer,
+.theme-institutional .service-option {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  box-shadow: none;
+}
+.theme-institutional .btn,
+.theme-institutional .search-submit,
+.theme-institutional .pill,
+.theme-institutional .sort-select,
+.theme-institutional .view-toggle {
+  border-radius: 4px;
+  box-shadow: none;
+}
+.theme-institutional .btn,
+.theme-institutional .search-submit {
+  min-height: 40px;
+  padding: 0 16px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line);
+  font-size: 13px;
+  font-weight: 600;
+}
+.theme-institutional .btn:hover,
+.theme-institutional .search-submit:hover {transform: none; background: var(--surface-soft); box-shadow: none}
+.theme-institutional .btn.primary {
+  background: var(--flow);
+  color: var(--on-accent);
+  border-color: var(--flow);
+}
+.theme-institutional .btn.primary:hover {background: #1e3a5f; color: #fff; border-color: #1e3a5f}
+.theme-institutional .btn.danger {color: #9f1239; border-color: #fecdd3; background: #fff}
+.theme-institutional .btn.danger:hover {background: #9f1239; color: #fff; border-color: #9f1239}
+.theme-institutional .pill {
+  height: auto;
+  padding: 6px 12px;
+  background: var(--bg);
+  color: var(--text);
+  border: 1px solid var(--line);
+  font-size: 12px;
+  font-weight: 600;
+}
+.theme-institutional .pill.active {background: var(--flow); color: var(--on-accent); border-color: var(--flow)}
+.theme-institutional input,
+.theme-institutional textarea,
+.theme-institutional select,
+.theme-institutional .field input,
+.theme-institutional .field select,
+.theme-institutional .promotion-form select,
+.theme-institutional .user-form select,
+.theme-institutional .upload-dialog select,
+.theme-institutional .phone-row select {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--line);
+  border-radius: 4px;
+}
+.theme-institutional .link,
+.theme-institutional .text-btn,
+.theme-institutional .text-btn.purple,
+.theme-institutional .btn.soft {color: var(--flow)}
+.theme-institutional .svc-tile,
+.theme-institutional .svc-flyout {background: var(--surface); color: var(--text); border-color: var(--line); border-radius: 6px; box-shadow: none}
+.theme-institutional .card:hover,
+.theme-institutional .collection-tile:hover,
+.theme-institutional .guide-card:hover,
+.theme-institutional .media-card:hover .thumb {transform: none; box-shadow: none}
+.theme-institutional .media-grid,
+.theme-institutional .library-grid,
+.theme-institutional .collection-assets,
+.theme-institutional .collections-grid {gap: 24px}
+.theme-institutional .media-card,
+.theme-institutional .collection-tile {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: none;
+}
+.theme-institutional .media-card:hover,
+.theme-institutional .collection-tile:hover {border-color: var(--civic-navy)}
+.theme-institutional .thumb,
+.theme-institutional .collection-cover,
+.theme-institutional .asset-preview,
+.theme-institutional .admin-thumb {
+  background: #e2e8f0;
+  border: 0;
+  border-radius: 0;
+}
+.theme-institutional .thumb,
+.theme-institutional .collection-cover {aspect-ratio: 16/10; height: auto}
+.theme-institutional .thumb img,
+.theme-institutional .collection-cover img {filter: none; opacity: 1}
+.theme-institutional .media-card .media-card-meta,
+.theme-institutional .collection-tile .collection-body {
+  position: relative;
+  margin: 0;
+  padding: 14px 14px 16px;
+  background: var(--surface);
+  color: var(--text);
+}
+.theme-institutional .media-card-title,
+.theme-institutional .collection-body h3 {font-size: 18px; line-height: 1.25}
+.theme-institutional .media-card-sub,
+.theme-institutional .collection-meta,
+.theme-institutional .collection-body p {
+  margin-top: 8px;
+  color: var(--muted);
+  font-family: var(--font-tech-mono), ui-monospace, monospace;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0;
+}
+.theme-institutional .collection-body p {
+  font-family: inherit;
+  font-size: 13px;
+  line-height: 1.5;
+}
+.theme-institutional .asset-type-badge {
+  left: 10px;
+  right: auto;
+  top: 10px;
+  opacity: 1;
+  border-radius: 4px;
+  background: #eff6ff;
+  color: #1e3a8a;
+  border: 1px solid #bfdbfe;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: .02em;
+  text-transform: none;
+}
+.theme-institutional .thumb > .select-box {
+  position: absolute;
+  inset: 10px auto auto 10px;
+  z-index: 4;
+}
+.theme-institutional .thumb > .select-box ~ .asset-type-badge {
+  left: 44px;
+  top: 10px;
+}
+.theme-institutional .duration {
+  border-radius: 4px;
+  background: var(--civic-navy);
+  color: #fff;
+  backdrop-filter: none;
+}
+.theme-institutional .favorite-btn,
+.theme-institutional .favorite-btn.on {
+  width: 32px;
+  height: 32px;
+  background: #fff;
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  box-shadow: none;
+  color: var(--civic-navy);
+  filter: none;
+}
+.theme-institutional .favorite-btn.on {color: var(--civic-ochre)}
+.theme-institutional .media-card .favorite-btn {top: 10px; right: 10px; bottom: auto; left: auto}
+.theme-institutional .tag,
+.theme-institutional .asset-tag-row .tag:not(.collection),
+.theme-institutional .size-picker button {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 600;
+}
+.theme-institutional .size-picker button.on {background: var(--flow); color: var(--on-accent); border-color: var(--flow)}
+.theme-institutional .kebab {color: var(--muted)}
+.theme-institutional .kebab-menu a,
+.theme-institutional .kebab-menu button {color: var(--text)}
+.theme-institutional .kebab-menu a:hover,
+.theme-institutional .kebab-menu button:hover {background: var(--surface-soft); color: var(--text)}
+.theme-institutional .ig-post {background: #fff; color: #0f172a}
+.theme-institutional .toast {background: var(--civic-navy); color: #fff; border-radius: 4px}
+.theme-institutional .civic-hero {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  margin: 28px 32px 8px;
+  padding: 28px 32px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.theme-institutional .civic-hero p {margin: 0}
+.theme-institutional .civic-hero .civic-hero-note {max-width: 640px; margin-top: 8px}
+.theme-institutional .civic-hero .asset-tag-row {margin-top: 12px}
+.theme-institutional .civic-hero .collection-actions,
+.theme-institutional .civic-hero > .btn {flex: none}
+.theme-institutional .home-page,
+.theme-institutional .collection-detail-page {padding: 0 0 64px; max-width: none}
+.theme-institutional .home-page .day-offer,
+.theme-institutional .home-page .section,
+.theme-institutional .home-page .latest-collection,
+.theme-institutional .home-page .flow-tip,
+.theme-institutional .collection-detail-page .section,
+.theme-institutional .collection-detail-page .share-link,
+.theme-institutional .collection-detail-page .flow-tip {margin-left: 32px; margin-right: 32px}
+.theme-institutional .page-head {
+  margin: 28px 32px 8px;
+  padding: 28px 32px;
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+}
+.theme-institutional .admin-page > .page-head {margin-bottom: 28px}
+.theme-institutional .content-day-embed {color: var(--text)}
+.theme-institutional .content-day-embed .package-inclusions,
+.theme-institutional .content-day-embed .calendar-card,
+.theme-institutional .content-day-embed .booking-card,
+.theme-institutional .content-day-embed .booking-summary > div,
+.theme-institutional .content-day-embed .booking-confirm-card {
+  background: var(--surface);
+  color: var(--text);
+  border-color: var(--line);
+  border-radius: 6px;
+  box-shadow: none;
+}
+.theme-institutional .content-day-embed .package-inclusions span,
+.theme-institutional .content-day-embed .weekdays span,
+.theme-institutional .content-day-embed .calendar-hint,
+.theme-institutional .content-day-embed .field label,
+.theme-institutional .content-day-embed .booking-summary small,
+.theme-institutional .content-day-embed .plan-note,
+.theme-institutional .content-day-embed .eyebrow {color: var(--muted)}
+.theme-institutional .content-day-embed .calendar-top h3,
+.theme-institutional .content-day-embed .booking-summary strong {color: var(--text); font-weight: 600}
+.theme-institutional .content-day-embed .calendar-nav button,
+.theme-institutional .content-day-embed .calendar-grid button,
+.theme-institutional .content-day-embed .field input,
+.theme-institutional .content-day-embed .field select,
+.theme-institutional .content-day-embed .btn {
+  background: var(--surface);
+  color: var(--text);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  box-shadow: none;
+}
+.theme-institutional .content-day-embed .calendar-grid button.selectable:hover,
+.theme-institutional .content-day-embed .calendar-nav button:not(:disabled):hover {
+  background: var(--surface-soft);
+  color: var(--text);
+  border-color: var(--civic-navy);
+}
+.theme-institutional .content-day-embed .calendar-grid button.selected,
+.theme-institutional .content-day-embed .btn-primary,
+.theme-institutional .content-day-embed .btn.primary {
+  background: var(--flow);
+  color: var(--on-accent);
+  border-color: var(--flow);
+}
+.theme-institutional .content-day-embed .btn-primary:hover,
+.theme-institutional .content-day-embed .btn.primary:hover {background: #1e3a5f; color: #fff; border-color: #1e3a5f}
+.theme-institutional .content-day-embed .booking-confirm {background: rgba(15, 23, 42, .72)}
+@media (max-width: 900px) {
+  .theme-institutional {--sidebar: 0px}
+  .theme-institutional .sidebar {width: 272px}
+  .theme-institutional .topbar {padding: 0 16px}
+  .theme-institutional .civic-hero,
+  .theme-institutional .page-head {margin: 16px; padding: 20px}
+  .theme-institutional .civic-hero {flex-direction: column; align-items: flex-start}
+  .theme-institutional .home-page .day-offer,
+  .theme-institutional .home-page .section,
+  .theme-institutional .home-page .latest-collection,
+  .theme-institutional .home-page .flow-tip,
+  .theme-institutional .collection-detail-page .section,
+  .theme-institutional .collection-detail-page .share-link,
+  .theme-institutional .collection-detail-page .flow-tip {margin-left: 16px; margin-right: 16px}
+}

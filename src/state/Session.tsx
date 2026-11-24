@@ -3,7 +3,7 @@
 import { createContext, useContext } from 'react'
 import type { ReactNode } from 'react'
 import type { AppRole } from '@/lib/auth'
-import type { InterfaceTheme } from '@/lib/interface-theme'
+import type { FlowLogo, InterfaceTheme } from '@/lib/interface-theme'
 import type { ThemePalette } from '@/lib/theme-palette'
 
 export type SessionProfile = {
@@ -14,6 +14,7 @@ export type SessionProfile = {
   role: AppRole
   onboardingDone: boolean
   interfaceTheme: InterfaceTheme
+  flowLogo: FlowLogo
   logoFileId: string | null
   bannerFileId: string | null
   palette: ThemePalette

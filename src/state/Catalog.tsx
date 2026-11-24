@@ -3,7 +3,7 @@
 import { createContext, useContext, useMemo } from 'react'
 import type { ReactNode } from 'react'
 import type { ChannelFilter, Collection, ContentTypeFilter, MediaItem, SortMode } from '@/data/types'
-import { filteredMedia, findCollection } from '@/lib/library'
+import { filteredMedia, findCollection, type ArchiveFormat } from '@/lib/library'
 
 type CatalogValue = {
   media: MediaItem[]
@@ -51,6 +51,9 @@ export function useLibrary() {
         contentType: ContentTypeFilter
         channel: ChannelFilter
         sort: SortMode
+        year?: string
+        collection?: string
+        format?: ArchiveFormat
       }) => filteredMedia(media, options),
       collectionItems: itemsFor,
       collectionGridItems: itemsFor,
