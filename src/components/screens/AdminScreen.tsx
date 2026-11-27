@@ -19,7 +19,7 @@ import type { AdminAccount, AdminCollectionRow, ServiceRequestRow, ServiceReques
 import type { MetricReading } from '@/lib/observe'
 import { isServiceRequestStatus } from '@/lib/admin/types'
 import { sendPromotion } from '@/lib/notifications/actions'
-import { isDriveFileId } from '@/lib/drive/ids'
+import { putResumableToDrive } from '@/lib/admin/driveResumablePut'
 import { useApp } from '@/state/AppState'
 
 const PREVIEW_COUNT = 4
@@ -79,22 +79,27 @@ export function AdminScreen({
   const router = useRouter()
   const uploadClients = accounts.filter((account) => account.role === 'client' && account.hasFolder)
   const [uploadOpen, setUploadOpen] = useState(false)
-  const [opened, setOpened] = useState<AdminCollectionRow | null>(null)
+  const [openedId, setOpenedId] = useState<string | null>(null)
   const [showAll, setShowAll] = useState(false)
   const [clientId, setClientId] = useState('all')
   const [requestFilter, setRequestFilter] = useState<RequestFilter>('all')
-  const [savingRequest, setSavingRequest] = useState('')
-  const [confirmingDay, setConfirmingDay] = useState('')
+  const [savingRequests, setSavingRequests] = useState<Set<string>>(() => new Set())
+  const [confirmingDays, setConfirmingDays] = useState<Set<string>>(() => new Set())
+  const opened = openedId ? (collections.find((collection) => collection.id === openedId) ?? null) : null
   const clientCollections = clientId === 'all' ? collections : collections.filter((collection) => collection.accountId === clientId)
   const visibleCollections = showAll ? clientCollections : clientCollections.slice(0, PREVIEW_COUNT)
   const visibleRequests = requestFilter === 'all' ? requests : requests.filter((request) => request.status === requestFilter)
   const clients = accounts.filter((account) => account.role === 'client')
 
   async function onStatus(id: string, status: string) {
-    if (!isServiceRequestStatus(status) || savingRequest) return
-    setSavingRequest(id)
+    if (!isServiceRequestStatus(status) || savingRequests.has(id)) return
+    setSavingRequests((current) => new Set(current).add(id))
     const result = await setRequestStatus({ id, status })
-    setSavingRequest('')
+    setSavingRequests((current) => {
+      const next = new Set(current)
+      next.delete(id)
+      return next
+    })
     if (!result.ok) {
       toast(result.message)
       return
@@ -103,10 +108,14 @@ export function AdminScreen({
   }
 
   async function onConfirmDay(id: string) {
-    if (confirmingDay) return
-    setConfirmingDay(id)
+    if (confirmingDays.has(id)) return
+    setConfirmingDays((current) => new Set(current).add(id))
     const result = await confirmContentDay({ id })
-    setConfirmingDay('')
+    setConfirmingDays((current) => {
+      const next = new Set(current)
+      next.delete(id)
+      return next
+    })
     if (!result.ok) {
       toast(result.message)
       return
@@ -147,7 +156,7 @@ export function AdminScreen({
           <Icon name="upload" /> Upload assets
         </button>
       </header>
-      {opened ? <AdminCollectionBoard collection={opened} onBack={() => setOpened(null)} /> : null}
+      {opened ? <AdminCollectionBoard collection={opened} onBack={() => setOpenedId(null)} /> : null}
       {opened ? null : (
       <>
       <div className="admin-stats">
@@ -167,14 +176,17 @@ export function AdminScreen({
         {downloads.length === 0 ? <p className="admin-empty">No downloads yet.</p> : null}
         {downloads.map((event) => {
           const account = accounts.find((item) => item.id === event.uid)
+          const collectionLabel = event.collectionId
+            ? (collections.find((item) => item.id === event.collectionId)?.title ?? event.collectionId)
+            : ''
           return (
-            <div className="request-row" key={event.id}>
+            <div className="request-row download-row" key={event.id}>
               <div>
                 <b>{event.name || event.fileId}</b>
                 <small>
                   {account?.label || event.uid}
                   {event.at ? ` · ${event.at}` : ''}
-                  {event.collectionId ? ` · ${event.collectionId}` : ''}
+                  {collectionLabel ? ` · ${collectionLabel}` : ''}
                 </small>
               </div>
             </div>
@@ -192,6 +204,7 @@ export function AdminScreen({
         {contentDays.length === 0 ? <p className="admin-empty">No Content Day requests yet.</p> : null}
         {contentDays.map((day) => {
           const date = parseDateKey(day.date)
+          const confirming = confirmingDays.has(day.id)
           return (
             <div className="request-row day-request" key={day.id}>
               <div>
@@ -200,8 +213,8 @@ export function AdminScreen({
                   {date ? formatContentDay(date) : day.date} · {contentDayPlans[day.plan].name} · {day.name} · {day.email}
                 </small>
               </div>
-              <button type="button" className="btn primary" disabled={confirmingDay === day.id} onClick={() => void onConfirmDay(day.id)}>
-                {confirmingDay === day.id ? 'Confirming' : 'Confirm'}
+              <button type="button" className="btn primary" disabled={confirming} onClick={() => void onConfirmDay(day.id)}>
+                {confirming ? 'Confirming' : 'Confirm'}
               </button>
             </div>
           )
@@ -247,11 +260,11 @@ export function AdminScreen({
               key={collection.id}
               role="button"
               tabIndex={0}
-              onClick={() => setOpened(collection)}
+              onClick={() => setOpenedId(collection.id)}
               onKeyDown={(event) => {
                 if (event.key === 'Enter' || event.key === ' ') {
                   event.preventDefault()
-                  setOpened(collection)
+                  setOpenedId(collection.id)
                 }
               }}
             >
@@ -322,7 +335,7 @@ export function AdminScreen({
                 className={`status ${request.status}`}
                 aria-label={`Status for ${request.service}`}
                 value={request.status}
-                disabled={savingRequest === request.id}
+                disabled={savingRequests.has(request.id)}
                 onChange={(event) => void onStatus(request.id, event.target.value)}
               >
                 <option value="new">New</option>
@@ -475,6 +488,7 @@ function UploadDialog({
   const [coverPreviews, setCoverPreviews] = useState<Array<{ url: string; video: boolean }>>([])
   const photosRef = useRef<PhotoDraft[]>([])
   photosRef.current = photos
+  const uploadControllerRef = useRef<AbortController | null>(null)
   const [uploading, setUploading] = useState(false)
   const [progress, setProgress] = useState('')
   const [error, setError] = useState('')
@@ -484,6 +498,7 @@ function UploadDialog({
 
   useEffect(() => {
     return () => {
+      uploadControllerRef.current?.abort()
       for (const photo of photosRef.current) URL.revokeObjectURL(photo.url)
     }
   }, [])
@@ -525,6 +540,8 @@ function UploadDialog({
 
     setUploading(true)
     setError('')
+    const controller = new AbortController()
+    uploadControllerRef.current = controller
     let destinationId = destination === 'new' ? '' : destination
     const namedCollection = destination === 'new' ? collectionName : ''
     const uploadedIds: string[] = []
@@ -532,19 +549,47 @@ function UploadDialog({
       const names = standardNames
         ? await standardFileNames(picked, accountId, destination === 'new' ? '' : destination, destination === 'new' ? collectionName : '')
         : picked.map((file) => file.name)
-      const batch = await prepareUpload(accountId, destinationId, namedCollection, collectionDescription)
+      const batch = await prepareUpload(accountId, destinationId, namedCollection, collectionDescription, controller.signal)
       destinationId = batch.destinationId
       const limit = limiter(UPLOAD_SLOTS)
+      const totalBytes = picked.reduce((sum, file) => sum + file.size, 0)
+      const loadedByIndex = new Array<number>(picked.length).fill(0)
       let done = 0
+      let lastLabel = ''
+      const updateProgress = () => {
+        const label = formatUploadProgress(loadedByIndex, totalBytes, done, picked.length)
+        if (label !== lastLabel) {
+          lastLabel = label
+          setProgress(label)
+        }
+      }
+      updateProgress()
       const fileIds = await Promise.all(
         picked.map(async (file, index) => {
           if (!file) return ''
           const saved = await limit(() =>
-            uploadOne(file, names[index] ?? file.name, accountId, batch.batchToken, tags, picked.length > 1 && useMode === 'each' ? (fileUses[index] ?? '') : suggestedUse, []),
+            uploadOne(
+              file,
+              names[index] ?? file.name,
+              accountId,
+              batch.batchToken,
+              tags,
+              picked.length > 1 && useMode === 'each' ? (fileUses[index] ?? '') : suggestedUse,
+              [],
+              undefined,
+              {
+                signal: controller.signal,
+                onProgress: (loadedBytes) => {
+                  loadedByIndex[index] = Math.min(file.size, loadedBytes)
+                  updateProgress()
+                },
+              },
+            ),
           )
           uploadedIds.push(saved.fileId)
+          loadedByIndex[index] = file.size
           done += 1
-          setProgress(`Uploading ${done} of ${picked.length}`)
+          updateProgress()
           return saved.fileId
         }),
       )
@@ -573,11 +618,14 @@ function UploadDialog({
           if (!savedMaps.ok) toast(savedMaps.message)
         }
       }
-      const finished = await finishUploadBatch({ accountId, fileIds: savedIds })
+      const finished = await finishBatchChunked(accountId, savedIds)
       if (!finished.ok) toast(finished.message)
+      uploadControllerRef.current = null
       onUploaded()
     } catch (uploadError) {
-      if (uploadedIds.length > 0) await finishUploadBatch({ accountId, fileIds: uploadedIds }).catch(() => undefined)
+      controller.abort()
+      uploadControllerRef.current = null
+      if (uploadedIds.length > 0) await finishBatchChunked(accountId, uploadedIds).catch(() => undefined)
       setUploading(false)
       setProgress('')
       setError(uploadError instanceof Error ? uploadError.message : 'The file could not be saved to Drive.')
@@ -636,6 +684,8 @@ function UploadDialog({
     }
     setUploading(true)
     setError('')
+    const controller = new AbortController()
+    uploadControllerRef.current = controller
     let destinationId = destination === 'new' ? '' : destination
     const namedCollection = destination === 'new' ? collectionName : ''
     const uploadedIds: string[] = []
@@ -643,34 +693,78 @@ function UploadDialog({
       const names = standardNames
         ? await standardFileNames(prepared.map((item) => item.photo.file), accountId, destination === 'new' ? '' : destination, destination === 'new' ? collectionName : '')
         : prepared.map((item) => item.photo.file.name)
-      const batch = await prepareUpload(accountId, destinationId, namedCollection, collectionDescription)
+      const batch = await prepareUpload(accountId, destinationId, namedCollection, collectionDescription, controller.signal)
       destinationId = batch.destinationId
       const limit = limiter(UPLOAD_SLOTS)
       let done = 0
       const steps = prepared.reduce((sum, item) => sum + 1 + (severalMode === 'ready' ? EXPORT_FORMATS.filter((format) => item.photo.readyFiles[format.id]).length : 0), 0)
+      const totalBytes = prepared.reduce((sum, item) => {
+        const extras = severalMode === 'ready'
+          ? EXPORT_FORMATS.reduce((acc, format) => acc + (item.photo.readyFiles[format.id]?.size ?? 0), 0)
+          : 0
+        return sum + item.photo.file.size + extras
+      }, 0)
+      const loadedByKey = new Map<string, number>()
+      let lastLabel = ''
+      const updateProgress = () => {
+        const label = formatUploadProgress([...loadedByKey.values()], totalBytes, done, steps)
+        if (label !== lastLabel) {
+          lastLabel = label
+          setProgress(label)
+        }
+      }
+      updateProgress()
       const fileIds = await Promise.all(
         prepared.map(async (item, index) => {
           if (!item) return ''
           const defaultName = names[index] ?? item.photo.file.name
-          const saved = await limit(() => uploadOne(item.photo.file, defaultName, accountId, batch.batchToken, tags, suggestedUse, []))
+          const mainKey = `main:${index}`
+          const saved = await limit(() =>
+            uploadOne(item.photo.file, defaultName, accountId, batch.batchToken, tags, suggestedUse, [], undefined, {
+              signal: controller.signal,
+              onProgress: (loadedBytes) => {
+                loadedByKey.set(mainKey, Math.min(item.photo.file.size, loadedBytes))
+                updateProgress()
+              },
+            }),
+          )
           if (!saved.fileId) throw new Error('The photo could not be saved to Drive.')
           uploadedIds.push(saved.fileId)
+          loadedByKey.set(mainKey, item.photo.file.size)
           done += 1
-          setProgress(`Uploading ${done} of ${steps}`)
+          updateProgress()
           switch (severalMode) {
             case 'ready':
               await Promise.all(
                 EXPORT_FORMATS.map(async (format) => {
                   const extra = item.photo.readyFiles[format.id]
                   if (!extra) return
+                  const extraKey = `extra:${index}:${format.id}`
                   await limit(() =>
-                    uploadOne(extra, variantFileName(defaultName, format.id), accountId, batch.batchToken, '', '', [], {
-                      parentId: saved.fileId,
-                      format: format.id,
-                    }),
+                    uploadOne(
+                      extra,
+                      variantFileName(defaultName, format.id),
+                      accountId,
+                      batch.batchToken,
+                      '',
+                      '',
+                      [],
+                      {
+                        parentId: saved.fileId,
+                        format: format.id,
+                      },
+                      {
+                        signal: controller.signal,
+                        onProgress: (loadedBytes) => {
+                          loadedByKey.set(extraKey, Math.min(extra.size, loadedBytes))
+                          updateProgress()
+                        },
+                      },
+                    ),
                   )
+                  loadedByKey.set(extraKey, extra.size)
                   done += 1
-                  setProgress(`Uploading ${done} of ${steps}`)
+                  updateProgress()
                 }),
               )
               break
@@ -715,11 +809,14 @@ function UploadDialog({
           if (!savedCover.ok) toast(savedCover.message)
         }
       }
-      const finished = await finishUploadBatch({ accountId, fileIds: savedIds })
+      const finished = await finishBatchChunked(accountId, savedIds)
       if (!finished.ok) toast(finished.message)
+      uploadControllerRef.current = null
       onUploaded()
     } catch (uploadError) {
-      if (uploadedIds.length > 0) await finishUploadBatch({ accountId, fileIds: uploadedIds }).catch(() => undefined)
+      controller.abort()
+      uploadControllerRef.current = null
+      if (uploadedIds.length > 0) await finishBatchChunked(accountId, uploadedIds).catch(() => undefined)
       setUploading(false)
       setProgress('')
       setError(uploadError instanceof Error ? uploadError.message : 'The file could not be saved to Drive.')
@@ -986,6 +1083,11 @@ function UploadDialog({
         <button type="submit" className="btn primary wide" disabled={uploading || accounts.length === 0}>
           {uploading ? progress || 'Uploading' : 'Save to Drive'}
         </button>
+        {uploading ? (
+          <button type="button" className="btn ghost wide" onClick={() => uploadControllerRef.current?.abort()}>
+            Cancel upload
+          </button>
+        ) : null}
       </form>
     </>
   )
@@ -1077,15 +1179,43 @@ function limiter(max: number): <T>(task: () => Promise<T>) => Promise<T> {
   }
 }
 
+const FINISH_BATCH_CHUNK = 200
+
+function formatUploadProgress(loadedParts: number[], totalBytes: number, done: number, totalFiles: number): string {
+  if (totalBytes <= 0) return `Uploading ${done} of ${totalFiles}`
+  const loaded = loadedParts.reduce((sum, value) => sum + value, 0)
+  const percent = Math.min(100, Math.max(0, Math.round((loaded / totalBytes) * 100)))
+  return `Uploading ${percent}% (${done}/${totalFiles})`
+}
+
+async function finishBatchChunked(
+  accountId: string,
+  fileIds: string[],
+): Promise<{ ok: true } | { ok: false; message: string }> {
+  if (fileIds.length <= FINISH_BATCH_CHUNK) {
+    return finishUploadBatch({ accountId, fileIds })
+  }
+  for (let start = 0; start < fileIds.length; start += FINISH_BATCH_CHUNK) {
+    const result = await finishUploadBatch({
+      accountId,
+      fileIds: fileIds.slice(start, start + FINISH_BATCH_CHUNK),
+    })
+    if (!result.ok) return result
+  }
+  return { ok: true }
+}
+
 async function prepareUpload(
   accountId: string,
   destinationId: string,
   collectionName: string,
   collectionDescription: string,
+  signal?: AbortSignal,
 ): Promise<{ batchToken: string; destinationId: string }> {
   const started = await fetch('/api/admin/uploads', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    signal,
     body: JSON.stringify({
       prepare: true,
       accountId,
@@ -1108,10 +1238,12 @@ async function uploadOne(
   suggestedUse: string,
   formats: ExportId[],
   variant?: { parentId: string; format?: ExportId; customId?: string; customLabel?: string; customWidth?: number; customHeight?: number },
+  options?: { signal?: AbortSignal; onProgress?: (loadedBytes: number) => void },
 ): Promise<{ fileId: string }> {
   const started = await fetch('/api/admin/uploads', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    signal: options?.signal,
     body: JSON.stringify({
       accountId,
       destinationId: '',
@@ -1135,18 +1267,17 @@ async function uploadOne(
   const startedBody: unknown = await started.json().catch(() => null)
   if (!started.ok || !isUploadSession(startedBody)) throw new Error(messageFrom(startedBody, 'The upload could not be started.'))
 
-  const sent = await fetch(startedBody.uploadUrl, {
-    method: 'PUT',
-    headers: { 'Content-Type': startedBody.mimeType || 'application/octet-stream' },
-    body: file,
-  })
-  const sentBody: unknown = await sent.json().catch(() => null)
-  const fileId = sentBody && typeof sentBody === 'object' && 'id' in sentBody && typeof sentBody.id === 'string' ? sentBody.id : ''
-  if (!sent.ok || !isDriveFileId(fileId)) throw new Error(messageFrom(sentBody, 'The file could not be saved to Drive.'))
+  const fileId = await putResumableToDrive(
+    file,
+    startedBody.mimeType || 'application/octet-stream',
+    startedBody.uploadUrl,
+    options,
+  )
 
   const saved = await fetch('/api/admin/uploads/complete', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
+    signal: options?.signal,
     body: JSON.stringify({ ticket: startedBody.ticket, fileId }),
   })
   const savedBody: unknown = await saved.json().catch(() => null)

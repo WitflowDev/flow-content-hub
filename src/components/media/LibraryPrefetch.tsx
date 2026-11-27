@@ -9,6 +9,11 @@ import { useLibrary } from '@/state/Catalog'
 const warmed = new Set<string>()
 const LIGHT_CONCURRENCY = 2
 const START_DELAY_MS = 1500
+const MAX_PREFETCH_THUMBS = 24
+const MAX_PREFETCH_PREVIEWS = 8
+const MAX_PREFETCH_VIDEOS = 2
+// Keep prefetched prefixes under 1.2 MB so they fit cleanly in Next.js Data Cache (< 2 MB base64).
+const MAX_PREFETCH_VIDEO_BYTES = 1_200_000
 
 type NetworkInformation = {
   saveData?: boolean
@@ -22,10 +27,11 @@ type Job =
 export function LibraryPrefetch() {
   const { media } = useLibrary()
   const pathname = usePathname()
+  const isAdmin = pathname.startsWith('/admin')
   const sources = queueSignature(media)
 
   useEffect(() => {
-    if (pathname.startsWith('/admin') || shouldSkip() || sources.length === 0) return
+    if (isAdmin || shouldSkip() || sources.length === 0) return
     const pending = sources
       .split('\n')
       .map(parseJob)
@@ -34,6 +40,7 @@ export function LibraryPrefetch() {
 
     let stopped = false
     let cancelWait = () => {}
+    const controller = new AbortController()
     const timer = window.setTimeout(() => {
       void pump()
     }, START_DELAY_MS)
@@ -42,7 +49,7 @@ export function LibraryPrefetch() {
       while (!stopped && pending.length > 0) {
         if (document.hidden) await waitUntilVisible()
         if (stopped) return
-        await Promise.all(takeBatch(pending).map((job) => warm(job)))
+        await Promise.all(takeBatch(pending).map((job) => warm(job, controller.signal)))
       }
     }
 
@@ -60,10 +67,11 @@ export function LibraryPrefetch() {
 
     return () => {
       stopped = true
+      controller.abort()
       window.clearTimeout(timer)
       cancelWait()
     }
-  }, [pathname, sources])
+  }, [isAdmin, sources])
 
   return null
 }
@@ -74,11 +82,22 @@ function queueSignature(items: MediaItem[]): string {
   const videos: string[] = []
   for (const item of items) {
     if (!item.src.includes('/api/drive/files/') || !item.src.includes('/thumbnail')) continue
-    thumbs.push(`image\t${item.src}\tlight`)
-    if (item.type === 'Photography') photos.push(`image\t${item.src.replace('/thumbnail', '/preview')}\theavy`)
-    if (item.type === 'Video' && item.driveFileId && item.bytes) {
-      const length = videoPrefixLength(item.bytes)
+    if (thumbs.length < MAX_PREFETCH_THUMBS) {
+      thumbs.push(`image\t${item.src}\tlight`)
+    }
+    if (item.type === 'Photography' && photos.length < MAX_PREFETCH_PREVIEWS) {
+      photos.push(`image\t${item.src.replace('/thumbnail', '/preview')}\theavy`)
+    }
+    if (item.type === 'Video' && item.driveFileId && item.bytes && videos.length < MAX_PREFETCH_VIDEOS) {
+      const length = Math.min(videoPrefixLength(item.bytes), MAX_PREFETCH_VIDEO_BYTES)
       if (length > 0) videos.push(`video\t${streamPath(item.src, item.driveFileId, true)}\t${length}`)
+    }
+    if (
+      thumbs.length >= MAX_PREFETCH_THUMBS &&
+      photos.length >= MAX_PREFETCH_PREVIEWS &&
+      videos.length >= MAX_PREFETCH_VIDEOS
+    ) {
+      break
     }
   }
   return [...thumbs, ...photos, ...videos].join('\n')
@@ -126,7 +145,8 @@ function jobKey(job: Job): string {
   }
 }
 
-function warm(job: Job): Promise<void> {
+function warm(job: Job, signal: AbortSignal): Promise<void> {
+  if (signal.aborted) return Promise.resolve()
   const key = jobKey(job)
   if (warmed.has(key)) return Promise.resolve()
   warmed.add(key)
@@ -135,9 +155,9 @@ function warm(job: Job): Promise<void> {
   }
   switch (job.kind) {
     case 'image':
-      return warmImage(job.url).then(done)
+      return warmImage(job.url, signal).then(done)
     case 'video':
-      return warmVideo(job.url, job.length).then(done)
+      return warmVideo(job.url, job.length, signal).then(done)
     default: {
       const unreachable: never = job
       return unreachable
@@ -145,26 +165,39 @@ function warm(job: Job): Promise<void> {
   }
 }
 
-function warmImage(url: string): Promise<boolean> {
+function warmImage(url: string, signal: AbortSignal): Promise<boolean> {
+  if (signal.aborted) return Promise.resolve(false)
   return new Promise((resolve) => {
     const image = new Image()
+    const onAbort = () => {
+      image.src = ''
+      resolve(false)
+    }
+    signal.addEventListener('abort', onAbort, { once: true })
     image.decoding = 'async'
     image.fetchPriority = 'low'
-    image.onload = () => resolve(true)
-    image.onerror = () => resolve(false)
+    image.onload = () => {
+      signal.removeEventListener('abort', onAbort)
+      resolve(true)
+    }
+    image.onerror = () => {
+      signal.removeEventListener('abort', onAbort)
+      resolve(false)
+    }
     image.src = url
   })
 }
 
-function warmVideo(url: string, length: number): Promise<boolean> {
+function warmVideo(url: string, length: number, signal: AbortSignal): Promise<boolean> {
   return fetch(url, {
     headers: { Range: `bytes=0-${length - 1}` },
     credentials: 'same-origin',
     priority: 'low',
+    signal,
   })
     .then(async (response) => {
       if (!response.ok || !response.body) return false
-      await response.arrayBuffer()
+      await response.body.cancel().catch(() => undefined)
       return true
     })
     .catch(() => false)

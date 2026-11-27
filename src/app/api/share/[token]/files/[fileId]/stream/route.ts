@@ -1,5 +1,5 @@
 import { openClientVideo } from '@/lib/drive/client'
-import { contentDisposition, sharedFolderId } from '@/lib/share/media'
+import { contentDisposition, sharedFileAllowed, sharedFolderId } from '@/lib/share/media'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -9,7 +9,7 @@ type RouteContext = { params: Promise<{ token: string; fileId: string }> }
 export async function GET(request: Request, context: RouteContext) {
   const { token, fileId } = await context.params
   const folderId = await sharedFolderId(token)
-  if (!folderId) return new Response('Not found', { status: 404 })
+  if (!folderId || !(await sharedFileAllowed(fileId))) return new Response('Not found', { status: 404 })
   try {
     const file = await openClientVideo(folderId, fileId, byteRange(request.headers.get('range')))
     const headers = new Headers({
@@ -29,6 +29,6 @@ export async function GET(request: Request, context: RouteContext) {
 function byteRange(header: string | null): string | null {
   if (!header) return null
   const value = header.trim()
-  if (!/^bytes=\d*-\d*$/i.test(value)) return null
+  if (!/^bytes=(?:\d+-\d*|-\d+)$/i.test(value)) return null
   return value
 }

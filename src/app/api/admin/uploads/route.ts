@@ -59,9 +59,13 @@ export async function POST(request: Request) {
 }
 
 function requestOrigin(request: Request): string {
+  const urlOrigin = new URL(request.url).origin
+  const forwardedHost = request.headers.get('x-forwarded-host')?.split(',')[0]?.trim()
+  const forwardedProto = request.headers.get('x-forwarded-proto')?.split(',')[0]?.trim() || 'https'
+  const expected = forwardedHost ? `${forwardedProto}://${forwardedHost}` : urlOrigin
   const origin = request.headers.get('origin') ?? ''
-  if (origin) return origin
-  return new URL(request.url).origin
+  if (origin === expected || origin === urlOrigin) return origin
+  return expected
 }
 
 function readPrepareRequest(value: unknown): {

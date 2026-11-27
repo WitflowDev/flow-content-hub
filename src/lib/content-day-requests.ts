@@ -10,6 +10,7 @@ import {
 import { adminDb } from '@/lib/firebase/admin'
 
 const COLLECTION = 'contentDayRequests'
+const DOC_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
 
 export async function saveContentDayRequest(input: {
   accountId: string
@@ -19,19 +20,26 @@ export async function saveContentDayRequest(input: {
   plan: ContentDayPlanId
   date: string
 }): Promise<void> {
-  const existing = await adminDb().collection(COLLECTION).where('accountId', '==', input.accountId).limit(20).get()
-  const open = existing.docs.find((item) => item.get('status') === 'requested')
-  const ref = open?.ref ?? adminDb().collection(COLLECTION).doc()
-  await ref.set({
-    accountId: input.accountId,
-    name: input.name,
-    email: input.email,
-    company: input.company,
-    plan: input.plan,
-    date: input.date,
-    status: 'requested',
-    createdAt: FieldValue.serverTimestamp(),
-    eventId: '',
+  const db = adminDb()
+  await db.runTransaction(async (tx) => {
+    const query = db
+      .collection(COLLECTION)
+      .where('accountId', '==', input.accountId)
+      .where('status', '==', 'requested')
+      .limit(1)
+    const existing = await tx.get(query)
+    const ref = existing.docs[0]?.ref ?? db.collection(COLLECTION).doc()
+    tx.set(ref, {
+      accountId: input.accountId,
+      name: input.name,
+      email: input.email,
+      company: input.company,
+      plan: input.plan,
+      date: input.date,
+      status: 'requested',
+      createdAt: FieldValue.serverTimestamp(),
+      eventId: '',
+    })
   })
 }
 
@@ -43,8 +51,33 @@ export async function listRequestedContentDays(): Promise<ContentDayRequest[]> {
   })
 }
 
+export async function claimContentDayForConfirm(id: string): Promise<ContentDayRequest | null> {
+  if (!DOC_ID_PATTERN.test(id)) return null
+  const db = adminDb()
+  const ref = db.collection(COLLECTION).doc(id)
+  return db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref)
+    if (!snap.exists) return null
+    const row = readRequest(snap.id, (snap.data() ?? {}) as Record<string, unknown>)
+    if (!row || row.status !== 'requested') return null
+    tx.set(ref, { status: 'confirming' }, { merge: true })
+    return row
+  })
+}
+
+export async function releaseContentDayClaim(id: string): Promise<void> {
+  if (!DOC_ID_PATTERN.test(id)) return
+  const db = adminDb()
+  const ref = db.collection(COLLECTION).doc(id)
+  await db.runTransaction(async (tx) => {
+    const snap = await tx.get(ref)
+    if (!snap.exists || snap.get('status') !== 'confirming') return
+    tx.set(ref, { status: 'requested' }, { merge: true })
+  })
+}
+
 export async function requestedContentDay(id: string): Promise<ContentDayRequest | null> {
-  if (!id || id.length > 200) return null
+  if (!DOC_ID_PATTERN.test(id)) return null
   const snap = await adminDb().collection(COLLECTION).doc(id).get()
   if (!snap.exists) return null
   const row = readRequest(snap.id, (snap.data() ?? {}) as Record<string, unknown>)
@@ -53,6 +86,7 @@ export async function requestedContentDay(id: string): Promise<ContentDayRequest
 }
 
 export async function markContentDayConfirmed(id: string, eventId: string): Promise<void> {
+  if (!DOC_ID_PATTERN.test(id)) return
   await adminDb().collection(COLLECTION).doc(id).set(
     {
       status: 'confirmed',

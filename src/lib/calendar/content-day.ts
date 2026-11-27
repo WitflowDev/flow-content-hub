@@ -30,24 +30,33 @@ export async function busyContentDayKeys(fromKey: string, toKey: string): Promis
   if (!calendar) throw new Error('Google Calendar is not connected.')
 
   const token = await calendarAccessToken()
-  const blocked: string[] = []
+  const chunks: Array<{ start: Date; end: Date }> = []
   const cursor = new Date(from)
   while (cursor <= to) {
     const chunkEnd = new Date(cursor)
     chunkEnd.setDate(chunkEnd.getDate() + FREE_BUSY_CHUNK_DAYS - 1)
     if (chunkEnd > to) chunkEnd.setTime(to.getTime())
-    const intervals = await freeBusyIntervals(token, calendar, dateKey(cursor), dateKey(chunkEnd))
-    const day = new Date(cursor)
-    while (day <= chunkEnd) {
+    chunks.push({ start: new Date(cursor), end: chunkEnd })
+    cursor.setTime(chunkEnd.getTime())
+    cursor.setDate(cursor.getDate() + 1)
+  }
+
+  const chunkIntervals = await Promise.all(
+    chunks.map((chunk) => freeBusyIntervals(token, calendar, dateKey(chunk.start), dateKey(chunk.end))),
+  )
+
+  const blocked: string[] = []
+  chunks.forEach((chunk, index) => {
+    const intervals = chunkIntervals[index] ?? []
+    const day = new Date(chunk.start)
+    while (day <= chunk.end) {
       const key = dateKey(day)
       const windowStart = lisbonInstant(key, DAY_START.hours, DAY_START.minutes)
       const windowEnd = lisbonInstant(key, DAY_END.hours, DAY_END.minutes)
       if (intervals.some((interval) => overlaps(windowStart, windowEnd, interval))) blocked.push(key)
       day.setDate(day.getDate() + 1)
     }
-    cursor.setTime(chunkEnd.getTime())
-    cursor.setDate(cursor.getDate() + 1)
-  }
+  })
   return blocked
 }
 

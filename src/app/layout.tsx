@@ -1,6 +1,5 @@
 import type { Metadata, Viewport } from 'next'
 import type { ReactNode } from 'react'
-import { SessionKeeper } from '@/components/auth/SessionKeeper'
 import { AppStateProvider } from '@/state/AppState'
 import '../../styles.css'
 import '../components/screens/day-landing.css'
@@ -20,10 +19,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" data-scroll-behavior="smooth">
       <body>
-        <AppStateProvider>
-          <SessionKeeper />
-          {children}
-        </AppStateProvider>
+        <AppStateProvider>{children}</AppStateProvider>
       </body>
     </html>
   )

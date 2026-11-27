@@ -14,6 +14,10 @@ export async function proxy(request: NextRequest) {
   if (request.headers.has('next-action')) return continueWithUser(request, null)
 
   const path = request.nextUrl.pathname
+  // High-frequency media routes authenticate directly via getFastSessionUser() (local JWT check).
+  if (path.startsWith('/api/drive/files/') || path.startsWith('/api/brand/')) {
+    return continueWithUser(request, null)
+  }
   const user = await sessionUser(request.cookies.get(SESSION_COOKIE)?.value)
   const isPublic =
     path === '/' ||
@@ -23,13 +27,24 @@ export async function proxy(request: NextRequest) {
     path.startsWith('/share/') ||
     path.startsWith('/api/share/') ||
     path === '/api/content-day/availability'
-  if (!user && !isPublic) return redirectTo(request, '/login')
+
+  if (!user && !isPublic) {
+    if (path.startsWith('/api/')) {
+      return NextResponse.json({ ok: false, error: 'Unauthorized', message: 'Please sign in again.' }, { status: 401 })
+    }
+    return redirectTo(request, '/login')
+  }
 
   if (user && (path === '/login' || path === '/onboarding')) return redirectTo(request, '/home')
 
-  if (user && path.startsWith('/admin')) {
+  if (user && (path.startsWith('/admin') || path.startsWith('/api/admin/'))) {
     const profile = await adminDb().collection('users').doc(user.uid).get()
-    if (parseRole(profile.get('role')) !== 'admin') return redirectTo(request, '/home')
+    if (parseRole(profile.get('role')) !== 'admin') {
+      if (path.startsWith('/api/')) {
+        return NextResponse.json({ ok: false, error: 'Forbidden', message: 'Only an admin can do that.' }, { status: 403 })
+      }
+      return redirectTo(request, '/home')
+    }
   }
 
   return continueWithUser(request, user)
@@ -38,7 +53,7 @@ export async function proxy(request: NextRequest) {
 async function sessionUser(token: string | undefined): Promise<SessionStamp | null> {
   if (!token) return null
   try {
-    const decoded = await adminAuth().verifySessionCookie(token, true)
+    const decoded = await adminAuth().verifySessionCookie(token, false)
     return { uid: decoded.uid, email: decoded.email ?? null }
   } catch (error) {
     recordMetric('auth.rejected')

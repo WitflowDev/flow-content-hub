@@ -80,13 +80,9 @@ export function LoginScreen({ initialMode = 'login' }: { initialMode?: AuthMode 
     try {
       user = mode === 'signup' ? await openOrCreateAccount(email, password) : await signInAccount(email, password)
     } catch (error) {
-      const current = signedInAccount(email)
-      if (!current) {
-        setPending(false)
-        setError(messageFor(mode, error))
-        return
-      }
-      user = current
+      setPending(false)
+      setError(messageFor(mode, error))
+      return
     }
 
     try {
@@ -165,8 +161,8 @@ export function LoginScreen({ initialMode = 'login' }: { initialMode?: AuthMode 
             </div>
           </>
         ) : null}
-        <button className="btn btn-primary wide" type="submit">
-          {submitLabel} <Icon name="arrow" />
+        <button className="btn btn-primary wide" type="submit" disabled={pending} aria-busy={pending}>
+          {pending ? 'Please wait…' : submitLabel} {pending ? null : <Icon name="arrow" />}
         </button>
         {error ? <div className="demo-note">{error}</div> : null}
         {notice ? <div className="demo-note">{notice}</div> : null}
@@ -206,12 +202,6 @@ async function openOrCreateAccount(email: string, password: string): Promise<Use
     }
     throw error
   }
-}
-
-function signedInAccount(email: string): User | null {
-  const current = auth().currentUser
-  if (!current?.email) return null
-  return current.email.toLowerCase() === email.toLowerCase() ? current : null
 }
 
 function messageFor(mode: AuthMode, error: unknown): string {

@@ -1,12 +1,13 @@
 import 'server-only'
+import { after } from 'next/server'
 import { formatVariantId } from '@/data/exports'
 import type { Collection, MediaItem, Orientation } from '@/data/types'
+import { drainJob } from '@/lib/jobs/loop'
 import { enqueueJob } from '@/lib/jobs/queue'
 import { readLibraryIndex, writeLibraryIndex } from '@/lib/library-index/store'
 import { recordMetric } from '@/lib/observe'
 import { embargoActive } from '@/lib/press'
 import { readPreviewTarget } from '@/lib/preview'
-import { invalidateLibrary } from './cache'
 import { listClientFolder, type DriveCollectionFolder, type DrivePlacedFile } from './client'
 import { readCollectionRecords, type CollectionRecord } from './publish'
 import { driveFolderForUser } from './resolve'
@@ -29,7 +30,10 @@ export type LibrarySnapshot = {
   thumbs: Record<string, string>
 }
 
-export type ListedThumb = { listed: false } | { listed: true; link: string | null }
+export type ListedThumb =
+  | { status: 'unindexed'; listed: false }
+  | { status: 'hidden'; listed: false }
+  | { status: 'visible'; listed: true; link: string | null; version: string }
 
 export async function loadDriveLibrary(
   userId: string,
@@ -41,29 +45,155 @@ export async function loadDriveLibrary(
   if (!folder) return { items: [], collections: [], folderName: null, hasFolder: false, preparing: false }
   const indexed = await readLibraryIndex(folder.id)
   const fresh = indexed !== null && Date.now() - indexed.syncedAt < INDEX_FRESH_MS
-  if (!fresh) await enqueueJob({ kind: 'sync-library', folderId: folder.id, uid: userId })
+  if (!fresh) {
+    const jobId = await enqueueJob({ kind: 'sync-library', folderId: folder.id, uid: userId })
+    scheduleDrain(jobId)
+  }
   if (!indexed) {
     recordMetric('library.index.miss')
     return { items: [], collections: [], folderName: folder.name, hasFolder: true, preparing: true }
   }
   recordMetric('library.index.hit')
-  const projected = projectSnapshot(indexed.snapshot, includeDrafts)
-  return { ...projected, folderName: folder.name, hasFolder: true, preparing: false }
+  const projected = cachedProjection(indexed.snapshot, indexed.syncedAt, includeDrafts)
+  return { items: projected.items, collections: projected.collections, folderName: folder.name, hasFolder: true, preparing: false }
 }
 
 export async function syncLibraryFolder(folderId: string): Promise<void> {
   const snapshot = await buildSnapshot(folderId, true)
   await writeLibraryIndex(folderId, snapshot)
-  invalidateLibrary(folderId)
+}
+
+function scheduleDrain(jobId: string): void {
+  try {
+    after(async () => {
+      await drainJob(jobId)
+    })
+  } catch {
+    // Outside a Next.js request context (e.g., background worker or tests), the job queue handles it.
+  }
+}
+
+export async function adminLibraryThumbMeta(
+  folderId: string,
+  fileId: string,
+): Promise<{ link: string | null; version: string } | null> {
+  const indexed = await readLibraryIndex(folderId)
+  if (!indexed) return null
+  const projected = cachedProjection(indexed.snapshot, indexed.syncedAt, true)
+  return projected.fileMeta.get(fileId) ?? null
+}
+
+export async function sharedCollectionThumbMeta(
+  clientFolderId: string,
+  collectionFolderId: string,
+  fileId: string,
+): Promise<{ link: string | null; version: string } | null> {
+  const indexed = await readLibraryIndex(clientFolderId)
+  if (!indexed) return null
+  const projected = cachedProjection(indexed.snapshot, indexed.syncedAt, false)
+  const item = projected.itemByFileId.get(fileId)
+  if (!item || item.collectionId !== collectionFolderId) return null
+  return projected.fileMeta.get(fileId) ?? null
 }
 
 export async function libraryThumb(folderId: string, fileId: string): Promise<ListedThumb> {
   const includeDrafts = (await readPreviewTarget()) !== null
   const indexed = await readLibraryIndex(folderId)
-  if (!indexed) return { listed: false }
-  const projected = projectSnapshot(indexed.snapshot, includeDrafts)
-  if (!projected.fileIds.includes(fileId)) return { listed: false }
-  return { listed: true, link: indexed.snapshot.thumbs[fileId] ?? null }
+  if (!indexed) return { status: 'unindexed', listed: false }
+  const projected = cachedProjection(indexed.snapshot, indexed.syncedAt, includeDrafts)
+  const meta = projected.fileMeta.get(fileId)
+  if (!meta) return { status: 'hidden', listed: false }
+  return {
+    status: 'visible',
+    listed: true,
+    link: meta.link,
+    version: meta.version,
+  }
+}
+
+export async function readVisibleLibraryItem(folderId: string, fileId: string): Promise<MediaItem | null> {
+  const includeDrafts = (await readPreviewTarget()) !== null
+  const indexed = await readLibraryIndex(folderId)
+  if (!indexed) return null
+  const projected = cachedProjection(indexed.snapshot, indexed.syncedAt, includeDrafts)
+  return projected.itemByFileId.get(fileId) ?? null
+}
+
+export async function filterVisibleFileIds(folderId: string, fileIds: readonly string[]): Promise<string[] | null> {
+  const includeDrafts = (await readPreviewTarget()) !== null
+  const indexed = await readLibraryIndex(folderId)
+  if (!indexed) return null
+  const projected = cachedProjection(indexed.snapshot, indexed.syncedAt, includeDrafts)
+  return fileIds.filter((id) => projected.fileMeta.has(id))
+}
+
+type ProjectedIndex = {
+  dayKey: string
+  items: MediaItem[]
+  collections: Collection[]
+  fileIds: string[]
+  itemByFileId: Map<string, MediaItem>
+  fileMeta: Map<string, { link: string | null; version: string }>
+}
+
+const projectionMemo = new WeakMap<LibrarySnapshot, { drafts?: ProjectedIndex; published?: ProjectedIndex }>()
+
+function cachedProjection(snapshot: LibrarySnapshot, syncedAt: number, includeDrafts: boolean): ProjectedIndex {
+  const dayKey = new Date().toISOString().slice(0, 10)
+  const bucket = projectionMemo.get(snapshot) ?? {}
+  const existing = includeDrafts ? bucket.drafts : bucket.published
+  if (existing && existing.dayKey === dayKey) return existing
+
+  const projected = projectSnapshot(snapshot, includeDrafts)
+  const itemByFileId = new Map<string, MediaItem>()
+  const versionByFileId = new Map<string, string>()
+  const fallback = String(syncedAt)
+
+  for (const item of projected.items) {
+    const version = extractVersion(item.src, fallback)
+    if (item.driveFileId) {
+      itemByFileId.set(item.driveFileId, item)
+      versionByFileId.set(item.driveFileId, version)
+    }
+    if (item.variants) {
+      for (const variant of Object.values(item.variants)) {
+        if (variant?.fileId) versionByFileId.set(variant.fileId, version)
+      }
+    }
+    if (item.customVariants) {
+      for (const variant of item.customVariants) {
+        if (variant.fileId) versionByFileId.set(variant.fileId, version)
+      }
+    }
+  }
+
+  const fileMeta = new Map<string, { link: string | null; version: string }>()
+  for (const id of projected.fileIds) {
+    fileMeta.set(id, {
+      link: snapshot.thumbs[id] ?? null,
+      version: versionByFileId.get(id) ?? fallback,
+    })
+  }
+
+  const entry: ProjectedIndex = {
+    dayKey,
+    items: projected.items,
+    collections: projected.collections,
+    fileIds: projected.fileIds,
+    itemByFileId,
+    fileMeta,
+  }
+  if (includeDrafts) bucket.drafts = entry
+  else bucket.published = entry
+  projectionMemo.set(snapshot, bucket)
+  return entry
+}
+
+function extractVersion(src: string | undefined, fallback: string): string {
+  if (!src) return fallback
+  const query = src.split('?')[1]
+  if (!query) return fallback
+  return new URLSearchParams(query).get('v') || fallback
 }
 
 function projectSnapshot(snapshot: LibrarySnapshot, includeDrafts: boolean): {
@@ -75,11 +205,29 @@ function projectSnapshot(snapshot: LibrarySnapshot, includeDrafts: boolean): {
     return { items: snapshot.items, collections: snapshot.collections, fileIds: snapshot.fileIds }
   }
   const collections = snapshot.collections.filter((collection) => collection.published !== false)
+  const collectionIds = new Set(collections.map((collection) => collection.slug))
   const titles = new Set(collections.map((collection) => collection.title))
-  const items = snapshot.items.filter(
-    (item) => (item.collection === '' || titles.has(item.collection)) && !embargoActive(item.embargoUntil ?? ''),
-  )
-  const visible = new Set(items.flatMap((item) => (item.driveFileId ? [item.driveFileId] : [])))
+  const items = snapshot.items.filter((item) => {
+    if (embargoActive(item.embargoUntil ?? '')) return false
+    if (item.collectionId !== undefined) {
+      return item.collectionId === '' || collectionIds.has(item.collectionId)
+    }
+    return item.collection === '' || titles.has(item.collection)
+  })
+  const visible = new Set<string>()
+  for (const item of items) {
+    if (item.driveFileId) visible.add(item.driveFileId)
+    if (item.variants) {
+      for (const variant of Object.values(item.variants)) {
+        if (variant?.fileId) visible.add(variant.fileId)
+      }
+    }
+    if (item.customVariants) {
+      for (const variant of item.customVariants) {
+        if (variant.fileId) visible.add(variant.fileId)
+      }
+    }
+  }
   return {
     items,
     collections,
@@ -163,6 +311,7 @@ function toMediaItem(file: DrivePlacedFile, collection: string, copy: AssetCopy 
     tags,
     orientation: orientationFor(type, file.width, file.height),
     collection,
+    collectionId: file.collectionId ?? '',
     position: '50% 50%',
     description: copy?.suggestedUse ?? '',
     driveFileId: file.id,

@@ -13,7 +13,7 @@ const WIDE_IMAGE_SIZE = 2000
 const CONTENT_HUB_NAME = 'Content Hub'
 const CLIENTS_FOLDER_NAME = 'Clients'
 const FOLDER_MIME = 'application/vnd.google-apps.folder'
-const FILE_FIELDS = 'id,name,mimeType,size,modifiedTime,parents,thumbnailLink,imageMediaMetadata(width,height),videoMediaMetadata(width,height,durationMillis)'
+const FILE_FIELDS = 'id,name,mimeType,size,modifiedTime,parents,trashed,thumbnailLink,imageMediaMetadata(width,height),videoMediaMetadata(width,height,durationMillis)'
 
 export type DriveListedFile = {
   id: string
@@ -51,7 +51,15 @@ type ServiceAccount = {
 }
 
 let contentHub: Promise<string> | undefined
+let clientsFolder: Promise<string | null> | undefined
 let jwtClient: JWT | undefined
+
+const FOLDER_NAME_TTL_MS = 5 * 60 * 1000
+const MAX_FOLDER_NAMES = 1000
+const LIST_CONCURRENCY = 6
+
+const folderNameCache = new Map<string, { name: string; expires: number }>()
+const folderNameInflight = new Map<string, Promise<string>>()
 
 type MediaAccess = {
   expires: number
@@ -133,12 +141,10 @@ async function listClientFolderNow(folderId: string): Promise<{
     collectionFolders.push(child)
   }
 
-  const nested = await Promise.all(
-    collectionFolders.map(async (folder) => ({
-      folder,
-      files: await listCollectionFiles(folder.id ?? ''),
-    })),
-  )
+  const nested = await mapWithConcurrency(collectionFolders, LIST_CONCURRENCY, async (folder) => ({
+    folder,
+    files: await listCollectionFiles(folder.id ?? ''),
+  }))
   const collections: DriveCollectionFolder[] = []
   for (const entry of nested) {
     const folder = entry.folder
@@ -154,14 +160,66 @@ async function listClientFolderNow(folderId: string): Promise<{
 
 export async function readFolderName(folderId: string): Promise<string> {
   if (!isDriveFileId(folderId)) throw new Error('That folder is not available.')
-  const folder = await getFile(folderId, 'id,name,mimeType,parents')
-  if (!folder.id || folder.mimeType !== FOLDER_MIME || !folder.name) throw new Error('That folder is not available.')
+  const cached = folderNameCache.get(folderId)
+  if (cached && cached.expires > Date.now()) return cached.name
+  if (cached) folderNameCache.delete(folderId)
+
+  const inflight = folderNameInflight.get(folderId)
+  if (inflight) return inflight
+
+  const pending = fetchFolderName(folderId)
+    .then((name) => {
+      if (folderNameCache.size >= MAX_FOLDER_NAMES) {
+        const oldest = folderNameCache.keys().next().value
+        if (oldest !== undefined) folderNameCache.delete(oldest)
+      }
+      folderNameCache.set(folderId, { name, expires: Date.now() + FOLDER_NAME_TTL_MS })
+      return name
+    })
+    .finally(() => {
+      folderNameInflight.delete(folderId)
+    })
+  folderNameInflight.set(folderId, pending)
+  return pending
+}
+
+async function fetchFolderName(folderId: string): Promise<string> {
+  const folder = await getFile(folderId, 'id,name,mimeType,parents,trashed')
+  if (!folder.id || folder.trashed || folder.mimeType !== FOLDER_MIME || !folder.name) {
+    throw new Error('That folder is not available.')
+  }
   const parents = folder.parents ?? []
   const hubId = await contentHubId()
   if (parents.includes(hubId)) return folder.name
   const clientsId = await clientsFolderId()
   if (clientsId && parents.includes(clientsId)) return folder.name
   throw new Error('That folder is not available.')
+}
+
+export async function readFileInFolder(
+  folderId: string,
+  fileId: string,
+): Promise<{ id: string; name: string; mimeType: string; collectionName: string } | null> {
+  try {
+    const meta = await requireMediaFile(folderId, fileId)
+    if (!meta.id || !meta.name || !meta.mimeType) return null
+    const parentId = (meta.parents ?? []).find((id) => id !== folderId) ?? ''
+    let collectionName = ''
+    if (parentId) {
+      const parent = await getFile(parentId, 'id,name,parents,trashed').catch(() => null)
+      if (parent && !parent.trashed && parent.name) {
+        if ((parent.parents ?? []).includes(folderId)) {
+          collectionName = parent.name
+        } else if (parent.parents?.[0]) {
+          const grand = await getFile(parent.parents[0], 'id,name,trashed').catch(() => null)
+          if (grand && !grand.trashed && grand.name) collectionName = grand.name
+        }
+      }
+    }
+    return { id: meta.id, name: meta.name, mimeType: meta.mimeType, collectionName }
+  } catch {
+    return null
+  }
 }
 
 export { isDriveFileId } from './ids'
@@ -181,6 +239,50 @@ export async function downloadClientFile(folderId: string, fileId: string): Prom
     body: media.body,
     collectionId,
   }
+}
+
+export type VerifiedZipSource = {
+  id: string
+  name: string
+  collectionId: string
+  expectedSize?: number
+  modifiedAt?: Date
+  open: () => Promise<ReadableStream<Uint8Array>>
+}
+
+export async function prepareClientZipEntries(
+  folderId: string,
+  fileIds: readonly string[],
+): Promise<VerifiedZipSource[]> {
+  const uniqueIds = [...new Set(fileIds.filter((id) => isDriveFileId(id)))]
+  const results = new Array<VerifiedZipSource | null>(uniqueIds.length).fill(null)
+  let nextIndex = 0
+  const workers = Array.from({ length: Math.min(6, uniqueIds.length) }, async () => {
+    while (nextIndex < uniqueIds.length) {
+      const current = nextIndex
+      nextIndex += 1
+      const fileId = uniqueIds[current]
+      if (!fileId) continue
+      try {
+        const meta = await requireMediaFile(folderId, fileId)
+        const expectedSize = meta.size ? Number(meta.size) : undefined
+        const modifiedAt = meta.modifiedTime ? new Date(meta.modifiedTime) : undefined
+        const collectionId = (meta.parents ?? []).find((parentId) => parentId !== folderId) ?? ''
+        results[current] = {
+          id: fileId,
+          name: meta.name ?? fileId,
+          collectionId,
+          expectedSize: expectedSize && Number.isFinite(expectedSize) ? expectedSize : undefined,
+          modifiedAt: modifiedAt && !Number.isNaN(modifiedAt.getTime()) ? modifiedAt : undefined,
+          open: async () => (await originalMedia(fileId)).body,
+        }
+      } catch {
+        results[current] = null
+      }
+    }
+  })
+  await Promise.all(workers)
+  return results.filter((entry): entry is VerifiedZipSource => entry !== null)
 }
 
 export async function openClientVideo(
@@ -370,12 +472,21 @@ async function requireMediaFile(folderId: string, fileId: string): Promise<Drive
 
 async function loadMediaFile(folderId: string, fileId: string): Promise<DriveFileResource> {
   const meta = await getFile(fileId, FILE_FIELDS)
-  if (!meta.id || !meta.mimeType || meta.mimeType === FOLDER_MIME || !isMediaMime(meta.mimeType)) {
+  if (!meta.id || !meta.mimeType || meta.trashed || meta.mimeType === FOLDER_MIME || !isMediaMime(meta.mimeType)) {
     throw new Error('That file is not available.')
   }
   const inside = await fileIsInside(meta, folderId)
   if (!inside) throw new Error('That file is not available.')
   return meta
+}
+
+export async function fileBelongsToFolder(folderId: string, fileId: string): Promise<boolean> {
+  try {
+    await requireMediaFile(folderId, fileId)
+    return true
+  } catch {
+    return false
+  }
 }
 
 function rememberMediaAccess(key: string, meta: DriveFileResource) {
@@ -397,8 +508,9 @@ async function fileIsInside(file: DriveFileResource, rootId: string): Promise<bo
       return true
     })
     if (ids.length === 0) return false
-    const parents = await Promise.all(ids.map((parentId) => getFile(parentId, 'id,parents')))
-    pending = parents.flatMap((parent) => parent.parents ?? [])
+    const parents = await Promise.all(ids.map((parentId) => getFile(parentId, 'id,parents,trashed')))
+    const liveParents = parents.filter((parent) => !parent.trashed)
+    pending = liveParents.flatMap((parent) => parent.parents ?? [])
   }
   return false
 }
@@ -417,7 +529,7 @@ async function listCollectionFiles(folderId: string): Promise<DriveFileResource[
     if (child.mimeType !== FOLDER_MIME) continue
     nestedFolderIds.push(child.id)
   }
-  const nested = await Promise.all(nestedFolderIds.map((id) => listChildren(id)))
+  const nested = await mapWithConcurrency(nestedFolderIds, LIST_CONCURRENCY, (id) => listChildren(id))
   for (const group of nested) {
     for (const file of group) {
       if (!file.id || !file.name || !file.mimeType || !isMediaMime(file.mimeType)) continue
@@ -450,12 +562,41 @@ function toListedFile(file: DriveFileResource): DriveListedFile {
 }
 
 async function clientsFolderId(): Promise<string | null> {
+  clientsFolder ??= findClientsFolderId()
+  try {
+    return await clientsFolder
+  } catch (error) {
+    clientsFolder = undefined
+    throw error
+  }
+}
+
+async function findClientsFolderId(): Promise<string | null> {
   const hubId = await contentHubId()
   const children = await listQuery(
     `${quote(hubId)} in parents and name = ${quote(CLIENTS_FOLDER_NAME)} and mimeType = '${FOLDER_MIME}' and trashed = false`,
     'nextPageToken,files(id,name)',
   )
   return children.find((item) => item.id && item.name === CLIENTS_FOLDER_NAME)?.id ?? null
+}
+
+async function mapWithConcurrency<T, R>(
+  items: readonly T[],
+  limit: number,
+  worker: (item: T) => Promise<R>,
+): Promise<R[]> {
+  if (items.length === 0) return []
+  const results = new Array<R>(items.length)
+  let nextIndex = 0
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (nextIndex < items.length) {
+      const current = nextIndex
+      nextIndex += 1
+      results[current] = await worker(items[current])
+    }
+  })
+  await Promise.all(workers)
+  return results
 }
 
 async function contentHubId(): Promise<string> {
@@ -485,7 +626,7 @@ async function listQuery(query: string, fields: string): Promise<DriveFileResour
     const params = new URLSearchParams({
       q: query,
       fields,
-      pageSize: '100',
+      pageSize: '1000',
       supportsAllDrives: 'true',
       includeItemsFromAllDrives: 'true',
     })
@@ -624,8 +765,9 @@ export async function readDirectChildFolder(
   childId: string,
 ): Promise<{ id: string; name: string } | null> {
   if (!isDriveFileId(parentId) || !isDriveFileId(childId)) return null
-  const folder = await getFile(childId, 'id,name,mimeType,parents')
-  if (!folder.id || !folder.name || folder.mimeType !== FOLDER_MIME) return null
+  const folder = await getFile(childId, 'id,name,mimeType,parents,trashed')
+  if (!folder.id || !folder.name || folder.trashed || folder.mimeType !== FOLDER_MIME) return null
+  if (folder.name === BRAND_FOLDER_NAME) return null
   if (!(folder.parents ?? []).includes(parentId)) return null
   return { id: folder.id, name: folder.name }
 }

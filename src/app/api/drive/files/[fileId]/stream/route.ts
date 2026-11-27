@@ -3,6 +3,7 @@ import { libraryThumb } from '@/lib/drive/library'
 import { fillVideoPrefix, readVideoPrefix, type DecodedPrefix } from '@/lib/drive/prefix'
 import { VIDEO_PREFIX_CAP } from '@/lib/drive/prefix-budget'
 import { driveFolderForCurrentUser } from '@/lib/drive/resolve'
+import { contentDisposition } from '@/lib/http/disposition'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -23,14 +24,15 @@ export async function GET(request: Request, context: RouteContext) {
   if (!folder) return new Response('Not found', { status: 404 })
 
   const url = new URL(request.url)
-  const version = url.searchParams.get('v') ?? ''
   const range = parseRange(request.headers.get('range'))
   const warm = url.searchParams.get('warm') === '1'
 
   try {
     const known = await libraryThumb(folder.id, fileId)
-    if (known.listed) {
-      const warmed = await servePrefix(folder.id, fileId, version, range, warm)
+    if (known.status === 'hidden') return new Response('Not found', { status: 404 })
+
+    if (known.status === 'visible') {
+      const warmed = await servePrefix(folder.id, fileId, known.version, range, warm)
       if (warmed) return warmed
     }
     if (warm) return new Response('Not found', { status: 404 })
@@ -38,7 +40,7 @@ export async function GET(request: Request, context: RouteContext) {
     const file = await openClientVideo(folder.id, fileId, range?.header ?? null)
     const headers = new Headers({
       'Content-Type': file.mimeType,
-      'Content-Disposition': inlineDisposition(file.name),
+      'Content-Disposition': contentDisposition(file.name, true),
       'Accept-Ranges': 'bytes',
       'Cache-Control': 'private, max-age=86400',
     })
@@ -64,7 +66,7 @@ async function servePrefix(
     return prefixResponse(prefix, 0, end, null, true)
   }
 
-  const prefix = await readVideoPrefix(fileId, version)
+  const prefix = await readVideoPrefix(fileId, version, range?.end ?? undefined)
   if (!prefix) return null
   const start = range?.start ?? 0
   if (start >= prefix.bytes.length || start >= prefix.total) return null
@@ -88,7 +90,7 @@ function prefixResponse(
   const head = prefix.bytes.subarray(start, Math.min(end + 1, prefix.bytes.length))
   const headers = new Headers({
     'Content-Type': prefix.mimeType,
-    'Content-Disposition': inlineDisposition(prefix.name),
+    'Content-Disposition': contentDisposition(prefix.name, true),
     'Accept-Ranges': 'bytes',
     'Cache-Control': 'private, max-age=86400',
     'Content-Length': String(end - start + 1),
@@ -107,23 +109,33 @@ function concat(head: Uint8Array, tail: ReadableStream<Uint8Array> | null): Read
     })
   }
   const rest = tail
+  let sentHead = false
+  let reader: ReadableStreamDefaultReader<Uint8Array> | null = null
   return new ReadableStream({
-    async start(controller) {
-      controller.enqueue(head)
-      const reader = rest.getReader()
-      try {
-        for (;;) {
-          const { done, value } = await reader.read()
-          if (done) break
-          if (value) controller.enqueue(value)
-        }
-        controller.close()
-      } catch (error) {
-        controller.error(error)
+    async pull(controller) {
+      if (!sentHead) {
+        sentHead = true
+        controller.enqueue(head)
+        return
       }
+      if (!reader) reader = rest.getReader()
+      const { done, value } = await reader.read()
+      if (done) {
+        reader.releaseLock()
+        reader = null
+        controller.close()
+        return
+      }
+      if (value) controller.enqueue(value)
     },
-    cancel() {
-      return rest.cancel()
+    async cancel() {
+      if (reader) {
+        await reader.cancel().catch(() => {})
+        reader.releaseLock()
+        reader = null
+      } else {
+        await rest.cancel().catch(() => {})
+      }
     },
   })
 }
@@ -137,9 +149,4 @@ function parseRange(header: string | null): ByteRange | null {
   if (!Number.isFinite(start) || start < 0) return null
   if (end !== null && (!Number.isFinite(end) || end < start)) return null
   return { start, end, header: `bytes=${start}-${end ?? ''}` }
-}
-
-function inlineDisposition(filename: string): string {
-  const cleaned = filename.replace(/[\r\n"]/g, '')
-  return `inline; filename="${cleaned}"; filename*=UTF-8''${encodeURIComponent(cleaned)}`
 }

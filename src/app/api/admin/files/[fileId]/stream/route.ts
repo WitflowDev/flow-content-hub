@@ -1,6 +1,7 @@
 import { requireAdmin } from '@/lib/auth/admin'
 import { isDriveFileId, openClientVideo, readFolderName } from '@/lib/drive/client'
 import { adminDb } from '@/lib/firebase/admin'
+import { contentDisposition } from '@/lib/http/disposition'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -25,7 +26,7 @@ export async function GET(request: Request, context: RouteContext) {
     const file = await openClientVideo(folderId, fileId, byteRange(request.headers.get('range')))
     const headers = new Headers({
       'Content-Type': file.mimeType,
-      'Content-Disposition': inlineDisposition(file.name),
+      'Content-Disposition': contentDisposition(file.name, true),
       'Accept-Ranges': 'bytes',
       'Cache-Control': 'private',
     })
@@ -40,11 +41,6 @@ export async function GET(request: Request, context: RouteContext) {
 function byteRange(header: string | null): string | null {
   if (!header) return null
   const value = header.trim()
-  if (!/^bytes=\d*-\d*$/i.test(value)) return null
+  if (!/^bytes=(?:\d+-\d*|-\d+)$/i.test(value)) return null
   return value
-}
-
-function inlineDisposition(filename: string): string {
-  const cleaned = filename.replace(/[\r\n"]/g, '')
-  return `inline; filename="${cleaned}"; filename*=UTF-8''${encodeURIComponent(cleaned)}`
 }

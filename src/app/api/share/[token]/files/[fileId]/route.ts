@@ -1,5 +1,5 @@
 import { downloadClientFile } from '@/lib/drive/client'
-import { contentDisposition, sharedFolderId } from '@/lib/share/media'
+import { contentDisposition, sharedFileAllowed, sharedFolderId } from '@/lib/share/media'
 
 export const runtime = 'nodejs'
 export const dynamic = 'force-dynamic'
@@ -9,7 +9,7 @@ type RouteContext = { params: Promise<{ token: string; fileId: string }> }
 export async function GET(_request: Request, context: RouteContext) {
   const { token, fileId } = await context.params
   const folderId = await sharedFolderId(token)
-  if (!folderId) return new Response('Not found', { status: 404 })
+  if (!folderId || !(await sharedFileAllowed(fileId))) return new Response('Not found', { status: 404 })
   try {
     const file = await downloadClientFile(folderId, fileId)
     return new Response(file.body, {

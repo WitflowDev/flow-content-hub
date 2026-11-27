@@ -55,6 +55,8 @@ export function MediaActions({ item }: { item: MediaItem }) {
     setOpen((current) => !current)
   }
 
+  if (!driveFileId) return null
+
   return (
     <div className="kebab-wrap" onClick={(event) => event.stopPropagation()}>
       <button

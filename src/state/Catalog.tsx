@@ -9,6 +9,7 @@ type CatalogValue = {
   media: MediaItem[]
   collections: Collection[]
   mediaById: Map<string, MediaItem>
+  preparing: boolean
 }
 
 const CatalogContext = createContext<CatalogValue | null>(null)
@@ -16,23 +17,25 @@ const CatalogContext = createContext<CatalogValue | null>(null)
 export function CatalogProvider({
   media,
   collections,
+  preparing = false,
   children,
 }: {
   media: MediaItem[]
   collections: Collection[]
+  preparing?: boolean
   children: ReactNode
 }) {
   const value = useMemo<CatalogValue>(() => {
     const mediaById = new Map(media.map((item) => [item.id, item]))
-    return { media, collections, mediaById }
-  }, [media, collections])
+    return { media, collections, mediaById, preparing }
+  }, [media, collections, preparing])
   return <CatalogContext.Provider value={value}>{children}</CatalogContext.Provider>
 }
 
 export function useLibrary() {
   const catalog = useContext(CatalogContext)
   if (!catalog) throw new Error('useLibrary must be used within CatalogProvider')
-  const { media, collections, mediaById } = catalog
+  const { media, collections, mediaById, preparing } = catalog
 
   return useMemo(() => {
     const itemsFor = (collection: Collection) =>
@@ -44,6 +47,7 @@ export function useLibrary() {
     return {
       media,
       collections,
+      preparing,
       getMedia: (id: string) => mediaById.get(id) ?? null,
       getCollection: (slug: string) => findCollection(collections, slug),
       filteredMedia: (options: {
@@ -58,5 +62,5 @@ export function useLibrary() {
       collectionItems: itemsFor,
       collectionGridItems: itemsFor,
     }
-  }, [media, collections, mediaById])
+  }, [media, collections, mediaById, preparing])
 }

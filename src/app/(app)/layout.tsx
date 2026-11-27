@@ -3,20 +3,18 @@ import { redirect } from 'next/navigation'
 import { AppFrame } from '@/components/shell/AppFrame'
 import { LibraryRefresh } from '@/components/shell/LibraryRefresh'
 import { loadDriveLibrary } from '@/lib/drive/library'
-import { readFavoriteFileIds } from '@/lib/favorites/store'
 import { ensureUserProfile, type AccountProfile } from '@/lib/firebase/profile'
-import { getSessionUser } from '@/lib/firebase/session'
+import { getFastSessionUser } from '@/lib/firebase/session'
 import { loadAccountNotices } from '@/lib/notifications/sync'
 import { readPreviewTarget } from '@/lib/preview'
 import { resolvePalette, suggestedFlowLogo } from '@/lib/theme-palette'
 import type { SessionProfile } from '@/state/Session'
 
 export default async function AppLayout({ children }: { children: ReactNode }) {
-  const user = await getSessionUser()
+  const user = await getFastSessionUser()
   if (!user) redirect('/login')
 
-  const profile = await ensureUserProfile(user)
-  const previewTarget = await readPreviewTarget()
+  const [profile, previewTarget] = await Promise.all([ensureUserProfile(user), readPreviewTarget()])
   const viewed = previewTarget ?? profile
   const session = toSession(viewed, previewTarget !== null, previewTarget ? viewed.email : (user.email ?? profile.email))
 
@@ -26,6 +24,7 @@ export default async function AppLayout({ children }: { children: ReactNode }) {
         userId={viewed.id}
         email={viewed.email}
         folderId={viewed.driveFolderId}
+        favoriteFileIds={viewed.favoriteFileIds}
         includeDrafts={previewTarget !== null}
         profile={session}
       >
@@ -67,6 +66,7 @@ async function AccountLibrary({
   userId,
   email,
   folderId,
+  favoriteFileIds,
   includeDrafts,
   profile,
   children,
@@ -74,14 +74,14 @@ async function AccountLibrary({
   userId: string
   email: string | null
   folderId: string | null
+  favoriteFileIds: string[]
   includeDrafts: boolean
   profile: SessionProfile
   children: ReactNode
 }) {
-  const [driveLibrary, notices, favoriteFileIds] = await Promise.all([
+  const [driveLibrary, notices] = await Promise.all([
     loadDriveLibrary(userId, email, folderId, includeDrafts),
     includeDrafts ? Promise.resolve([]) : loadAccountNotices(),
-    readFavoriteFileIds(userId),
   ])
 
   return (
@@ -91,6 +91,7 @@ async function AccountLibrary({
       media={driveLibrary.items}
       collections={driveLibrary.collections}
       favoriteFileIds={favoriteFileIds}
+      preparing={driveLibrary.preparing}
     >
       <LibraryRefresh active={driveLibrary.preparing} />
       {driveLibrary.preparing ? <p className="collection-empty">Preparing your library…</p> : null}

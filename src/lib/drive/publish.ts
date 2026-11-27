@@ -84,10 +84,13 @@ export async function writeCollectionState(input: {
 
 export async function appendCollectionMaps(folderId: string, maps: ContentMapRecord[]): Promise<void> {
   if (!isDriveFileId(folderId) || maps.length === 0) return
-  const ref = adminDb().collection('collections').doc(folderId)
-  const existing = await ref.get()
-  const next = [...storedMaps(existing.get('maps')), ...maps].slice(0, 12)
-  await ref.set({ maps: next, driveFolderId: folderId }, { merge: true })
+  const db = adminDb()
+  const ref = db.collection('collections').doc(folderId)
+  await db.runTransaction(async (tx) => {
+    const existing = await tx.get(ref)
+    const next = [...storedMaps(existing.get('maps')), ...maps].slice(0, 12)
+    tx.set(ref, { maps: next, driveFolderId: folderId }, { merge: true })
+  })
 }
 
 export async function writeCollectionMaps(folderId: string, maps: ContentMapRecord[]): Promise<void> {
@@ -101,12 +104,15 @@ export async function writeCollectionMaps(folderId: string, maps: ContentMapReco
 export async function dropFilesFromMaps(folderId: string, fileIds: string[]): Promise<void> {
   const drop = new Set(fileIds.filter(isDriveFileId))
   if (!isDriveFileId(folderId) || drop.size === 0) return
-  const ref = adminDb().collection('collections').doc(folderId)
-  const existing = await ref.get()
-  const maps = storedMaps(existing.get('maps'))
-    .map((map) => ({ ...map, fileIds: map.fileIds.filter((id) => !drop.has(id)) }))
-    .filter((map) => map.fileIds.length >= 2)
-  await ref.set({ maps, driveFolderId: folderId }, { merge: true })
+  const db = adminDb()
+  const ref = db.collection('collections').doc(folderId)
+  await db.runTransaction(async (tx) => {
+    const existing = await tx.get(ref)
+    const maps = storedMaps(existing.get('maps'))
+      .map((map) => ({ ...map, fileIds: map.fileIds.filter((id) => !drop.has(id)) }))
+      .filter((map) => map.fileIds.length >= 2)
+    tx.set(ref, { maps, driveFolderId: folderId }, { merge: true })
+  })
 }
 
 export async function writeCollectionCover(folderId: string, coverFileId: string): Promise<void> {

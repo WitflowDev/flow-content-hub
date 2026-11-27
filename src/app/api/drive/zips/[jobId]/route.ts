@@ -12,10 +12,15 @@ type RouteContext = {
   params: Promise<{ jobId: string }>
 }
 
+const JOB_ID_PATTERN = /^[A-Za-z0-9_-]{1,128}$/
+
 export async function GET(_request: Request, context: RouteContext) {
   const user = await getSessionUser()
   if (!user) return NextResponse.json({ message: 'Sign in to download.' }, { status: 401 })
   const { jobId } = await context.params
+  if (!JOB_ID_PATTERN.test(jobId)) {
+    return NextResponse.json({ message: 'That download is not available.' }, { status: 404 })
+  }
   const job = await readJob(jobId)
   if (!job || job.uid !== user.uid || (job.kind !== 'collection-zip' && job.kind !== 'press-kit')) {
     return NextResponse.json({ message: 'That download is not available.' }, { status: 404 })

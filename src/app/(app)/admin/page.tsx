@@ -1,4 +1,5 @@
 import { redirect } from 'next/navigation'
+import { after } from 'next/server'
 import { AdminScreen } from '@/components/screens/AdminScreen'
 import { listDownloadEvents } from '@/lib/admin/downloads'
 import { loadAdminOverview } from '@/lib/admin/overview'
@@ -18,13 +19,16 @@ export default async function AdminPage() {
   const profile = await readUserProfile(user.uid)
   if (!profile || parseRole(profile.role) !== 'admin') redirect('/home')
 
+  after(async () => {
+    await organizeClientFolders().catch((error: unknown) => {
+      reportError('drive.folders', error)
+    })
+  })
+
   const [overview, contentDays, downloads] = await Promise.all([
     loadAdminOverview(),
     listRequestedContentDays(),
     listDownloadEvents(),
-    organizeClientFolders().catch((error: unknown) => {
-      reportError('drive.folders', error)
-    }),
   ])
   return <AdminScreen {...overview} contentDays={contentDays} downloads={downloads} metrics={readMetrics()} />
 }

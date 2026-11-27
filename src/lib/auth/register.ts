@@ -14,6 +14,8 @@ export type SignupDetails = {
   postalCode: string
 }
 
+const PROVISION_LOCK_MS = 2 * 60 * 1000
+
 export async function registerAccount(details: SignupDetails): Promise<RegisterResult> {
   const companyName = companyFolderName(details.companyName)
   if (!companyName) return { status: 'error', message: 'Enter a company name.' }
@@ -22,31 +24,52 @@ export async function registerAccount(details: SignupDetails): Promise<RegisterR
   if (!user?.email) return { status: 'error', message: 'The account could not be saved.' }
 
   const ref = adminDb().collection('users').doc(user.uid)
-  const existing = await ref.get()
-  const savedFolder = existing.get('driveFolderId')
-  if (typeof savedFolder === 'string' && savedFolder) return { status: 'session' }
+  const claimed = await adminDb().runTransaction(async (tx) => {
+    const existing = await tx.get(ref)
+    const savedFolder = existing.get('driveFolderId')
+    if (typeof savedFolder === 'string' && savedFolder) {
+      return { state: 'ready' as const, savedName: existing.get('name'), role: existing.get('role'), onboardingDone: existing.get('onboardingDone') }
+    }
+    const lockUntil = existing.get('folderProvisioningUntil')
+    if (typeof lockUntil === 'number' && lockUntil > Date.now()) {
+      return { state: 'locked' as const, savedName: existing.get('name'), role: existing.get('role'), onboardingDone: existing.get('onboardingDone') }
+    }
+    tx.set(ref, { folderProvisioningUntil: Date.now() + PROVISION_LOCK_MS }, { merge: true })
+    return { state: 'provision' as const, savedName: existing.get('name'), role: existing.get('role'), onboardingDone: existing.get('onboardingDone') }
+  })
+
+  if (claimed.state === 'ready') return { status: 'session' }
+  if (claimed.state === 'locked') {
+    return { status: 'error', message: 'Your account is still being set up. Try again in a moment.' }
+  }
 
   let driveFolderId = ''
   if (ownerAccessConfigured()) {
     try {
       driveFolderId = (await createClientDriveFolder(companyName)).id
     } catch (error) {
-      console.error(error instanceof Error ? error.message : 'The client folder could not be created.')
+      await ref.set({ folderProvisioningUntil: 0 }, { merge: true }).catch(() => undefined)
+      const message = error instanceof Error ? error.message : 'The client folder could not be created.'
+      console.error(message)
+      return { status: 'error', message: 'Your content folder could not be created. Try again in a moment.' }
     }
   } else {
     console.error('Google Drive owner access is not configured.')
   }
 
-  const savedName = existing.get('name')
   try {
     await ref.set(
       {
         email: user.email,
-        name: typeof savedName === 'string' ? savedName : '',
+        name: typeof claimed.savedName === 'string' ? claimed.savedName : '',
         companyName,
+        taxNumber: cleanDetail(details.taxNumber, 40),
+        address: cleanDetail(details.address, 200),
+        postalCode: cleanDetail(details.postalCode, 30),
         driveFolderId,
-        role: existing.get('role') === 'admin' ? 'admin' : 'client',
-        onboardingDone: existing.get('onboardingDone') === true,
+        folderProvisioningUntil: 0,
+        role: claimed.role === 'admin' ? 'admin' : 'client',
+        onboardingDone: claimed.onboardingDone === true,
       },
       { merge: true },
     )
@@ -64,4 +87,8 @@ export async function registerAccount(details: SignupDetails): Promise<RegisterR
   }
 
   return { status: 'session' }
+}
+
+function cleanDetail(value: string, maxLength: number): string {
+  return value.trim().slice(0, maxLength)
 }

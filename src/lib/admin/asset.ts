@@ -1,6 +1,6 @@
 import 'server-only'
 import { requireAdmin } from '@/lib/auth/admin'
-import { isDriveFileId, listClientFolder } from '@/lib/drive/client'
+import { isDriveFileId, readFileInFolder } from '@/lib/drive/client'
 import { adminDb } from '@/lib/firebase/admin'
 
 export type AdminAssetView = {
@@ -20,15 +20,14 @@ export async function loadAdminAsset(
   const owner = await adminDb().collection('users').where('driveFolderId', '==', folderId).limit(1).get()
   if (owner.empty) return { ok: false, reason: 'missing' }
   try {
-    const listed = await listClientFolder(folderId)
-    const file = listed.files.find((item) => item.id === fileId)
+    const file = await readFileInFolder(folderId, fileId)
     if (!file) return { ok: false, reason: 'missing' }
     return {
       ok: true,
       asset: {
         title: titleFromName(file.name),
         name: file.name,
-        collection: file.collectionName ?? '',
+        collection: file.collectionName,
         mimeType: file.mimeType,
       },
     }

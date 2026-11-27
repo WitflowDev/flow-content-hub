@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import type { AppRole } from '@/lib/auth'
 import { parseRole } from '@/lib/auth'
@@ -59,6 +59,20 @@ export function AdminUsers() {
   const [bannerPreview, setBannerPreview] = useState('')
   const [existingBanner, setExistingBanner] = useState('')
   const [colorsFromLogo, setColorsFromLogo] = useState(false)
+  const draftRef = useRef(draft)
+  draftRef.current = draft
+  const logoPreviewRef = useRef(logoPreview)
+  logoPreviewRef.current = logoPreview
+  const bannerPreviewRef = useRef(bannerPreview)
+  bannerPreviewRef.current = bannerPreview
+
+  useEffect(() => {
+    return () => {
+      if (logoPreviewRef.current.startsWith('blob:')) URL.revokeObjectURL(logoPreviewRef.current)
+      if (bannerPreviewRef.current.startsWith('blob:')) URL.revokeObjectURL(bannerPreviewRef.current)
+    }
+  }, [])
+
   const logoSrc =
     logoPreview ||
     (editor.mode === 'edit' && existingLogo
@@ -70,16 +84,20 @@ export function AdminUsers() {
     let live = true
     void paletteFromImage(logoSrc, draft.interfaceTheme).then((palette) => {
       if (!live || !palette) return
+      const current = draftRef.current
+      if (current.interfaceTheme !== draft.interfaceTheme) return
       const freshUpload = logoSrc.startsWith('blob:')
-      let applied = false
-      setDraft((current) => {
-        if (current.interfaceTheme !== draft.interfaceTheme) return current
-        if (!freshUpload && paletteHasOverrides(current.interfaceTheme, current.themeColors)) return current
-        applied = true
-        if (PALETTE_KEYS.every((key) => current.themeColors[key] === palette[key])) return current
-        return { ...current, themeColors: palette, flowLogo: suggestedFlowLogo(current.interfaceTheme, palette.background) }
+      if (!freshUpload && paletteHasOverrides(current.interfaceTheme, current.themeColors)) return
+      setColorsFromLogo(true)
+      if (PALETTE_KEYS.every((key) => current.themeColors[key] === palette[key])) return
+      setDraft((latest) => {
+        if (latest.interfaceTheme !== draft.interfaceTheme) return latest
+        return {
+          ...latest,
+          themeColors: palette,
+          flowLogo: suggestedFlowLogo(latest.interfaceTheme, palette.background),
+        }
       })
-      if (applied) setColorsFromLogo(true)
     })
     return () => {
       live = false
@@ -113,8 +131,7 @@ export function AdminUsers() {
   function openCreate() {
     setPendingDelete('')
     setColorsFromLogo(false)
-    setLogoFile(null)
-    setLogoPreview('')
+    chooseLogo(null)
     setExistingLogo('')
     setLogoFolder(false)
     setExistingBanner('')
@@ -126,8 +143,7 @@ export function AdminUsers() {
   function openEdit(user: AdminUser) {
     setPendingDelete('')
     setColorsFromLogo(false)
-    setLogoFile(null)
-    setLogoPreview('')
+    chooseLogo(null)
     setExistingLogo(user.logoFileId ?? '')
     setLogoFolder(user.hasFolder)
     setExistingBanner(user.bannerFileId ?? '')
@@ -151,8 +167,7 @@ export function AdminUsers() {
     setColorsFromLogo(false)
     setEditor({ mode: 'closed' })
     setDraft(EMPTY_DRAFT)
-    setLogoFile(null)
-    setLogoPreview('')
+    chooseLogo(null)
     setExistingBanner('')
     chooseBanner(null)
   }
@@ -192,26 +207,31 @@ export function AdminUsers() {
       return
     }
     const accountId = result.id || editingId
+    let mediaError = ''
     if (logoFile && accountId) {
       const body = new FormData()
       body.set('userId', accountId)
       body.set('logo', logoFile)
       const uploaded = await saveClientLogo(body)
-      if (!uploaded.ok) toast(uploaded.message)
+      if (!uploaded.ok) mediaError = uploaded.message
     }
     if (bannerFile && accountId && draft.interfaceTheme === 'showroom') {
       const body = new FormData()
       body.set('userId', accountId)
       body.set('banner', bannerFile)
       const uploaded = await saveClientBanner(body)
-      if (!uploaded.ok) toast(uploaded.message)
+      if (!uploaded.ok) mediaError = mediaError || uploaded.message
     }
     setBusy(false)
-    toast(editor.mode === 'edit' ? 'Account updated' : 'Account created', 'success')
-    const refreshSelf = editor.mode === 'edit' && editor.id === session.id
+    if (mediaError) {
+      toast(`Account saved, but brand upload failed: ${mediaError}`)
+    } else {
+      toast(editor.mode === 'edit' ? 'Account updated' : 'Account created', 'success')
+    }
+    const created = editor.mode === 'create'
     closeEditor()
-    reload(editor.mode === 'create' ? 1 : page)
-    if (refreshSelf) router.refresh()
+    reload(created ? 1 : page)
+    router.refresh()
   }
 
   async function onRemoveLogo() {
@@ -259,6 +279,7 @@ export function AdminUsers() {
     if (editor.mode === 'edit' && editor.id === id) closeEditor()
     toast('Account deleted', 'success')
     reload(users.length === 1 && page > 1 ? page - 1 : page)
+    router.refresh()
   }
 
   return (

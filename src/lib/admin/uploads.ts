@@ -3,7 +3,7 @@ import { isCustomFormatId, parseExportIds, pixelSize, type ExportId } from '@/da
 import { parseRole } from '@/lib/auth'
 import { sealBatchTicket, sealUploadTicket, openBatchTicket, openUploadTicket } from '@/lib/admin/upload-ticket'
 import { parseTags } from '@/lib/tags'
-import { isDriveFileId, listClientFolder, readDirectChildFolder, readFolderName, readUploadedMedia } from '@/lib/drive/client'
+import { fileBelongsToFolder, isDriveFileId, listClientFolder, readDirectChildFolder, readFolderName, readUploadedMedia } from '@/lib/drive/client'
 import { beginOwnedUpload, companyFolderName, createOwnedFolder } from '@/lib/drive/owner'
 import { writeCollectionState } from '@/lib/drive/publish'
 import { attachAssetVariant, attachCustomVariant, saveAssetCopy } from '@/lib/drive/tags'
@@ -104,6 +104,10 @@ export async function openAdminUpload(
   const located = batch && batch.accountId === input.accountId
     ? { clientFolderId: batch.clientFolderId, destinationId: batch.destinationId }
     : await resolveClientDestination(input)
+  if (input.variantParentId) {
+    const ownsParent = await fileBelongsToFolder(located.clientFolderId, input.variantParentId)
+    if (!ownsParent) throw new Error('The default photo could not be found in this client folder.')
+  }
   const batchToken = batch && batch.accountId === input.accountId
     ? input.batchToken
     : sealBatchTicket({

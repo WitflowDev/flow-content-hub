@@ -1,12 +1,14 @@
 'use server'
 
+import { after } from 'next/server'
 import { formatVariantId, isCustomFormatId, parseExportIds, pixelSize, type CropFrame, type ExportId } from '@/data/exports'
 import type { AdminCollectionDetail, AdminPost } from '@/lib/admin/types'
 import { requireAdmin } from '@/lib/auth/admin'
 import { parseRole } from '@/lib/auth'
-import { invalidateLibrary, invalidateThumbnail } from '@/lib/drive/cache'
+import { invalidateThumbnail } from '@/lib/drive/cache'
+import { drainJob } from '@/lib/jobs/loop'
 import { enqueueJob } from '@/lib/jobs/queue'
-import { isDriveFileId, listClientFolder, readDirectChildFolder, readFolderName, readUploadedMedia } from '@/lib/drive/client'
+import { isDriveFileId, listContainedMedia, readDirectChildFolder, readFolderName, readUploadedMedia } from '@/lib/drive/client'
 import { lookupStandardStarts } from '@/lib/admin/uploads'
 import { companyFolderName, renameOwnedItem, trashOwnedItem } from '@/lib/drive/owner'
 import {
@@ -132,7 +134,7 @@ export async function updateAdminPost(input: {
   } catch (error) {
     return { ok: false, message: publicMessage(error, 'The post could not be saved.') }
   }
-  refreshLibrary(located.clientFolderId, [file.id])
+  await refreshLibrary(located.clientFolderId, [file.id])
   return { ok: true }
 }
 
@@ -184,6 +186,7 @@ export async function savePhotoFrames(input: {
   } catch (error) {
     return { ok: false, message: publicMessage(error, 'The photo formats could not be saved.') }
   }
+  await refreshLibrary(clientFolderId, [media.id])
   return { ok: true }
 }
 
@@ -218,7 +221,7 @@ export async function finishUploadBatch(input: { accountId: string; fileIds: str
   } catch (error) {
     return { ok: false, message: publicMessage(error, 'The library could not be refreshed.') }
   }
-  refreshLibrary(clientFolderId, fileIds)
+  await refreshLibrary(clientFolderId, fileIds)
   return { ok: true }
 }
 
@@ -241,7 +244,7 @@ export async function deleteAdminPost(input: {
   } catch (error) {
     return { ok: false, message: publicMessage(error, 'The post could not be deleted.') }
   }
-  refreshLibrary(located.clientFolderId, [file.id])
+  await refreshLibrary(located.clientFolderId, [file.id])
   return { ok: true }
 }
 
@@ -272,7 +275,7 @@ export async function deleteAdminPosts(input: {
   } catch (error) {
     return { ok: false, message: publicMessage(error, 'The files could not be deleted.') }
   }
-  refreshLibrary(located.clientFolderId, fileIds)
+  await refreshLibrary(located.clientFolderId, fileIds)
   return { ok: true }
 }
 
@@ -317,7 +320,7 @@ export async function updateAdminCollection(input: {
   } catch (error) {
     return { ok: false, message: publicMessage(error, 'The collection could not be saved.') }
   }
-  refreshLibrary(located.clientFolderId)
+  await refreshLibrary(located.clientFolderId)
   return { ok: true }
 }
 
@@ -338,7 +341,7 @@ export async function setCollectionCover(input: {
   } catch (error) {
     return { ok: false, message: publicMessage(error, 'The cover could not be saved.') }
   }
-  if (input.refresh !== false) refreshLibrary(located.clientFolderId)
+  if (input.refresh !== false) await refreshLibrary(located.clientFolderId)
   return { ok: true }
 }
 
@@ -376,7 +379,7 @@ export async function saveCollectionMaps(input: {
   } catch (error) {
     return { ok: false, message: publicMessage(error, 'The content maps could not be saved.') }
   }
-  if (input.refresh !== false) refreshLibrary(located.clientFolderId)
+  if (input.refresh !== false) await refreshLibrary(located.clientFolderId)
   return { ok: true }
 }
 
@@ -392,14 +395,14 @@ export async function deleteAdminCollection(input: { accountId: string; folderId
   } catch (error) {
     return { ok: false, message: publicMessage(error, 'The collection could not be deleted.') }
   }
-  refreshLibrary(located.clientFolderId, located.files.map((file) => file.id))
+  await refreshLibrary(located.clientFolderId, located.files.map((file) => file.id))
   return { ok: true }
 }
 
-function refreshLibrary(folderId: string, fileIds: string[] = []): void {
-  invalidateLibrary(folderId)
-  void enqueueJob({ kind: 'sync-library', folderId, uid: 'admin' })
+async function refreshLibrary(folderId: string, fileIds: string[] = []): Promise<void> {
   for (const fileId of fileIds) invalidateThumbnail(fileId)
+  const jobId = await enqueueJob({ kind: 'sync-library', folderId, uid: 'admin' })
+  after(() => drainJob(jobId))
 }
 
 async function locateCollection(
@@ -422,12 +425,12 @@ async function locateCollection(
   const folder = await readDirectChildFolder(clientFolderId, folderId)
   if (!folder) return { ok: false, message: 'That collection is not in this client folder.' }
   try {
-    const listed = await listClientFolder(clientFolderId)
+    const listed = await listContainedMedia(folder.id)
     return {
       ok: true,
       clientFolderId,
       folder,
-      files: listed.files.filter((file) => file.collectionId === folder.id),
+      files: listed.map((file) => ({ ...file, collectionId: folder.id, collectionName: folder.name })),
     }
   } catch (error) {
     return { ok: false, message: publicMessage(error, 'The collection could not be opened.') }

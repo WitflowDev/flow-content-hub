@@ -1,5 +1,6 @@
 'use client'
 
+import { useEffect, useState } from 'react'
 import { Icon } from '@/components/icons'
 import { CollectionFeature } from '@/components/collections/CollectionFeature'
 import { ContentDayOffer } from '@/components/feedback/ContentDayOffer'
@@ -13,20 +14,34 @@ import { useApp } from '@/state/AppState'
 import { useLibrary } from '@/state/Catalog'
 import { useSession } from '@/state/Session'
 
+function timeGreeting(hour: number): string {
+  if (hour >= 5 && hour < 12) return 'Good morning'
+  if (hour >= 12 && hour < 18) return 'Good afternoon'
+  return 'Good evening'
+}
+
 export function HomeScreen() {
   const { navigate, openDrawer } = useApp()
   const { media, collections } = useLibrary()
   const profile = useSession()
+  const [greeting, setGreeting] = useState('Welcome back')
+  useEffect(() => {
+    setGreeting(timeGreeting(new Date().getHours()))
+  }, [])
   const greeted = greetingName(profile.companyName, profile.name)
   const latest = collections[0]
   const hero = media[0]
+  const heroFallback =
+    hero?.type === 'Photography' && hero.src.includes('/thumbnail')
+      ? hero.src.replace('/thumbnail', '/preview')
+      : (hero?.src ?? '')
   const bannerSrc = profile.bannerFileId
     ? `/api/brand/banner?v=${encodeURIComponent(profile.bannerFileId)}`
-    : (hero?.src ?? '')
+    : heroFallback
 
   return (
     <div className="page home-page">
-      <HomeLead theme={profile.interfaceTheme} greeted={greeted} bannerSrc={bannerSrc} onAsk={openDrawer} />
+      <HomeLead theme={profile.interfaceTheme} greeting={greeting} greeted={greeted} bannerSrc={bannerSrc} onAsk={openDrawer} />
       <ContentDayOffer />
       <section className="section section-tight">
         <div className="section-head">
@@ -72,15 +87,18 @@ export function HomeScreen() {
 
 function HomeLead({
   theme,
+  greeting,
   greeted,
   bannerSrc,
   onAsk,
 }: {
   theme: InterfaceTheme
+  greeting: string
   greeted: string
   bannerSrc: string
   onAsk: () => void
 }) {
+  const headline = `${greeting}, ${greeted}.`
   switch (theme) {
     case 'showroom':
       return (
@@ -89,7 +107,7 @@ function HomeLead({
           <div className="showroom-hero-fade" />
           <div className="showroom-hero-copy">
             <p>Flow Content Hub</p>
-            <h1>Good morning, {greeted}.</h1>
+            <h1>{headline}</h1>
             <button type="button" className="btn ghost" onClick={onAsk}>
               <Icon name="chat" /> Ask Flow
             </button>
@@ -101,7 +119,7 @@ function HomeLead({
         <section className="tech-hero">
           <div>
             <p>Flow Content Hub</p>
-            <h1>Good morning, {greeted}.</h1>
+            <h1>{headline}</h1>
             <p className="tech-hero-note">Everything your brand has created with Flow, ready to use.</p>
           </div>
           <button type="button" className="btn primary" onClick={onAsk}>
@@ -114,7 +132,7 @@ function HomeLead({
         <section className="civic-hero">
           <div>
             <p>Official archive</p>
-            <h1>Good morning, {greeted}.</h1>
+            <h1>{headline}</h1>
             <p className="civic-hero-note">Everything your brand has created with Flow, ready to use.</p>
           </div>
           <button type="button" className="btn primary" onClick={onAsk}>
@@ -126,7 +144,7 @@ function HomeLead({
       return (
         <section className="minimal-hero">
           <p>Flow Content Hub</p>
-          <h1>Good morning, {greeted}.</h1>
+          <h1>{headline}</h1>
           <div className="minimal-rule" />
           <p className="minimal-meta">Everything your brand has created with Flow, ready to use.</p>
           <button type="button" className="btn ghost" onClick={onAsk}>
@@ -139,7 +157,7 @@ function HomeLead({
         <header className="page-head home-head">
           <div className="page-title">
             <div className="eyebrow">Flow Content Hub</div>
-            <h1>Good morning, {greeted}.</h1>
+            <h1>{headline}</h1>
             <p>Everything your brand has created with Flow, ready to use.</p>
           </div>
           <div className="head-actions">

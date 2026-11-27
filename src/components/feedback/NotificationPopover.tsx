@@ -1,5 +1,7 @@
 'use client'
 
+import { useEffect, useRef } from 'react'
+import { useApp } from '@/state/AppState'
 import { useNotices } from '@/state/Notifications'
 import type { AccountNotice } from '@/lib/notifications/types'
 
@@ -31,13 +33,34 @@ function NotificationItem({ notice }: { notice: AccountNotice }) {
 }
 
 export function NotificationPopover() {
-  const { notices, markAllRead } = useNotices()
+  const panelRef = useRef<HTMLDivElement>(null)
+  const { closeNotifications } = useApp()
+  const { notices, unread, markAllRead } = useNotices()
+
+  useEffect(() => {
+    function onPointerDown(event: PointerEvent) {
+      const target = event.target
+      if (!(target instanceof Element)) return
+      if (panelRef.current?.contains(target)) return
+      if (target.closest('[data-notifications-trigger]')) return
+      closeNotifications()
+    }
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') closeNotifications()
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    document.addEventListener('keydown', onKeyDown)
+    return () => {
+      document.removeEventListener('pointerdown', onPointerDown)
+      document.removeEventListener('keydown', onKeyDown)
+    }
+  }, [closeNotifications])
 
   return (
-    <div className="popover notification-pop">
+    <div ref={panelRef} className="popover notification-pop" role="dialog" aria-label="Notifications">
       <div className="popover-head">
         <h3>Notifications</h3>
-        <button type="button" className="text-btn" onClick={() => void markAllRead()}>
+        <button type="button" className="text-btn" disabled={!unread} onClick={() => void markAllRead()}>
           Mark all read
         </button>
       </div>

@@ -142,11 +142,28 @@ export function contentDayMessage(draft: ContentDayDraft): { subject: string; bo
 }
 
 export function saveContentDayDraft(draft: ContentDayDraft): void {
-  sessionStorage.setItem(CONTENT_DAY_DRAFT_KEY, JSON.stringify(draft))
+  try {
+    sessionStorage.setItem(CONTENT_DAY_DRAFT_KEY, JSON.stringify(draft))
+  } catch {
+    // Ignore storage errors in restricted browsing contexts.
+  }
+}
+
+export function clearContentDayDraft(): void {
+  try {
+    sessionStorage.removeItem(CONTENT_DAY_DRAFT_KEY)
+  } catch {
+    // Ignore storage errors in restricted browsing contexts.
+  }
 }
 
 export function readContentDayDraft(): ContentDayDraft | null {
-  const raw = sessionStorage.getItem(CONTENT_DAY_DRAFT_KEY)
+  let raw: string | null = null
+  try {
+    raw = sessionStorage.getItem(CONTENT_DAY_DRAFT_KEY)
+  } catch {
+    return null
+  }
   if (!raw) return null
   try {
     const value: unknown = JSON.parse(raw)

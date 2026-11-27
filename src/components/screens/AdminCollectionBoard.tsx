@@ -35,6 +35,11 @@ export function AdminCollectionBoard({ collection, onBack }: { collection: Admin
 
   useEffect(() => {
     let active = true
+    setDetail(null)
+    setError('')
+    setEditor(null)
+    setSelected([])
+    setConfirmSelection(false)
     void loadAdminCollection({ accountId: collection.accountId, folderId: collection.id }).then((result) => {
       if (!active) return
       if (!result.ok) {
@@ -247,7 +252,7 @@ function CollectionEditor({
     detail.maps.map((map, index) => ({ id: `saved-${index}`, description: map.description, fileIds: [...map.fileIds] })),
   )
   const [coverId, setCoverId] = useState(
-    detail.coverFileId && detail.posts.some((item) => item.id === detail.coverFileId) ? detail.coverFileId : (detail.posts[0]?.id ?? ''),
+    detail.coverFileId && detail.posts.some((item) => item.id === detail.coverFileId) ? detail.coverFileId : '',
   )
   const [saving, setSaving] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
@@ -452,14 +457,14 @@ function CollectionEditor({
                   className={coverId === item.id ? 'cover-choice on' : 'cover-choice'}
                   disabled={saving}
                   aria-pressed={coverId === item.id}
-                  onClick={() => setCoverId(item.id)}
+                  onClick={() => setCoverId((current) => (current === item.id ? '' : item.id))}
                 >
                   <img src={`/api/admin/files/${item.id}/thumbnail?folder=${collection.clientFolderId}`} alt="" />
                   <span>{item.title}</span>
                 </button>
               ))}
             </div>
-            <p className="field-note">Shown across the top of the collection in Showroom.</p>
+            <p className="field-note">Shown across the top of the collection in Showroom. Click the active photo again to use the default mosaic.</p>
           </div>
         ) : null}
         {editor.kind === 'collection' ? (

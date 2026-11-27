@@ -18,7 +18,7 @@ export function FavoriteButton({ fileId, placement = 'thumb' }: { fileId: string
       data-favorite=""
       aria-pressed={on}
       aria-label={on ? 'Remove from favorites' : 'Add to favorites'}
-      disabled={preview || favorites.pending === fileId}
+      disabled={preview || favorites.isPending(fileId)}
       onClick={(event) => {
         event.stopPropagation()
         if (preview) return

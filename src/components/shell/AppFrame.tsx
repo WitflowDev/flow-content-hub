@@ -1,6 +1,7 @@
 'use client'
 
 import type { ReactNode } from 'react'
+import { SessionKeeper } from '@/components/auth/SessionKeeper'
 import { LibraryPrefetch } from '@/components/media/LibraryPrefetch'
 import { Shell } from '@/components/shell/Shell'
 import type { Collection, MediaItem } from '@/data/types'
@@ -16,6 +17,7 @@ export function AppFrame({
   media,
   collections,
   favoriteFileIds,
+  preparing = false,
   children,
 }: {
   profile: SessionProfile
@@ -23,11 +25,13 @@ export function AppFrame({
   media: MediaItem[]
   collections: Collection[]
   favoriteFileIds: string[]
+  preparing?: boolean
   children: ReactNode
 }) {
   return (
     <SessionProvider profile={profile}>
-      <CatalogProvider media={media} collections={collections}>
+      <SessionKeeper />
+      <CatalogProvider media={media} collections={collections} preparing={preparing}>
         <FavoritesProvider fileIds={favoriteFileIds}>
           <LibraryPrefetch />
           <NotificationsProvider notices={notices}>

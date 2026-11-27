@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { Icon } from '@/components/icons'
 import { submitServiceRequest } from '@/lib/admin/actions'
@@ -55,6 +55,14 @@ export function TalkDrawer() {
   const [phoneNumber, setPhoneNumber] = useState('')
   const [sending, setSending] = useState(false)
 
+  useEffect(() => {
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape' && !sending) closeDrawer()
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [closeDrawer, sending])
+
   async function send() {
     if (sending) return
     if (!selectedService) {
@@ -82,15 +90,15 @@ export function TalkDrawer() {
 
   return (
     <>
-      <div className="backdrop" onClick={closeDrawer} />
-      <aside className="drawer">
+      <div className="backdrop" onClick={() => (sending ? undefined : closeDrawer())} />
+      <aside className="drawer" role="dialog" aria-modal="true" aria-label="Talk to Flow">
         <div className="drawer-head">
           <div>
             <div className="eyebrow">Made by Flow</div>
             <h2>Talk to Flow</h2>
             <p>Need something beyond your content library? Tell us what you’re working on and we’ll point you to the right next step.</p>
           </div>
-          <button type="button" className="close" onClick={closeDrawer}>
+          <button type="button" className="close" aria-label="Close" disabled={sending} onClick={closeDrawer}>
             <Icon name="close" />
           </button>
         </div>

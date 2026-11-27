@@ -44,9 +44,13 @@ export async function endSession(): Promise<void> {
   generation += 1
   const pending = inFlight
   inFlight = null
-  await signOut(auth())
+  try {
+    await signOut(auth())
+  } catch {
+    // Always clear the server session cookie even if Firebase client signOut fails.
+  }
   await pending?.catch(() => undefined)
-  await clearSessionCookie()
+  await clearSessionCookie().catch(() => undefined)
 }
 
 async function clearSessionCookie(): Promise<void> {

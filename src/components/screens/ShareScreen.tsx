@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { InstagramCarousel } from '@/components/collections/InstagramCarousel'
 import { Logo } from '@/components/shell/Logo'
 import type { MediaItem } from '@/data/types'
@@ -10,6 +10,23 @@ export function ShareScreen({ token, collection }: { token: string; collection: 
   const [openId, setOpenId] = useState<string | null>(null)
   const openIndex = collection.files.findIndex((file) => file.id === openId)
   const open = openIndex >= 0 ? collection.files[openIndex] : null
+
+  useEffect(() => {
+    if (!open) return
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === 'Escape') {
+        setOpenId(null)
+      } else if (event.key === 'ArrowLeft' && openIndex > 0) {
+        const previous = collection.files[openIndex - 1]
+        if (previous) setOpenId(previous.id)
+      } else if (event.key === 'ArrowRight' && openIndex < collection.files.length - 1) {
+        const next = collection.files[openIndex + 1]
+        if (next) setOpenId(next.id)
+      }
+    }
+    document.addEventListener('keydown', onKeyDown)
+    return () => document.removeEventListener('keydown', onKeyDown)
+  }, [open, openIndex, collection.files])
   const maps = collection.maps
     .map((map) => ({
       description: map.description,
@@ -34,7 +51,12 @@ export function ShareScreen({ token, collection }: { token: string; collection: 
             <p className="share-note">View and download only. This link does not open the rest of the library.</p>
           </div>
           <div className="collection-actions">
-            <button type="button" className="btn primary" onClick={() => downloadFiles(token, collection.files)}>
+            <button
+              type="button"
+              className="btn primary"
+              disabled={collection.files.length === 0}
+              onClick={() => downloadFiles(token, collection.files, collection.title)}
+            >
               Download collection
             </button>
           </div>
@@ -72,7 +94,15 @@ export function ShareScreen({ token, collection }: { token: string; collection: 
         ) : null}
       </main>
       {open ? (
-        <div className="share-viewer" role="dialog" aria-modal="true">
+        <div
+          className="share-viewer"
+          role="dialog"
+          aria-modal="true"
+          aria-label={open.title}
+          onClick={(event) => {
+            if (event.target === event.currentTarget) setOpenId(null)
+          }}
+        >
           <div className="card share-viewer-card">
             <div className="share-viewer-head">
               <b>{open.title}</b>
@@ -82,6 +112,7 @@ export function ShareScreen({ token, collection }: { token: string; collection: 
             </div>
             {open.type === 'Video' ? (
               <video
+                key={open.id}
                 controls
                 playsInline
                 preload="metadata"
@@ -149,13 +180,22 @@ function fileUrl(token: string, fileId: string, kind: 'thumbnail' | 'preview' | 
   return `${base}/${kind}`
 }
 
-function downloadFiles(token: string, files: readonly SharedFile[]) {
-  for (const file of files) {
+function downloadFiles(token: string, files: readonly SharedFile[], title?: string) {
+  if (files.length === 0) return
+  if (files.length === 1) {
+    const file = files[0]
     const link = document.createElement('a')
     link.href = fileUrl(token, file.id, 'file')
     link.download = file.fileName
     document.body.appendChild(link)
     link.click()
     link.remove()
+    return
   }
+  const link = document.createElement('a')
+  link.href = `/api/share/${token}/zip`
+  link.download = `${(title || 'Shared_Collection').replace(/\s+/g, '_')}.zip`
+  document.body.appendChild(link)
+  link.click()
+  link.remove()
 }

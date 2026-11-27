@@ -6,11 +6,11 @@ import { SelectBox } from '@/components/media/SelectBox'
 import { AssetTags } from '@/components/media/AssetTags'
 import { FavoriteButton } from '@/components/media/FavoriteButton'
 import { MediaThumb } from '@/components/media/MediaThumb'
-import { useApp } from '@/state/AppState'
+import { useAppActions } from '@/state/AppState'
 import type { MediaItem } from '@/data/types'
 
 export const MediaListRow = memo(function MediaListRow({ item }: { item: MediaItem }) {
-  const { navigate } = useApp()
+  const { navigate } = useAppActions()
 
   function openAsset(event: MouseEvent<HTMLElement>) {
     const target = event.target

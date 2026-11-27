@@ -2,7 +2,7 @@
 
 import type { FormEvent } from 'react'
 import { Icon } from '@/components/icons'
-import { useApp } from '@/state/AppState'
+import { useApp, useSelectionActions } from '@/state/AppState'
 import { useNotices } from '@/state/Notifications'
 import { useSession } from '@/state/Session'
 
@@ -15,7 +15,8 @@ function accountInitials(name: string, email: string): string {
 }
 
 export function Topbar() {
-  const { search, setSearch, setContentType, setChannel, navigate, toggleNotifications, toggleMobileNav } = useApp()
+  const { search, setSearch, setContentType, setChannel, navigate, notifications, toggleNotifications, toggleMobileNav } = useApp()
+  const { clearSelected } = useSelectionActions()
   const { unread } = useNotices()
   const profile = useSession()
   const initials = accountInitials(profile.name, profile.email)
@@ -27,6 +28,7 @@ export function Topbar() {
     setSearch(query)
     setContentType('All')
     setChannel('All')
+    clearSelected()
     navigate('/content')
   }
 
@@ -47,7 +49,14 @@ export function Topbar() {
         />
       </form>
       <div className="topbar-actions">
-        <button type="button" className="icon-btn" onClick={toggleNotifications} aria-label="Notifications">
+        <button
+          type="button"
+          className="icon-btn"
+          data-notifications-trigger=""
+          aria-expanded={notifications}
+          onClick={toggleNotifications}
+          aria-label="Notifications"
+        >
           <Icon name="bell" />
           {unread ? <span className="badge-dot" /> : null}
         </button>

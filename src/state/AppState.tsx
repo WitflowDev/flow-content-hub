@@ -3,9 +3,13 @@
 import { useRouter } from 'next/navigation'
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
-import { TIP_KEY } from '@/lib/auth'
-import { endSession } from '@/lib/firebase/browser-session'
 import type { ChannelFilter, ContentTypeFilter, SortMode, ViewMode } from '@/data/types'
+
+let signOutHandler: (() => Promise<void>) | null = null
+
+export function registerSignOutHandler(handler: (() => Promise<void>) | null): void {
+  signOutHandler = handler
+}
 
 type ToastType = '' | 'success'
 
@@ -15,7 +19,20 @@ type ToastItem = {
   type: ToastType
 }
 
-type AppContextValue = {
+type AppActionsValue = {
+  openDrawer: () => void
+  closeDrawer: () => void
+  toggleNotifications: () => void
+  closeNotifications: () => void
+  openGuide: (id: string) => void
+  closeGuide: () => void
+  toggleMobileNav: () => void
+  navigate: (path: string, closeNav?: boolean) => void
+  toast: (message: string, type?: ToastType) => void
+  logout: () => void
+}
+
+type AppContextValue = AppActionsValue & {
   search: string
   setSearch: (value: string) => void
   contentType: ContentTypeFilter
@@ -27,26 +44,15 @@ type AppContextValue = {
   view: ViewMode
   setView: (value: ViewMode) => void
   drawer: boolean
-  openDrawer: () => void
-  closeDrawer: () => void
   notifications: boolean
-  toggleNotifications: () => void
   selectedService: string
   setSelectedService: (value: string) => void
   guide: string | null
-  openGuide: (id: string) => void
-  closeGuide: () => void
-  tipVisible: boolean
-  mounted: boolean
-  dismissTip: () => void
   mobileNav: boolean
-  toggleMobileNav: () => void
-  navigate: (path: string, closeNav?: boolean) => void
-  toast: (message: string, type?: ToastType) => void
-  logout: () => void
 }
 
 const AppContext = createContext<AppContextValue | null>(null)
+const AppActionsContext = createContext<AppActionsValue | null>(null)
 const SelectedContext = createContext<Set<string> | null>(null)
 const SelectionActionsContext = createContext<{
   toggleSelected: (id: string) => void
@@ -56,6 +62,12 @@ const SelectionActionsContext = createContext<{
 export function useApp(): AppContextValue {
   const value = useContext(AppContext)
   if (!value) throw new Error('useApp must be used within AppStateProvider')
+  return value
+}
+
+export function useAppActions(): AppActionsValue {
+  const value = useContext(AppActionsContext)
+  if (!value) throw new Error('useAppActions must be used within AppStateProvider')
   return value
 }
 
@@ -107,15 +119,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [selectedService, setSelectedService] = useState('')
   const [selected, setSelected] = useState<Set<string>>(() => new Set())
   const [guide, setGuide] = useState<string | null>(null)
-  const [tipVisible, setTipVisible] = useState(true)
-  const [mounted, setMounted] = useState(false)
   const [mobileNav, setMobileNav] = useState(false)
   const [toasts, setToasts] = useState<ToastItem[]>([])
-
-  useEffect(() => {
-    setTipVisible(localStorage.getItem(TIP_KEY) !== 'dismissed')
-    setMounted(true)
-  }, [])
 
   const removeToast = useCallback((id: number) => {
     setToasts((current) => current.filter((item) => item.id !== id))
@@ -134,6 +139,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   const closeDrawer = useCallback(() => setDrawer(false), [])
   const toggleNotifications = useCallback(() => setNotifications((current) => !current), [])
+  const closeNotifications = useCallback(() => setNotifications(false), [])
 
   const toggleSelected = useCallback((id: string) => {
     setSelected((current) => {
@@ -147,26 +153,34 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const clearSelected = useCallback(() => setSelected(new Set()), [])
   const openGuide = useCallback((id: string) => setGuide(id), [])
   const closeGuide = useCallback(() => setGuide(null), [])
-
-  const dismissTip = useCallback(() => {
-    setTipVisible(false)
-    localStorage.setItem(TIP_KEY, 'dismissed')
-  }, [])
-
   const toggleMobileNav = useCallback(() => setMobileNav((current) => !current), [])
 
   const navigate = useCallback(
     (path: string, closeNav = false) => {
       if (closeNav) setMobileNav(false)
+      setNotifications(false)
+      setDrawer(false)
+      setGuide(null)
       router.push(path)
     },
     [router],
   )
 
   const logout = useCallback(() => {
+    setSearch('')
+    setContentType('All')
+    setChannel('All')
+    setSort('Newest')
+    setSelectedService('')
+    setSelected(new Set())
+    setGuide(null)
+    setMobileNav(false)
     setDrawer(false)
     setNotifications(false)
-    void endSession().finally(() => {
+    const runSignOut = signOutHandler
+      ? signOutHandler()
+      : fetch('/api/auth/session', { method: 'DELETE' }).then(() => undefined)
+    void runSignOut.catch(() => undefined).finally(() => {
       router.push('/login')
       router.refresh()
     })
@@ -177,62 +191,26 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     [toggleSelected, clearSelected],
   )
 
-  const value = useMemo<AppContextValue>(
+  const appActions = useMemo<AppActionsValue>(
     () => ({
-      search,
-      setSearch,
-      contentType,
-      setContentType,
-      channel,
-      setChannel,
-      sort,
-      setSort,
-      view,
-      setView,
-      drawer,
       openDrawer,
       closeDrawer,
-      notifications,
       toggleNotifications,
-      selectedService,
-      setSelectedService,
-      guide,
+      closeNotifications,
       openGuide,
       closeGuide,
-      tipVisible,
-      mounted,
-      dismissTip,
-      mobileNav,
       toggleMobileNav,
       navigate,
       toast,
       logout,
     }),
     [
-      search,
-      setSearch,
-      contentType,
-      setContentType,
-      channel,
-      setChannel,
-      sort,
-      setSort,
-      view,
-      setView,
-      drawer,
       openDrawer,
       closeDrawer,
-      notifications,
       toggleNotifications,
-      selectedService,
-      setSelectedService,
-      guide,
+      closeNotifications,
       openGuide,
       closeGuide,
-      tipVisible,
-      mounted,
-      dismissTip,
-      mobileNav,
       toggleMobileNav,
       navigate,
       toast,
@@ -240,18 +218,55 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     ],
   )
 
+  const value = useMemo<AppContextValue>(
+    () => ({
+      ...appActions,
+      search,
+      setSearch,
+      contentType,
+      setContentType,
+      channel,
+      setChannel,
+      sort,
+      setSort,
+      view,
+      setView,
+      drawer,
+      notifications,
+      selectedService,
+      setSelectedService,
+      guide,
+      mobileNav,
+    }),
+    [
+      appActions,
+      search,
+      contentType,
+      channel,
+      sort,
+      view,
+      drawer,
+      notifications,
+      selectedService,
+      guide,
+      mobileNav,
+    ],
+  )
+
   return (
-    <AppContext.Provider value={value}>
-      <SelectionActionsContext.Provider value={selectionActions}>
-        <SelectedContext.Provider value={selected}>
-          {children}
-          <div id="toast-root" aria-live="polite">
-            {toasts.map((item) => (
-              <ToastMessage key={item.id} item={item} onDone={removeToast} />
-            ))}
-          </div>
-        </SelectedContext.Provider>
-      </SelectionActionsContext.Provider>
-    </AppContext.Provider>
+    <AppActionsContext.Provider value={appActions}>
+      <AppContext.Provider value={value}>
+        <SelectionActionsContext.Provider value={selectionActions}>
+          <SelectedContext.Provider value={selected}>
+            {children}
+            <div id="toast-root" aria-live="polite">
+              {toasts.map((item) => (
+                <ToastMessage key={item.id} item={item} onDone={removeToast} />
+              ))}
+            </div>
+          </SelectedContext.Provider>
+        </SelectionActionsContext.Provider>
+      </AppContext.Provider>
+    </AppActionsContext.Provider>
   )
 }

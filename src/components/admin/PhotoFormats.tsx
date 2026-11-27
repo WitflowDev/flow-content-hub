@@ -6,6 +6,7 @@ import { CENTER_CROP, EXPORT_FORMATS, EXPORT_IDS, pixelSize, type CropFrame, typ
 
 export type CustomSizeDraft = {
   key: string
+  templateKey: string
   name: string
   width: string
   height: string
@@ -30,15 +31,16 @@ export type ReadyCustomSize = {
 }
 
 export function blankPhoto(file: File, source?: PhotoDraft): PhotoDraft {
+  const key = `${file.name}-${file.size}-${file.lastModified}-${Math.random().toString(36).slice(2, 8)}`
   return {
-    key: `${file.name}-${file.size}-${file.lastModified}-${Math.random().toString(36).slice(2, 8)}`,
+    key,
     file,
     url: URL.createObjectURL(file),
     readyFiles: {},
     makeFormats: source ? [...source.makeFormats] : [...EXPORT_IDS],
     cropFrames: {},
     customs: source
-      ? source.customs.map((row) => ({ ...row, key: `${file.name}-${row.key}`, frame: CENTER_CROP }))
+      ? source.customs.map((row) => ({ ...row, key: `${key}-${row.templateKey}`, frame: CENTER_CROP }))
       : [],
   }
 }
@@ -56,8 +58,10 @@ export function readCustomSize(row: CustomSizeDraft): ReadyCustomSize | { error:
 }
 
 function blankCustom(): CustomSizeDraft {
+  const id = `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
   return {
-    key: `${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+    key: id,
+    templateKey: id,
     name: '',
     width: '',
     height: '',
@@ -202,10 +206,11 @@ function SharedFormats({
   }
 
   function copyCustoms(rows: CustomSizeDraft[], photo: PhotoDraft): CustomSizeDraft[] {
-    return rows.map((row, index) => {
-      const existing = photo.customs[index]
+    return rows.map((row) => {
+      const existing = photo.customs.find((item) => item.templateKey === row.templateKey)
       return {
-        key: existing?.key ?? `${photo.key}-${row.key}`,
+        key: existing?.key ?? `${photo.key}-${row.templateKey}`,
+        templateKey: row.templateKey,
         name: row.name,
         width: row.width,
         height: row.height,
@@ -378,7 +383,7 @@ function SlideFormats({
     const rows = customTemplate.length > 0 ? customTemplate : [blankCustom()]
     onChange({
       ...photo,
-      customs: rows.map((row) => ({ ...row, key: `${photo.key}-${row.key}`, frame: CENTER_CROP })),
+      customs: rows.map((row) => ({ ...row, key: `${photo.key}-${row.templateKey}`, frame: CENTER_CROP })),
     })
   }
 
@@ -438,6 +443,7 @@ function SlideFormats({
               height={format.height}
               label={format.label}
               frame={photo.cropFrames[format.id] ?? CENTER_CROP}
+              disabled={uploading}
               onChange={(frame) => onChange({ ...photo, cropFrames: { ...photo.cropFrames, [format.id]: frame } })}
             />
           ))}
@@ -452,6 +458,7 @@ function SlideFormats({
                 height={size.height}
                 label={size.name}
                 frame={row.frame}
+                disabled={uploading}
                 onChange={(frame) =>
                   onChange({
                     ...photo,

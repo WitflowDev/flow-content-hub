@@ -193,10 +193,15 @@ export function AssetScreen() {
       </div>
     )
   }
-  const related = media.filter((entry) => entry.id !== item.id).slice(0, 4)
+  const currentIndex = media.findIndex((entry) => entry.id === item.id)
+  const previous = currentIndex > 0 ? media[currentIndex - 1] : undefined
+  const next = currentIndex >= 0 && currentIndex < media.length - 1 ? media[currentIndex + 1] : undefined
+  const sameCollection = item.collection
+    ? media.filter((entry) => entry.id !== item.id && entry.collection === item.collection)
+    : []
+  const related = (sameCollection.length > 0 ? sameCollection : media.filter((entry) => entry.id !== item.id)).slice(0, 4)
+  const relatedHeading = sameCollection.length > 0 ? 'More from this collection' : 'More from your library'
   const tags = mediaTags(item)
-  const previous = related[0]
-  const next = related[1]
   const guideId = item.type === 'Video' ? 'reels' : 'photos'
   const driveFileId = item.driveFileId
   const driveVideo = item.type === 'Video' && typeof driveFileId === 'string' && driveFileId.length > 0
@@ -242,7 +247,9 @@ export function AssetScreen() {
       setPreparing(true)
       try {
         const blob = await renderFormat(previewSrc, `/api/drive/files/${sourceId}`, cropWidth, cropHeight, cropFrame)
-        downloadBlob(blob, `${sourceTitle}.jpg`)
+        const formatSlug = selected ? selected.id : frameCustom ? frameCustom.id : ''
+        const suffix = formatSlug ? `-${formatSlug}` : ''
+        downloadBlob(blob, `${sourceTitle}${suffix}.jpg`)
       } catch {
         toast('This format could not be prepared.')
       } finally {
@@ -282,9 +289,10 @@ export function AssetScreen() {
         >
           {driveVideo ? (
             <video
+              key={item.id}
               controls
               playsInline
-              preload="auto"
+              preload="metadata"
               poster={item.src}
               src={streamPath(item.src, driveFileId)}
               aria-label={item.title}
@@ -302,11 +310,20 @@ export function AssetScreen() {
           )}
           {item.type === 'Video' && !item.driveFileId ? (
             <>
-              <button type="button" className="big-play" onClick={() => toast('Video preview — prototype', 'success')}>
+              <button
+                type="button"
+                className="big-play"
+                aria-label="Play preview"
+                onClick={() => toast('Video preview — prototype', 'success')}
+              >
                 <Icon name="play" />
               </button>
               <div className="fake-player">
-                <button type="button">
+                <button
+                  type="button"
+                  aria-label="Play preview"
+                  onClick={() => toast('Video preview — prototype', 'success')}
+                >
                   <Icon name="play" />
                 </button>
                 <span>00:00 / {item.duration}</span>
@@ -398,6 +415,10 @@ export function AssetScreen() {
                   license: item.license ?? '',
                   embargoUntil: '',
                 })
+                if (!navigator.clipboard?.writeText) {
+                  toast('The caption could not be copied.')
+                  return
+                }
                 void navigator.clipboard.writeText(text).then(
                   () => toast('Caption copied', 'success'),
                   () => toast('The caption could not be copied.'),
@@ -412,7 +433,7 @@ export function AssetScreen() {
               <Icon name="download" /> Download press kit
             </button>
           ) : null}
-          {item.type === 'Photography' ? <PhotoRequest assetFileId={item.driveFileId ?? ''} toast={toast} /> : null}
+          {item.type === 'Photography' ? <PhotoRequest key={item.id} assetFileId={item.driveFileId ?? ''} toast={toast} /> : null}
           <button type="button" className="btn day wide" onClick={() => navigate('/content-day')}>
             Book another Content Day
           </button>
@@ -436,19 +457,21 @@ export function AssetScreen() {
           </div>
         </section>
       </div>
-      <section className="section">
-        <div className="section-head">
-          <h2>More from this collection</h2>
-          <button type="button" className="link" onClick={() => navigate('/collections', true)}>
-            View collections <Icon name="arrow" />
-          </button>
-        </div>
-        <div className="media-grid">
-          {related.map((entry) => (
-            <MediaCard key={entry.id} item={entry} />
-          ))}
-        </div>
-      </section>
+      {related.length > 0 ? (
+        <section className="section">
+          <div className="section-head">
+            <h2>{relatedHeading}</h2>
+            <button type="button" className="link" onClick={() => navigate('/collections', true)}>
+              View collections <Icon name="arrow" />
+            </button>
+          </div>
+          <div className="media-grid">
+            {related.map((entry) => (
+              <MediaCard key={entry.id} item={entry} />
+            ))}
+          </div>
+        </section>
+      ) : null}
     </div>
   )
 }

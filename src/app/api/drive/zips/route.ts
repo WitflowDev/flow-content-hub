@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server'
 import { isDriveFileId } from '@/lib/drive/ids'
-import { driveFolderForUser } from '@/lib/drive/resolve'
+import { filterVisibleFileIds } from '@/lib/drive/library'
+import { driveFolderForCurrentUser } from '@/lib/drive/resolve'
 import { getSessionUser } from '@/lib/firebase/session'
 import { enqueueJob } from '@/lib/jobs/queue'
 
@@ -12,7 +13,7 @@ const MAX_FILES = 40
 export async function POST(request: Request) {
   const user = await getSessionUser()
   if (!user) return NextResponse.json({ message: 'Sign in to download.' }, { status: 401 })
-  const folder = await driveFolderForUser(user.uid, user.email)
+  const folder = await driveFolderForCurrentUser()
   if (!folder) return NextResponse.json({ message: 'This account has no Drive folder.' }, { status: 404 })
 
   let fileIds: string[] = []
@@ -21,7 +22,7 @@ export async function POST(request: Request) {
     const body: unknown = await request.json()
     if (body && typeof body === 'object') {
       if ('fileIds' in body && Array.isArray(body.fileIds)) {
-        fileIds = body.fileIds.filter((id): id is string => typeof id === 'string' && isDriveFileId(id))
+        fileIds = [...new Set(body.fileIds.filter((id): id is string => typeof id === 'string' && isDriveFileId(id)))]
       }
       if ('collectionId' in body && typeof body.collectionId === 'string') collectionId = body.collectionId
     }
@@ -30,6 +31,14 @@ export async function POST(request: Request) {
   }
   if (fileIds.length < 2 || fileIds.length > MAX_FILES) {
     return NextResponse.json({ message: 'Choose between 2 and 40 files.' }, { status: 400 })
+  }
+
+  const visible = await filterVisibleFileIds(folder.id, fileIds)
+  if (visible !== null) {
+    if (visible.length < 2) {
+      return NextResponse.json({ message: 'Those files are not available to download.' }, { status: 404 })
+    }
+    fileIds = visible
   }
 
   const jobId = await enqueueJob({

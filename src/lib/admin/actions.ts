@@ -1,14 +1,16 @@
 'use server'
 
+import { after } from 'next/server'
 import { FieldValue } from 'firebase-admin/firestore'
 import { isServiceRequestStatus } from '@/lib/admin/types'
 import { requireAdmin } from '@/lib/auth/admin'
-import { isDriveFileId, listClientFolder, readDirectChildFolder, readFolderName } from '@/lib/drive/client'
-import { invalidateLibrary } from '@/lib/drive/cache'
+import { isDriveFileId, readDirectChildFolder, readFileInFolder, readFolderName } from '@/lib/drive/client'
 import { writeCollectionState } from '@/lib/drive/publish'
 import { adminDb } from '@/lib/firebase/admin'
 import { readUserProfile } from '@/lib/firebase/profile'
 import { getSessionUser } from '@/lib/firebase/session'
+import { drainJob } from '@/lib/jobs/loop'
+import { enqueueJob } from '@/lib/jobs/queue'
 import { formatPhone } from '@/lib/phone/countries'
 import { isServiceName } from '@/lib/requests/services'
 
@@ -94,7 +96,8 @@ export async function setCollectionPublished(input: {
     title: folder.name,
     published: input.published,
   })
-  invalidateLibrary(profile.driveFolderId)
+  const jobId = await enqueueJob({ kind: 'sync-library', folderId: profile.driveFolderId, uid: 'admin' })
+  after(() => drainJob(jobId))
   return { ok: true }
 }
 
@@ -107,8 +110,7 @@ async function requestAsset(
     return { ok: false, message: 'That asset is not in your library.' }
   }
   try {
-    const listed = await listClientFolder(folderId)
-    const file = listed.files.find((item) => item.id === fileId)
+    const file = await readFileInFolder(folderId, fileId)
     if (!file) return { ok: false, message: 'That asset is not in your library.' }
     return { ok: true, fileId: file.id, folderId, title: titleFromName(file.name) }
   } catch {

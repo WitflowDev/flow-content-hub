@@ -32,6 +32,8 @@ export function ServiceMenu({ pathname }: { pathname: string }) {
     setFlyout(null)
   }, [pathname, layout])
 
+  useEffect(() => () => window.clearTimeout(closeTimer.current), [])
+
   function cancelClose() {
     window.clearTimeout(closeTimer.current)
   }

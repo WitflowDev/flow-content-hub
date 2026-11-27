@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   canRequestContentDay,
+  clearContentDayDraft,
   contentDayPlans,
   dateKey,
   firstContentDay,
@@ -123,6 +124,7 @@ export function ContentDayBooking({
       : 'The date is added to the Flow calendar only after we confirm it.',
   )
   const [messageError, setMessageError] = useState(false)
+  const [submitting, setSubmitting] = useState(false)
   const [ready, setReady] = useState<ContentDayDraft | null>(null)
   const minDate = opening.minDate
   const firstMonth = useMemo(() => new Date(opening.date.getFullYear(), opening.date.getMonth(), 1), [])
@@ -171,6 +173,7 @@ export function ContentDayBooking({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
+    if (submitting) return
     const next = collect()
     if (!next || !selected) return
     if (calendarError || !canRequestContentDay(selected, minDate, blocked)) {
@@ -183,21 +186,29 @@ export function ContentDayBooking({
       setMessage('Check the details, then create an account or sign in to finish.')
       return
     }
+    setSubmitting(true)
     setMessage('Saving the request.')
-    const response = await fetch('/api/content-day/requests', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(next),
-    })
-    const body: unknown = await response.json().catch(() => null)
-    if (!response.ok) {
+    try {
+      const response = await fetch('/api/content-day/requests', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(next),
+      })
+      const body: unknown = await response.json().catch(() => null)
+      if (!response.ok) {
+        setMessageError(true)
+        setMessage(messageFrom(body))
+        return
+      }
+      clearContentDayDraft()
+      setMessageError(false)
+      setMessage('Request saved. It is added to the Flow calendar only after we confirm it.')
+    } catch {
       setMessageError(true)
-      setMessage(messageFrom(body))
-      return
+      setMessage('The request could not be saved. Try again in a moment.')
+    } finally {
+      setSubmitting(false)
     }
-    saveContentDayDraft(next)
-    setMessageError(false)
-    setMessage('Request saved. It is added to the Flow calendar only after we confirm it.')
   }
 
   function continueToAccount(signup: boolean) {
@@ -313,8 +324,8 @@ export function ContentDayBooking({
             <label htmlFor={`${mode}-company`}>Company</label>
             <input id={`${mode}-company`} value={company} autoComplete="organization" placeholder="Company name" aria-invalid={invalid === 'company'} onChange={(event) => setCompany(event.target.value)} required />
           </div>
-          <button type="submit" className="btn btn-primary booking-submit" disabled={calendarError}>
-            {mode === 'ask' ? 'Continue' : 'Request availability'} <Arrow />
+          <button type="submit" className="btn btn-primary booking-submit" disabled={calendarError || submitting} aria-busy={submitting}>
+            {submitting ? 'Saving…' : mode === 'ask' ? 'Continue' : 'Request availability'} {submitting ? null : <Arrow />}
           </button>
           <p className={messageError ? 'form-message error' : 'form-message'} role="status">
             {message}

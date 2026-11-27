@@ -10,6 +10,7 @@ export function FormatCrop({
   height,
   label,
   frame,
+  disabled = false,
   onChange,
 }: {
   src: string
@@ -17,6 +18,7 @@ export function FormatCrop({
   height: number
   label: string
   frame: CropFrame
+  disabled?: boolean
   onChange: (frame: CropFrame) => void
 }) {
   const canvasRef = useRef<HTMLCanvasElement>(null)
@@ -53,19 +55,29 @@ export function FormatCrop({
   }, [ready, frame, width, height])
 
   function onPointerDown(event: PointerEvent<HTMLCanvasElement>) {
+    if (disabled) return
     event.currentTarget.setPointerCapture(event.pointerId)
     drag.current = { x: event.clientX, y: event.clientY, frame }
   }
 
   function onPointerMove(event: PointerEvent<HTMLCanvasElement>) {
+    if (disabled) return
     const start = drag.current
     const canvas = canvasRef.current
-    if (!start || !canvas || canvas.clientWidth === 0) return
-    const dx = (event.clientX - start.x) / canvas.clientWidth
-    const dy = (event.clientY - start.y) / canvas.clientHeight
+    const image = imageRef.current
+    if (!start || !canvas || !image || canvas.clientWidth === 0 || canvas.clientHeight === 0 || image.naturalWidth === 0) return
+    const place = coverPlacement(image.naturalWidth, image.naturalHeight, canvas.width, canvas.height, start.frame)
+    const scaleX = canvas.width / canvas.clientWidth
+    const scaleY = canvas.height / canvas.clientHeight
+    const dx = ((event.clientX - start.x) * scaleX) / Math.max(place.width, 1)
+    const dy = ((event.clientY - start.y) * scaleY) / Math.max(place.height, 1)
+    const minX = canvas.width / (2 * Math.max(place.width, 1))
+    const maxX = 1 - minX
+    const minY = canvas.height / (2 * Math.max(place.height, 1))
+    const maxY = 1 - minY
     onChange({
-      x: start.frame.x - dx / Math.max(start.frame.zoom, 1),
-      y: start.frame.y - dy / Math.max(start.frame.zoom, 1),
+      x: Math.min(maxX, Math.max(minX, start.frame.x - dx)),
+      y: Math.min(maxY, Math.max(minY, start.frame.y - dy)),
       zoom: start.frame.zoom,
     })
   }
@@ -92,6 +104,7 @@ export function FormatCrop({
           min={1}
           max={2.5}
           step={0.01}
+          disabled={disabled}
           value={frame.zoom}
           onChange={(event) => onChange({ ...frame, zoom: Number(event.target.value) })}
         />

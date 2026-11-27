@@ -5,6 +5,7 @@ import { createContext, useContext, useEffect, useMemo, useState } from 'react'
 import type { ReactNode } from 'react'
 import { markNotificationsRead } from '@/lib/notifications/actions'
 import type { AccountNotice } from '@/lib/notifications/types'
+import { useApp } from '@/state/AppState'
 
 type NotificationsContextValue = {
   notices: AccountNotice[]
@@ -16,6 +17,7 @@ const NotificationsContext = createContext<NotificationsContextValue | null>(nul
 
 export function NotificationsProvider({ notices, children }: { notices: AccountNotice[]; children: ReactNode }) {
   const router = useRouter()
+  const { toast } = useApp()
   const [items, setItems] = useState(notices)
 
   useEffect(() => {
@@ -27,16 +29,18 @@ export function NotificationsProvider({ notices, children }: { notices: AccountN
       notices: items,
       unread: items.some((notice) => notice.unread),
       markAllRead: async () => {
+        if (!items.some((notice) => notice.unread)) return
         try {
           await markNotificationsRead()
         } catch {
+          toast('Notifications could not be updated.')
           return
         }
         setItems((current) => current.map((notice) => ({ ...notice, unread: false })))
         router.refresh()
       },
     }),
-    [items, router],
+    [items, router, toast],
   )
 
   return <NotificationsContext.Provider value={value}>{children}</NotificationsContext.Provider>

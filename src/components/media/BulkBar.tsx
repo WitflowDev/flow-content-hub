@@ -17,7 +17,7 @@ export function BulkBar() {
       const item = getMedia(id)
       return item ? [item] : []
     })
-    downloadDriveFiles(items, toast)
+    downloadDriveFiles(items, toast, 'Flow_Content_Selection')
   }
 
   return (

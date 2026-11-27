@@ -1,7 +1,7 @@
 import 'server-only'
 import { readFolderName } from '@/lib/drive/client'
 import { readUserProfile } from '@/lib/firebase/profile'
-import { getSessionUser } from '@/lib/firebase/session'
+import { getFastSessionUser } from '@/lib/firebase/session'
 import { readPreviewTarget } from '@/lib/preview'
 
 export type DriveFolder = {
@@ -10,6 +10,7 @@ export type DriveFolder = {
 }
 
 const FOLDER_TTL_MS = 60_000
+const MAX_FOLDER_CACHE = 500
 
 const folderCache = new Map<string, { folder: DriveFolder; expires: number }>()
 const folderInflight = new Map<string, Promise<DriveFolder | null>>()
@@ -29,7 +30,13 @@ export async function driveFolderForUser(
 
   const next = resolveDriveFolder(userId, knownFolderId)
     .then((folder) => {
-      if (folder) folderCache.set(userId, { folder, expires: Date.now() + FOLDER_TTL_MS })
+      if (folder) {
+        if (folderCache.size >= MAX_FOLDER_CACHE) {
+          const oldest = folderCache.keys().next().value
+          if (oldest !== undefined) folderCache.delete(oldest)
+        }
+        folderCache.set(userId, { folder, expires: Date.now() + FOLDER_TTL_MS })
+      }
       return folder
     })
     .finally(() => {
@@ -66,7 +73,7 @@ async function savedFolderId(userId: string): Promise<string | null> {
 }
 
 export async function driveFolderForCurrentUser(): Promise<DriveFolder | null> {
-  const user = await getSessionUser()
+  const user = await getFastSessionUser()
   if (!user) return null
   const preview = await readPreviewTarget()
   if (preview) return driveFolderForUser(preview.id, preview.email, preview.driveFolderId)

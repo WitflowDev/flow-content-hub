@@ -133,13 +133,14 @@ export async function attachAssetVariant(
       const item = variants[id]
       if (item) stored[id] = item
     }
+    const savedFormats = parseExportIds(snap.get('formats'))
     transaction.set(
       ref,
       {
         profileId: accountId,
         driveFileId: parentId,
         variants: stored,
-        formats: EXPORT_IDS.filter((id) => stored[id]),
+        formats: EXPORT_IDS.filter((id) => savedFormats.includes(id) || Boolean(stored[id])),
       },
       { merge: true },
     )

@@ -1,6 +1,6 @@
 'use client'
 
-import { useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { usePathname } from 'next/navigation'
 import { Icon } from '@/components/icons'
 import type { IconName } from '@/components/icons'
@@ -105,7 +105,9 @@ export function Sidebar() {
 
 function SidebarTower() {
   const gapRef = useRef<HTMLDivElement>(null)
+  const videoRef = useRef<HTMLVideoElement>(null)
   const [room, setRoom] = useState(false)
+  const [idleReady, setIdleReady] = useState(false)
 
   useLayoutEffect(() => {
     const gap = gapRef.current
@@ -120,11 +122,36 @@ function SidebarTower() {
     return () => watch.disconnect()
   }, [])
 
+  useEffect(() => {
+    if (!room) return undefined
+    const schedule = (window as Window & { requestIdleCallback?: (cb: () => void, opts?: { timeout: number }) => number })
+      .requestIdleCallback
+    const cancel = (window as Window & { cancelIdleCallback?: (id: number) => void }).cancelIdleCallback
+    if (schedule && cancel) {
+      const id = schedule(() => setIdleReady(true), { timeout: 1200 })
+      return () => cancel(id)
+    }
+    const timer = window.setTimeout(() => setIdleReady(true), 600)
+    return () => window.clearTimeout(timer)
+  }, [room])
+
+  useEffect(() => {
+    if (!room || !idleReady) return undefined
+    const onVisibility = () => {
+      const video = videoRef.current
+      if (!video) return
+      if (document.hidden) video.pause()
+      else void video.play().catch(() => undefined)
+    }
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => document.removeEventListener('visibilitychange', onVisibility)
+  }, [room, idleReady])
+
   return (
     <div className="sidebar-gap" ref={gapRef}>
-      {room ? (
+      {room && idleReady ? (
         <a className="sidebar-tower" href={FLOW_SITE} target="_blank" rel="noreferrer" aria-label="Flow Productions">
-          <video src={FLOW_VIDEO} muted loop playsInline autoPlay preload="auto" />
+          <video ref={videoRef} src={FLOW_VIDEO} muted loop playsInline autoPlay preload="metadata" />
         </a>
       ) : null}
     </div>

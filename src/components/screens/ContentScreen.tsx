@@ -10,6 +10,7 @@ import { MediaListRow } from '@/components/media/MediaListRow'
 import { CONTENT_TYPE_FILTERS, SORT_MODES } from '@/data/types'
 import type { SortMode } from '@/data/types'
 import { ARCHIVE_FORMATS, mediaTags, type ArchiveFormat, type SearchCloseness } from '@/lib/library'
+import { useProgressiveCount } from '@/lib/useProgressiveCount'
 import { useApp, useSelectionActions } from '@/state/AppState'
 import { useLibrary } from '@/state/Catalog'
 
@@ -54,7 +55,7 @@ export function ContentScreen() {
     setView,
   } = useApp()
   const { clearSelected } = useSelectionActions()
-  const { media, collections, filteredMedia: applyFilters } = useLibrary()
+  const { media, collections, preparing, filteredMedia: applyFilters } = useLibrary()
   const [year, setYear] = useState('All')
   const [collectionName, setCollectionName] = useState('All')
   const [format, setFormat] = useState<ArchiveFormat>('All')
@@ -80,6 +81,9 @@ export function ContentScreen() {
   )
   const results = outcome.items
   const filtering = Boolean(search) || contentType !== 'All' || channel !== 'All' || year !== 'All' || collectionName !== 'All' || format !== 'All'
+  const resetKey = `${search}|${contentType}|${channel}|${sort}|${year}|${collectionName}|${format}|${view}`
+  const { shown, hasMore, sentinelRef, showMore } = useProgressiveCount(results.length, resetKey)
+  const visibleResults = results.slice(0, shown)
 
   function clearFilters() {
     setSearch('')
@@ -96,6 +100,7 @@ export function ContentScreen() {
     const field = event.currentTarget.elements.namedItem('q')
     const query = field instanceof HTMLInputElement ? field.value.trim() : ''
     setSearch(query)
+    clearSelected()
   }
 
   return (
@@ -152,7 +157,14 @@ export function ContentScreen() {
           ) : null}
           <div className="filter-group">
             <span className="filter-label">Year</span>
-            <select className="sort-select" value={year} onChange={(event) => setYear(event.target.value)}>
+            <select
+              className="sort-select"
+              value={year}
+              onChange={(event) => {
+                setYear(event.target.value)
+                clearSelected()
+              }}
+            >
               <option value="All">All years</option>
               {years.map((item) => (
                 <option key={item} value={String(item)}>
@@ -163,7 +175,14 @@ export function ContentScreen() {
           </div>
           <div className="filter-group">
             <span className="filter-label">Collection</span>
-            <select className="sort-select" value={collectionName} onChange={(event) => setCollectionName(event.target.value)}>
+            <select
+              className="sort-select"
+              value={collectionName}
+              onChange={(event) => {
+                setCollectionName(event.target.value)
+                clearSelected()
+              }}
+            >
               <option value="All">All collections</option>
               {collections.map((item) => (
                 <option key={item.slug} value={item.title}>
@@ -180,7 +199,10 @@ export function ContentScreen() {
                 type="button"
                 className={format === item ? 'pill active' : 'pill'}
                 onClick={() => {
-                  if (isArchiveFormat(item)) setFormat(item)
+                  if (isArchiveFormat(item)) {
+                    setFormat(item)
+                    clearSelected()
+                  }
                 }}
               >
                 {item}
@@ -222,14 +244,25 @@ export function ContentScreen() {
         ) : null}
       </div>
       <div className={view === 'grid' ? 'media-grid library-grid' : 'media-list'}>
-        {results.length > 0 ? (
-          results.map((item) =>
-            view === 'grid' ? <MediaCard key={item.id} item={item} selectable /> : <MediaListRow key={item.id} item={item} />,
+        {visibleResults.length > 0 ? (
+          visibleResults.map((item, index) =>
+            view === 'grid' ? (
+              <MediaCard key={item.id} item={item} selectable eager={index < 4} />
+            ) : (
+              <MediaListRow key={item.id} item={item} />
+            ),
           )
-        ) : (
+        ) : preparing && media.length === 0 ? null : (
           <EmptyState onClear={clearFilters} />
         )}
       </div>
+      {hasMore ? (
+        <div ref={sentinelRef} className="collection-empty">
+          <button type="button" className="btn ghost" onClick={showMore}>
+            Load more ({results.length - shown} remaining)
+          </button>
+        </div>
+      ) : null}
       {results.length > 0 ? (
         <FlowTip title="Need copy, publishing or campaign support? Flow can help with the next step." linkText="Ask Flow" />
       ) : null}

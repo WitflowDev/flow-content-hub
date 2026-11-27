@@ -38,6 +38,7 @@ export type MediaItem = {
   tags?: string[]
   orientation: Orientation
   collection: string
+  collectionId?: string
   position: string
   description: string
   driveFileId?: string | null

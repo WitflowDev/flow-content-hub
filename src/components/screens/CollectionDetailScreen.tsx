@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, type ReactNode } from 'react'
+import { useEffect, useState, type ReactNode } from 'react'
 import { useParams } from 'next/navigation'
 import { Icon } from '@/components/icons'
 import { InstagramCarousel } from '@/components/collections/InstagramCarousel'
@@ -13,6 +13,7 @@ import { parseShareDays, shareLifetimeLabel } from '@/lib/share/policy'
 import { FAVORITES_SLUG, favoritesCollection } from '@/lib/favorites'
 import type { InterfaceTheme } from '@/lib/interface-theme'
 import { routeParam } from '@/lib/library'
+import { useProgressiveCount } from '@/lib/useProgressiveCount'
 import { useFavorites } from '@/state/Favorites'
 import { useApp } from '@/state/AppState'
 import { useLibrary } from '@/state/Catalog'
@@ -85,7 +86,22 @@ export function CollectionDetailScreen() {
   const [shareChoice, setShareChoice] = useState<ShareChoice>('7')
   const [customDays, setCustomDays] = useState('10')
   const slug = routeParam(params.slug)
+
+  useEffect(() => {
+    setAssetFilter('All')
+    setNewestFirst(true)
+    setShareUrl('')
+  }, [slug])
+
   const collection = slug === FAVORITES_SLUG ? favoritesCollection(library.media, favorites.ids) : library.getCollection(slug)
+  const items = collection ? library.collectionItems(collection) : []
+  const visible = items.filter((item) => matchesType(item, assetFilter))
+  const ordered = newestFirst ? visible : [...visible].reverse()
+  const { shown, hasMore, sentinelRef, showMore } = useProgressiveCount(
+    ordered.length,
+    `${slug}|${assetFilter}|${newestFirst}`,
+  )
+  const visibleOrdered = ordered.slice(0, shown)
   if (!collection) {
     return (
       <div className="page collection-detail-page">
@@ -98,7 +114,6 @@ export function CollectionDetailScreen() {
       </div>
     )
   }
-  const items = library.collectionItems(collection)
   const bannerItem =
     collection.cover.map((id) => library.getMedia(id)).find((item): item is MediaItem => item !== null) ?? items[0]
   const bannerSrc = bannerImage(bannerItem)
@@ -108,8 +123,6 @@ export function CollectionDetailScreen() {
       slides: map.fileIds.map((fileId) => slideFor(items, fileId)).filter((item): item is MediaItem => Boolean(item)),
     }))
     .filter((map) => map.slides.length >= 2)
-  const visible = items.filter((item) => matchesType(item, assetFilter))
-  const ordered = newestFirst ? visible : [...visible].reverse()
 
   const collectionId = collection.slug
 
@@ -131,6 +144,7 @@ export function CollectionDetailScreen() {
     const lifetime = shareLifetimeLabel(days)
     setShareUrl(url)
     try {
+      if (!navigator.clipboard?.writeText) throw new Error('clipboard unavailable')
       await navigator.clipboard.writeText(url)
       toast(`View-only link copied. It expires in ${lifetime}.`, 'success')
     } catch {
@@ -181,7 +195,12 @@ export function CollectionDetailScreen() {
           </button>
         </div>
       )}
-      <button type="button" className="btn primary" onClick={() => downloadDriveFiles(items, toast)}>
+      <button
+        type="button"
+        className="btn primary"
+        disabled={items.length === 0}
+        onClick={() => downloadDriveFiles(items, toast, collection.title)}
+      >
         <Icon name="download" /> Download collection
       </button>
     </div>
@@ -243,10 +262,17 @@ export function CollectionDetailScreen() {
           </p>
         ) : null}
         <div className="media-grid collection-assets">
-          {ordered.map((item, index) => (
-            <MediaCard key={`${item.id}-${index}`} item={item} />
+          {visibleOrdered.map((item, index) => (
+            <MediaCard key={item.id} item={item} eager={index < 4} />
           ))}
         </div>
+        {hasMore ? (
+          <div ref={sentinelRef} className="collection-empty">
+            <button type="button" className="btn ghost" onClick={showMore}>
+              Load more ({ordered.length - shown} remaining)
+            </button>
+          </div>
+        ) : null}
       </section>
       {maps.length > 0 ? (
         <section className="section">

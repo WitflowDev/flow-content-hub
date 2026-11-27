@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
 import { ContentDayBooking } from '@/components/content-day/ContentDayBooking'
 import { HubPreview } from '@/components/screens/HubPreview'
@@ -36,6 +36,47 @@ const shots = {
   filters: { src: '/assets/tutorials/filters.png', title: 'Content library' },
   collections: { src: '/assets/tutorials/collections.png', title: 'Collections by project' },
   guides: { src: '/assets/tutorials/reels.png', title: 'Guides and tips' },
+}
+
+function LazyReelVideo() {
+  const videoRef = useRef<HTMLVideoElement>(null)
+  const [activated, setActivated] = useState(false)
+
+  useEffect(() => {
+    const node = videoRef.current
+    if (!node || typeof IntersectionObserver === 'undefined') {
+      setActivated(true)
+      return undefined
+    }
+    const observer = new IntersectionObserver(
+      (entries) => {
+        const entry = entries[0]
+        if (!entry) return
+        if (entry.isIntersecting) {
+          setActivated(true)
+          void node.play().catch(() => undefined)
+        } else {
+          node.pause()
+        }
+      },
+      { rootMargin: '0px', threshold: 0.05 },
+    )
+    observer.observe(node)
+    return () => observer.disconnect()
+  }, [])
+
+  return (
+    <video
+      ref={videoRef}
+      src={activated ? '/assets/mock_videos/reel_explainer.mp4' : undefined}
+      poster="/assets/mock_videos/reel_explainer_poster.jpg"
+      preload={activated ? 'metadata' : 'none'}
+      autoPlay={activated}
+      muted
+      loop
+      playsInline
+    />
+  )
 }
 
 function Arrow() {
@@ -198,7 +239,7 @@ export function LandingScreen() {
         <section className="section contentday-section container" id="contentday" aria-labelledby="dayTitle">
           <div className="day-visual">
             <figure className="day-image day-image-main">
-              <video src="/assets/mock_videos/reel_explainer.mp4" autoPlay muted loop playsInline />
+              <LazyReelVideo />
               <figcaption>
                 <span className="media-icon" aria-hidden="true">
                   <svg viewBox="0 0 24 24" fill="currentColor">
@@ -209,7 +250,12 @@ export function LandingScreen() {
               </figcaption>
             </figure>
             <figure className="day-image day-image-secondary">
-              <img src="/assets/guide_photos/recording_one.jpg" alt="Filming at an event with a stabilised camera" />
+              <img
+                src="/assets/guide_photos/recording_one.jpg"
+                alt="Filming at an event with a stabilised camera"
+                loading="lazy"
+                decoding="async"
+              />
               <figcaption>PHOTOGRAPHY</figcaption>
             </figure>
           </div>

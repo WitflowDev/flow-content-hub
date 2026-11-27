@@ -25,9 +25,12 @@ export async function recordDownload(input: {
     name: input.name,
     at: FieldValue.serverTimestamp(),
   }
-  const userDownloads = adminDb().collection('users').doc(input.uid).collection('drive_downloads').doc()
-  await adminDb().collection('download_events').doc(userDownloads.id).set(event)
-  await userDownloads.set(event)
+  const db = adminDb()
+  const userDownloads = db.collection('users').doc(input.uid).collection('drive_downloads').doc()
+  const batch = db.batch()
+  batch.set(db.collection('download_events').doc(userDownloads.id), event)
+  batch.set(userDownloads, event)
+  await batch.commit()
 }
 
 export async function listDownloadEvents(limit = 40): Promise<DownloadEvent[]> {

@@ -7,14 +7,48 @@ import { embargoActive } from '@/lib/press'
 import { readShare } from '@/lib/share/store'
 import type { SharedCollectionView } from '@/lib/share/types'
 
+const SHARED_VIEW_TTL_MS = 20_000
+const MAX_SHARED_VIEWS = 100
+const sharedViewCache = new Map<string, { value: SharedCollectionView | null; dayKey: string; expiresAt: number }>()
+const sharedViewInflight = new Map<string, Promise<SharedCollectionView | null>>()
+
 export async function loadSharedCollection(token: string): Promise<SharedCollectionView | null> {
   const share = await readShare(token)
   if (!share) return null
-  const folder = await readContainedFolder(share.folderId)
+  const dayKey = new Date().toISOString().slice(0, 10)
+  const key = `${token}:${share.folderId}`
+  const hit = sharedViewCache.get(key)
+  if (hit && hit.expiresAt > Date.now() && hit.dayKey === dayKey) return hit.value
+
+  const inflight = sharedViewInflight.get(key)
+  if (inflight) return inflight
+
+  const pending = fetchSharedCollection(share.folderId)
+    .then((value) => {
+      if (sharedViewCache.size >= MAX_SHARED_VIEWS) {
+        const oldest = sharedViewCache.keys().next().value
+        if (oldest !== undefined) sharedViewCache.delete(oldest)
+      }
+      sharedViewCache.set(key, { value, dayKey, expiresAt: Date.now() + SHARED_VIEW_TTL_MS })
+      return value
+    })
+    .finally(() => {
+      sharedViewInflight.delete(key)
+    })
+  sharedViewInflight.set(key, pending)
+  return pending
+}
+
+async function fetchSharedCollection(folderId: string): Promise<SharedCollectionView | null> {
+  const [folder, rawListed, records] = await Promise.all([
+    readContainedFolder(folderId),
+    listContainedMedia(folderId),
+    readCollectionRecords([folderId]),
+  ])
   if (!folder) return null
-  const listed = (await listContainedMedia(share.folderId)).filter((file) => !formatVariantId(file.name))
+  const listed = rawListed.filter((file) => !formatVariantId(file.name))
   const copy = await readAssetCopy(listed.map((file) => file.id))
-  const record = (await readCollectionRecords([share.folderId])).get(share.folderId)
+  const record = records.get(folderId)
   const visible = listed.filter((file) => !embargoActive(copy.get(file.id)?.press.embargoUntil ?? ''))
   const ids = new Set(visible.map((file) => file.id))
   const files = [...visible]

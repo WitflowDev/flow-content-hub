@@ -25,4 +25,12 @@ test('a request without a session is refused and a forged user header is ignored
   const headers = forwarded.mock.calls[0]?.[0]?.request?.headers
   expect(headers?.get(FLOW_UID_HEADER)).toBeNull()
   expect(headers?.get(FLOW_EMAIL_HEADER)).toBeNull()
+
+  const apiBlocked = await proxy(
+    new NextRequest('http://localhost/api/admin/uploads', {
+      method: 'POST',
+      headers: { [FLOW_UID_HEADER]: 'attacker', [FLOW_EMAIL_HEADER]: 'attacker@example.com' },
+    }),
+  )
+  expect(apiBlocked.status).toBe(401)
 })
